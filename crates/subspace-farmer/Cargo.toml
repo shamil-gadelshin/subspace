@@ -23,6 +23,7 @@ futures = "0.3.19"
 hex = "0.4.3"
 hex-buffer-serde = "0.3.0"
 jsonrpsee = { version = "0.8.0", features = ["client", "macros", "server"] }
+libp2p = "0.40.0"
 log = "0.4.14"
 lru = "0.7.2"
 parity-scale-codec = "2.3.0"
@@ -41,6 +42,13 @@ thiserror = "1.0.30"
 tiny-bip39 = "0.8.2"
 tokio = { version = "1.16.1", features = ["macros", "rt-multi-thread"] }
 zeroize = "1.5.2"
+
+# For libp2p experiments:
+fnv = "1.0.6"
+futures-timer = "3.0.2"
+smallvec = "1.7.0"
+# Following is not used because it doesn't expose necessary data structures publicly yet
+sc-network = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6" }
 
 [dependencies.rocksdb]
 # This disables compression algorithms that cause issues during linking due to
