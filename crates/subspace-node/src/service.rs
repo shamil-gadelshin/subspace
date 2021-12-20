@@ -27,6 +27,7 @@ use polkadot_overseer::{
 };
 use sc_client_api::ExecutorProvider;
 use sc_consensus_slots::SlotProportion;
+use sc_consensus_subspace::SubspaceImportQueue;
 use sc_executor::NativeElseWasmExecutor;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
@@ -105,7 +106,7 @@ pub fn new_partial(
         FullClient,
         FullBackend,
         FullSelectChain,
-        sc_consensus::DefaultImportQueue<Block, FullClient>,
+        SubspaceImportQueue<Block, FullClient>,
         sc_transaction_pool::FullPool<Block, FullClient>,
         (
             sc_consensus_subspace::SubspaceBlockImport<Block, FullClient, Arc<FullClient>>,

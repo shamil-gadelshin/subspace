@@ -50,12 +50,14 @@
 
 mod archiver;
 pub mod aux_schema;
+mod import_queue;
 pub mod notification;
 mod slot_worker;
 #[cfg(test)]
 mod tests;
 mod verification;
 
+pub use crate::import_queue::SubspaceImportQueue;
 use crate::notification::{SubspaceNotificationSender, SubspaceNotificationStream};
 use crate::slot_worker::SubspaceSlotWorker;
 pub use archiver::start_subspace_archiver;
@@ -71,7 +73,7 @@ use sc_consensus::{
     block_import::{
         BlockCheckParams, BlockImport, BlockImportParams, ForkChoiceStrategy, ImportResult,
     },
-    import_queue::{BasicQueue, BoxJustificationImport, DefaultImportQueue, Verifier},
+    import_queue::{BoxJustificationImport, Verifier},
 };
 use sc_consensus_epochs::{
     descendent_query, Epoch as EpochT, EpochChangesFor, SharedEpochChanges, ViableEpochDescriptor,
@@ -83,7 +85,7 @@ use sc_consensus_slots::{
 use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_DEBUG, CONSENSUS_TRACE};
 use sc_utils::mpsc::TracingUnboundedSender;
 use schnorrkel::context::SigningContext;
-use sp_api::{ApiExt, NumberFor, ProvideRuntimeApi};
+use sp_api::{ApiExt, NumberFor, ProvideRuntimeApi, TransactionFor};
 use sp_block_builder::BlockBuilder as BlockBuilderApi;
 use sp_blockchain::{Error as ClientError, HeaderBackend, HeaderMetadata, Result as ClientResult};
 use sp_consensus::{
@@ -100,6 +102,7 @@ use sp_consensus_subspace::{
     ConsensusLog, FarmerPublicKey, FarmerSignature, SubspaceApi, SubspaceEpochConfiguration,
     SubspaceGenesisConfiguration, SUBSPACE_ENGINE_ID,
 };
+use sp_core::traits::SpawnEssentialNamed;
 use sp_core::{ExecutionContext, H256};
 use sp_inherents::{CreateInherentDataProviders, InherentData, InherentDataProvider};
 use sp_runtime::generic::{BlockId, OpaqueDigestItemId};
@@ -472,13 +475,9 @@ where
     Client::Api: SubspaceApi<Block>,
     SC: SelectChain<Block> + 'static,
     E: Environment<Block, Error = Error> + Send + Sync + 'static,
-    E::Proposer:
-        Proposer<Block, Error = Error, Transaction = sp_api::TransactionFor<Client, Block>>,
-    I: BlockImport<
-            Block,
-            Error = ConsensusError,
-            Transaction = sp_api::TransactionFor<Client, Block>,
-        > + Send
+    E::Proposer: Proposer<Block, Error = Error, Transaction = TransactionFor<Client, Block>>,
+    I: BlockImport<Block, Error = ConsensusError, Transaction = TransactionFor<Client, Block>>
+        + Send
         + Sync
         + 'static,
     SO: SyncOracle + Send + Sync + Clone + 'static,
@@ -1233,7 +1232,7 @@ impl<Block: BlockT, Client, I> SubspaceBlockImport<Block, Client, I> {
 impl<Block, Client, Inner> BlockImport<Block> for SubspaceBlockImport<Block, Client, Inner>
 where
     Block: BlockT,
-    Inner: BlockImport<Block, Transaction = sp_api::TransactionFor<Client, Block>> + Send + Sync,
+    Inner: BlockImport<Block, Transaction = TransactionFor<Client, Block>> + Send + Sync,
     Inner::Error: Into<ConsensusError>,
     Client: HeaderBackend<Block>
         + HeaderMetadata<Block, Error = sp_blockchain::Error>
@@ -1244,7 +1243,7 @@ where
     Client::Api: SubspaceApi<Block> + ApiExt<Block>,
 {
     type Error = ConsensusError;
-    type Transaction = sp_api::TransactionFor<Client, Block>;
+    type Transaction = TransactionFor<Client, Block>;
 
     async fn import_block(
         &mut self,
@@ -1729,24 +1728,22 @@ where
 /// of it, otherwise crucial import logic will be omitted.
 // TODO: Create a struct for these parameters
 #[allow(clippy::too_many_arguments)]
-pub fn import_queue<Block: BlockT, Client, SelectChain, Inner, CAW, CIDP>(
+pub fn import_queue<Block, Client, SelectChain, Inner, Spawner, CAW, CIDP>(
     subspace_link: &SubspaceLink<Block>,
     block_import: Inner,
     justification_import: Option<BoxJustificationImport<Block>>,
     client: Arc<Client>,
     select_chain: SelectChain,
     create_inherent_data_providers: CIDP,
-    spawner: &impl sp_core::traits::SpawnEssentialNamed,
+    spawner: &Spawner,
     registry: Option<&Registry>,
     can_author_with: CAW,
     telemetry: Option<TelemetryHandle>,
-) -> ClientResult<DefaultImportQueue<Block, Client>>
+) -> ClientResult<SubspaceImportQueue<Block, Client>>
 where
-    Inner: BlockImport<
-            Block,
-            Error = ConsensusError,
-            Transaction = sp_api::TransactionFor<Client, Block>,
-        > + Send
+    Block: BlockT,
+    Inner: BlockImport<Block, Error = ConsensusError, Transaction = TransactionFor<Client, Block>>
+        + Send
         + Sync
         + 'static,
     Client: ProvideRuntimeApi<Block>
@@ -1758,6 +1755,7 @@ where
         + 'static,
     Client::Api: BlockBuilderApi<Block> + SubspaceApi<Block> + ApiExt<Block>,
     SelectChain: sp_consensus::SelectChain<Block> + 'static,
+    Spawner: SpawnEssentialNamed,
     CAW: CanAuthorWith<Block> + Send + Sync + 'static,
     CIDP: CreateInherentDataProviders<Block, ()> + Send + Sync + 'static,
     CIDP::InherentDataProviders: InherentDataProviderExt + Send + Sync,
@@ -1775,9 +1773,9 @@ where
         signing_context: schnorrkel::context::signing_context(SOLUTION_SIGNING_CONTEXT),
     };
 
-    Ok(BasicQueue::new(
+    Ok(SubspaceImportQueue::new(
         verifier,
-        Box::new(block_import),
+        block_import,
         justification_import,
         spawner,
         registry,
