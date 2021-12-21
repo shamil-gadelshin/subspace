@@ -1,8 +1,7 @@
 use prometheus_endpoint::Registry;
 use sc_consensus::import_queue::Origin;
 use sc_consensus::{
-    BasicQueue, BlockImport as BlockImportT, BoxJustificationImport, DefaultImportQueue,
-    ImportQueue, IncomingBlock, Link, Verifier as VerifierT,
+    BasicQueue, BoxJustificationImport, DefaultImportQueue, ImportQueue, IncomingBlock, Link,
 };
 use sp_api::{BlockT, ProvideRuntimeApi, TransactionFor};
 use sp_consensus::BlockOrigin;
@@ -36,9 +35,9 @@ where
         prometheus_registry: Option<&Registry>,
     ) -> Self
     where
-        Verifier: VerifierT<Block> + 'static,
+        Verifier: sc_consensus::Verifier<Block> + 'static,
         Spawner: SpawnEssentialNamed,
-        BlockImport: BlockImportT<
+        BlockImport: sc_consensus::BlockImport<
                 Block,
                 Error = sp_consensus::Error,
                 Transaction = TransactionFor<Client, Block>,

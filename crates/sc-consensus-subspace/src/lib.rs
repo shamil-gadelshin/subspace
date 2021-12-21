@@ -50,6 +50,7 @@
 
 mod archiver;
 pub mod aux_schema;
+pub mod gossip;
 mod import_queue;
 pub mod notification;
 mod slot_worker;
