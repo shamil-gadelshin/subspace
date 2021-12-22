@@ -21,9 +21,9 @@ use sp_core::crypto::Ss58Codec;
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
 use subspace_runtime::{
-    AccountId, Balance, BalancesConfig, BlockNumber, GenesisConfig, SS58Prefix, Signature,
-    SubspaceConfig, SudoConfig, SystemConfig, VestingConfig, DECIMAL_PLACES, MILLISECS_PER_BLOCK,
-    SSC, WASM_BINARY,
+    AccountId, Balance, BalancesConfig, BlockNumber, BridgeKusamaGrandpaConfig, GenesisConfig,
+    SS58Prefix, Signature, SubspaceConfig, SudoConfig, SystemConfig, VestingConfig, DECIMAL_PLACES,
+    MILLISECS_PER_BLOCK, SSC, WASM_BINARY,
 };
 
 // The URL for the telemetry server.
@@ -267,5 +267,8 @@ fn create_genesis_config(
             key: Some(sudo_account),
         },
         vesting: VestingConfig { vesting },
+        bridge_kusama_grandpa: BridgeKusamaGrandpaConfig {
+            ..Default::default()
+        },
     }
 }

@@ -62,6 +62,7 @@ pub use subspace_runtime_primitives::{
     MIN_REPLICATION_FACTOR, RECORDED_HISTORY_SEGMENT_SIZE, RECORD_SIZE,
     STORAGE_FEES_ESCROW_BLOCK_REWARD, STORAGE_FEES_ESCROW_BLOCK_TAX,
 };
+pub use pallet_bridge_grandpa::Call as BridgeGrandpaCall;
 
 sp_runtime::impl_opaque_keys! {
     pub struct SessionKeys {
@@ -503,6 +504,18 @@ impl orml_vesting::Config for Runtime {
     type BlockNumberProvider = System;
 }
 
+parameter_types! {
+	pub const MaxRequests: u32 = 50;
+	pub const HeadersToKeep: u32 = 7 * bp_kusama::DAYS as u32;
+}
+
+impl pallet_bridge_grandpa::Config for Runtime {
+	type BridgedChain = bp_kusama::Kusama;
+	type MaxRequests = MaxRequests;
+	type HeadersToKeep = HeadersToKeep;
+	type WeightInfo = ();
+}
+
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -526,6 +539,8 @@ construct_runtime!(
         Executor: pallet_executor = 11,
 
         Vesting: orml_vesting = 7,
+
+        BridgeKusamaGrandpa: pallet_bridge_grandpa = 13,
 
         // Reserve some room for other pallets as we'll remove sudo pallet eventually.
         Sudo: pallet_sudo = 100,
