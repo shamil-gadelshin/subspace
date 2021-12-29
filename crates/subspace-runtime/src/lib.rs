@@ -62,7 +62,6 @@ pub use subspace_runtime_primitives::{
     MIN_REPLICATION_FACTOR, RECORDED_HISTORY_SEGMENT_SIZE, RECORD_SIZE,
     STORAGE_FEES_ESCROW_BLOCK_REWARD, STORAGE_FEES_ESCROW_BLOCK_TAX,
 };
-pub use pallet_bridge_grandpa::Call as BridgeGrandpaCall;
 
 sp_runtime::impl_opaque_keys! {
     pub struct SessionKeys {
@@ -505,15 +504,15 @@ impl orml_vesting::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MaxRequests: u32 = 50;
-	pub const HeadersToKeep: u32 = 7 * bp_kusama::DAYS as u32;
+    pub const MaxRequests: u32 = 50;
+    pub const HeadersToKeep: u32 = 7 * bp_kusama::DAYS as u32;
 }
 
 impl pallet_bridge_grandpa::Config for Runtime {
-	type BridgedChain = bp_kusama::Kusama;
-	type MaxRequests = MaxRequests;
-	type HeadersToKeep = HeadersToKeep;
-	type WeightInfo = ();
+    type BridgedChain = bp_kusama::Kusama;
+    type MaxRequests = MaxRequests;
+    type HeadersToKeep = HeadersToKeep;
+    type WeightInfo = ();
 }
 
 construct_runtime!(
@@ -1028,5 +1027,17 @@ impl_runtime_apis! {
 
             Ok(batches)
         }
+    }
+
+    impl bp_kusama::KusamaFinalityApi<Block> for Runtime {
+        fn best_finalized() -> (bp_kusama::BlockNumber, bp_kusama::Hash) {
+            let header = BridgeKusamaGrandpa::best_finalized();
+            (header.number, header.hash())
+        }
+
+        // not implemented in the current version, but is implemented in 'master'
+        // fn is_known_header(hash: bp_kusama::Hash) -> bool {
+        //     BridgeKusamaGrandpa::is_known_header(hash)
+        // }
     }
 }

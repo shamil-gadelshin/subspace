@@ -4457,6 +4457,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "log",
+ "pallet-bridge-grandpa",
  "parity-scale-codec",
  "scale-info",
  "serde",

@@ -19,8 +19,13 @@
 #![forbid(unsafe_code)]
 #![warn(rust_2018_idioms, missing_debug_implementations)]
 
+use codec::{Decode, Encode};
 use core::mem;
 pub use pallet::*;
+use sp_core::RuntimeDebug;
+use sp_runtime::traits::BlakeTwo256;
+use sp_runtime::{generic, OpaqueExtrinsic};
+use sp_std::prelude::*;
 use subspace_core_primitives::{crypto, Sha256Hash};
 
 #[cfg(all(feature = "std", test))]
@@ -28,14 +33,26 @@ mod mock;
 #[cfg(all(feature = "std", test))]
 mod tests;
 
+pub type BlockNumber = u32;
+pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+pub struct Block {
+    /// The block header.
+    pub header: Header,
+    /// The accompanying extrinsics.
+    pub extrinsics: Vec<OpaqueExtrinsic>,
+}
+
 #[frame_support::pallet]
 mod pallet {
+    use super::Block;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
     use sp_std::prelude::*;
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: frame_system::Config + pallet_bridge_grandpa::Config {
         /// `pallet-feeds` events
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
     }
@@ -128,6 +145,9 @@ mod pallet {
             let who = ensure_signed(origin)?;
 
             let object_size = object.len() as u64;
+
+            let decoded = Block::decode(&mut &object[..]).unwrap();
+            log::info!("decoded: {:?}", decoded.header);
 
             log::debug!("metadata: {:?}", metadata);
             log::debug!("object_size: {:?}", object_size);
