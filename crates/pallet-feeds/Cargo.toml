@@ -22,7 +22,9 @@ sp-core = { version = "4.1.0-dev", default-features = false, git = "https://gith
 sp-std = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd" }
 subspace-core-primitives = { version = "0.1.0", default-features = false, path = "../subspace-core-primitives" }
 pallet-bridge-grandpa = { version = "0.1.0", git = "http://github.com/isserge/parity-bridges-common", default-features = false, branch = "master" }
+bp-runtime = { version = "0.1.0", git = "http://github.com/isserge/parity-bridges-common", default-features = false, branch = "master" }
 sp-runtime = { version = "4.0.0", default-features = false, git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd" }
+bp-kusama = { version = "0.1.0", git = "http://github.com/isserge/parity-bridges-common", default-features = false, branch = "master" }
 
 [dev-dependencies]
 serde = "1.0.131"
@@ -40,6 +42,8 @@ std = [
   "sp-std/std",
   "subspace-core-primitives/std",
   "pallet-bridge-grandpa/std",
+  "bp-runtime/std",
   "sp-runtime/std",
+  "bp-kusama/std"
 ]
 try-runtime = ["frame-support/try-runtime"]

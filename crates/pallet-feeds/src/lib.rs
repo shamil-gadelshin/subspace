@@ -44,9 +44,12 @@ pub struct Block {
     pub extrinsics: Vec<OpaqueExtrinsic>,
 }
 
+pub type SignedBlock = generic::SignedBlock<Block>;
+
 #[frame_support::pallet]
 mod pallet {
-    use super::Block;
+    use super::SignedBlock;
+    // use bp_header_chain::InitializationData;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
     use sp_std::prelude::*;
@@ -146,8 +149,49 @@ mod pallet {
 
             let object_size = object.len() as u64;
 
-            let decoded = Block::decode(&mut &object[..]).unwrap();
-            log::info!("decoded: {:?}", decoded.header);
+            let block = SignedBlock::decode(&mut &object[..]).unwrap();
+
+            log::info!("decoded: {:?}", block);
+
+            // // let source_client: Client<SourceChain> = ;
+
+            // // let justifications = source_client
+            // //     .subscribe_justifications()
+            // //     .await
+            // //     .map_err(|err| Error::Subscribe(SourceChain::NAME, err))?;
+            // // // Read next justification - the header that it finalizes will be used as initial header.
+            // // let justification = justifications
+            // //     .next()
+            // //     .await
+            // //     .map_err(|e| Error::ReadJustification(SourceChain::NAME, e))
+            // //     .and_then(|justification| {
+            // //         justification.ok_or(Error::ReadJustificationStreamEnded(SourceChain::NAME))
+            // //     })?;
+
+            // // let justification: GrandpaJustification<SourceChain::Header> =
+            // //     Decode::decode(&mut &justification.0[..])
+            // //         .map_err(|err| Error::DecodeJustification(SourceChain::NAME, err))?;
+
+            // // let (initial_header_hash, initial_header_number) = (
+            // //     justification.commit.target_hash,
+            // //     justification.commit.target_number,
+            // // );
+
+            // let initial_authorities_set =
+            //     source_authorities_set(&source_client, initial_header_hash).await?;
+
+            // let init_data = InitializationData {
+            //     header: Box::new(block.header),
+            //     authority_list: initial_authorities_set,
+            //     set_id: if schedules_change {
+            //         initial_authorities_set_id + 1
+            //     } else {
+            //         initial_authorities_set_id
+            //     },
+            //     is_halted: false,
+            // };
+
+            // pallet_bridge_grandpa::Pallet::<T>::initialize(origin, init_data);
 
             log::debug!("metadata: {:?}", metadata);
             log::debug!("object_size: {:?}", object_size);

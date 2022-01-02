@@ -4454,6 +4454,8 @@ dependencies = [
 name = "pallet-feeds"
 version = "0.1.0"
 dependencies = [
+ "bp-kusama",
+ "bp-runtime",
  "frame-support",
  "frame-system",
  "log",
