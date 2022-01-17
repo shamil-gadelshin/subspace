@@ -25,6 +25,14 @@ pallet-bridge-grandpa = { version = "0.1.0", git = "http://github.com/isserge/pa
 bp-runtime = { version = "0.1.0", git = "http://github.com/isserge/parity-bridges-common", default-features = false, branch = "master" }
 sp-runtime = { version = "4.0.0", default-features = false, git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd" }
 bp-kusama = { version = "0.1.0", git = "http://github.com/isserge/parity-bridges-common", default-features = false, branch = "master" }
+hex-literal = "0.3.4"
+bp-header-chain = { version = "0.1.0", git = "http://github.com/isserge/parity-bridges-common", default-features = false, branch = "master" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd" }
+serde_json = "1.0.59"
+pallet-im-online = { git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd" }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd", default-features = false }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd" }
 
 [dev-dependencies]
 serde = "1.0.131"
@@ -44,6 +52,8 @@ std = [
   "pallet-bridge-grandpa/std",
   "bp-runtime/std",
   "sp-runtime/std",
-  "bp-kusama/std"
+  "bp-kusama/std",
+  "bp-header-chain/std",
+  "application-crypto/std",
 ]
 try-runtime = ["frame-support/try-runtime"]
