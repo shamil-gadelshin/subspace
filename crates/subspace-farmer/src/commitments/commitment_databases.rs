@@ -77,29 +77,27 @@ impl CommitmentDatabases {
         };
         let mut databases = LruCache::new(COMMITMENTS_CACHE_SIZE);
 
-        {
-            metadata.cache = metadata
-                .cache
-                .drain(..)
-                .filter(|(salt, status)| match status {
-                    CommitmentStatus::InProgress => {
-                        if let Err(error) =
-                            std::fs::remove_dir_all(base_directory.join(hex::encode(salt)))
-                        {
-                            error!(
-                                "Failed to remove old in progress commitment {}: {}",
-                                hex::encode(salt),
-                                error
-                            );
-                        }
-                        false
+        metadata.cache = metadata
+            .cache
+            .drain(..)
+            .filter(|(salt, status)| match status {
+                CommitmentStatus::InProgress => {
+                    if let Err(error) =
+                        std::fs::remove_dir_all(base_directory.join(hex::encode(salt)))
+                    {
+                        error!(
+                            "Failed to remove old in progress commitment {}: {}",
+                            hex::encode(salt),
+                            error
+                        );
                     }
-                    CommitmentStatus::Created => true,
-                })
-                .collect();
+                    false
+                }
+                CommitmentStatus::Created => true,
+            })
+            .collect();
 
-            metadata.persist_metadata_cache()?;
-        }
+        metadata.persist_metadata_cache()?;
 
         // Open databases that were fully created during previous run
         for (salt, _status) in &metadata.cache {
