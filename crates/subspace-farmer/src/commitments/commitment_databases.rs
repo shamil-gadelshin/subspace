@@ -4,7 +4,7 @@ use lru::LruCache;
 use parking_lot::Mutex;
 use rocksdb::{Options, DB};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -49,23 +49,14 @@ pub(super) struct CommitmentDatabases {
 
 #[derive(Debug)]
 pub(super) struct CommitmentMetadata {
-    cache: HashMap<Salt, CommitmentStatus>,
+    cache: VecDeque<(Salt, CommitmentStatus)>,
     db: Arc<DB>,
 }
 
 impl CommitmentMetadata {
     fn persist_metadata_cache(&mut self) -> Result<(), CommitmentError> {
-        let prepared_metadata_cache: HashMap<String, CommitmentStatus> = self
-            .cache
-            .iter()
-            .map(|(salt, status)| (hex::encode(salt), *status))
-            .collect();
-
         self.db
-            .put(
-                COMMITMENTS_KEY,
-                &serde_json::to_vec(&prepared_metadata_cache).unwrap(),
-            )
+            .put(COMMITMENTS_KEY, &serde_json::to_vec(&self.cache).unwrap())
             .map_err(CommitmentError::MetadataDb)
     }
 }
@@ -74,16 +65,10 @@ impl CommitmentDatabases {
     pub(super) fn new(base_directory: PathBuf) -> Result<Self, CommitmentError> {
         let metadata_db = DB::open_default(base_directory.join("metadata"))
             .map_err(CommitmentError::MetadataDb)?;
-        let metadata_cache: HashMap<Salt, CommitmentStatus> = metadata_db
+        let metadata_cache = metadata_db
             .get(COMMITMENTS_KEY)
             .map_err(CommitmentError::MetadataDb)?
-            .map(|bytes| {
-                serde_json::from_slice::<HashMap<String, CommitmentStatus>>(&bytes)
-                    .unwrap()
-                    .into_iter()
-                    .map(|(salt, status)| (hex::decode(salt).unwrap().try_into().unwrap(), status))
-                    .collect()
-            })
+            .map(|bytes| serde_json::from_slice(&bytes).unwrap())
             .unwrap_or_default();
 
         let mut metadata = CommitmentMetadata {
@@ -92,31 +77,32 @@ impl CommitmentDatabases {
         };
         let mut databases = LruCache::new(COMMITMENTS_CACHE_SIZE);
 
-        if metadata
-            .cache
-            .drain_filter(|salt, status| match status {
-                CommitmentStatus::InProgress => {
-                    if let Err(error) =
-                        std::fs::remove_dir_all(base_directory.join(hex::encode(salt)))
-                    {
-                        error!(
-                            "Failed to remove old in progress commitment {}: {}",
-                            hex::encode(salt),
-                            error
-                        );
-                    }
-                    true
-                }
-                CommitmentStatus::Created => false,
-            })
-            .next()
-            .is_some()
         {
+            metadata.cache = metadata
+                .cache
+                .drain(..)
+                .filter(|(salt, status)| match status {
+                    CommitmentStatus::InProgress => {
+                        if let Err(error) =
+                            std::fs::remove_dir_all(base_directory.join(hex::encode(salt)))
+                        {
+                            error!(
+                                "Failed to remove old in progress commitment {}: {}",
+                                hex::encode(salt),
+                                error
+                            );
+                        }
+                        false
+                    }
+                    CommitmentStatus::Created => true,
+                })
+                .collect();
+
             metadata.persist_metadata_cache()?;
         }
 
         // Open databases that were fully created during previous run
-        for salt in metadata.cache.keys() {
+        for (salt, _status) in &metadata.cache {
             let db = DB::open(&Options::default(), base_directory.join(hex::encode(salt)))
                 .map_err(CommitmentError::CommitmentDb)?;
             databases.put(
@@ -129,7 +115,7 @@ impl CommitmentDatabases {
         }
 
         Ok::<_, CommitmentError>(CommitmentDatabases {
-            base_directory: base_directory.clone(),
+            base_directory,
             databases,
             metadata: Mutex::new(metadata),
         })
@@ -175,7 +161,14 @@ impl CommitmentDatabases {
             let old_db_path = self.base_directory.join(hex::encode(old_salt));
 
             // Remove old commitments for `old_salt`
-            self.metadata.lock().cache.remove(&old_salt);
+            {
+                let mut metadata = self.metadata.lock();
+                metadata.cache = metadata
+                    .cache
+                    .drain(..)
+                    .filter(|(salt, _status)| *salt != old_salt)
+                    .collect();
+            }
 
             tokio::task::spawn_blocking(move || {
                 // Take a lock to make sure database was released by whatever user there was and we
@@ -214,7 +207,7 @@ impl CommitmentDatabases {
         status: CommitmentStatus,
     ) -> Result<(), CommitmentError> {
         let mut metadata = self.metadata.lock();
-        metadata.cache.insert(salt, status);
+        metadata.cache.push_front((salt, status));
 
         metadata.persist_metadata_cache()
     }
