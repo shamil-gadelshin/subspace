@@ -110,12 +110,13 @@ where
 		use RequestResult::*;
 
 		match result {
-			SubmitCandidateReceipt(..) => {},
 			SubmitExecutionReceipt(..) => {},
 			SubmitTransactionBundle(..) => {},
 			SubmitFraudProof(..) => {},
+			SubmitBundleEquivocationProof(..) => {},
+			SubmitInvalidTransactionProof(..) => {},
 			ExtractBundles(..) => {},
-			PendingHead(..) => {},
+			ExtrinsicsShufflingSeed(..) => {},
 		}
 	}
 
@@ -147,12 +148,13 @@ where
 		}
 
 		match request {
-			Request::SubmitCandidateReceipt(..) => None,
 			Request::SubmitExecutionReceipt(..) => None,
 			Request::SubmitTransactionBundle(..) => None,
 			Request::SubmitFraudProof(..) => None,
+			Request::SubmitBundleEquivocationProof(..) => None,
+			Request::SubmitInvalidTransactionProof(..) => None,
 			Request::ExtractBundles(..) => None,
-			Request::PendingHead(..) => None,
+			Request::ExtrinsicsShufflingSeed(..) => None,
 		}
 	}
 
@@ -255,30 +257,16 @@ where
 
 	// TODO: re-enable the marco to reduce the pattern duplication.
 	match request {
-		Request::SubmitCandidateReceipt(head_number, head_hash) => {
+		Request::SubmitExecutionReceipt(opaque_execution_receipt) => {
 			let api = client.runtime_api();
 			let res = api
-				.submit_candidate_receipt_unsigned(
+				.submit_execution_receipt_unsigned(
 					&BlockId::Hash(relay_parent),
-					head_number,
-					head_hash,
+					opaque_execution_receipt,
 				)
 				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
 			metrics.on_request(res.is_ok());
-			res.ok().map(|_res| {
-				RequestResult::SubmitCandidateReceipt(relay_parent, head_number, head_hash)
-			});
-		},
-		Request::SubmitExecutionReceipt(execution_receipt) => {
-			let api = client.runtime_api();
-			let execution_receipt_hash = execution_receipt.hash();
-			let res = api
-				.submit_execution_receipt_unsigned(&BlockId::Hash(relay_parent), execution_receipt)
-				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
-			metrics.on_request(res.is_ok());
-			res.ok().map(|_res| {
-				RequestResult::SubmitExecutionReceipt(relay_parent, execution_receipt_hash)
-			});
+			res.ok().map(|_res| RequestResult::SubmitExecutionReceipt(relay_parent));
 		},
 		Request::SubmitTransactionBundle(opaque_bundle) => {
 			let api = client.runtime_api();
@@ -298,6 +286,28 @@ where
 			metrics.on_request(res.is_ok());
 			res.ok().map(|_res| RequestResult::SubmitFraudProof(relay_parent));
 		},
+		Request::SubmitBundleEquivocationProof(bundle_equivocation_proof) => {
+			let api = client.runtime_api();
+			let res = api
+				.submit_bundle_equivocation_proof_unsigned(
+					&BlockId::Hash(relay_parent),
+					bundle_equivocation_proof,
+				)
+				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
+			metrics.on_request(res.is_ok());
+			res.ok().map(|_res| RequestResult::SubmitBundleEquivocationProof(relay_parent));
+		},
+		Request::SubmitInvalidTransactionProof(invalid_transaction_proof) => {
+			let api = client.runtime_api();
+			let res = api
+				.submit_invalid_transaction_proof_unsigned(
+					&BlockId::Hash(relay_parent),
+					invalid_transaction_proof,
+				)
+				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
+			metrics.on_request(res.is_ok());
+			res.ok().map(|_res| RequestResult::SubmitInvalidTransactionProof(relay_parent));
+		},
 		Request::ExtractBundles(extrinsics, sender) => {
 			let api = client.runtime_api();
 			let res = api
@@ -309,17 +319,16 @@ where
 
 			res.ok().map(|_res| RequestResult::ExtractBundles(relay_parent));
 		},
-
-		Request::PendingHead(sender) => {
+		Request::ExtrinsicsShufflingSeed(header, sender) => {
 			let api = client.runtime_api();
 			let res = api
-				.pending_head(&BlockId::Hash(relay_parent))
+				.extrinsics_shuffling_seed(&BlockId::Hash(relay_parent), header)
 				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
 			metrics.on_request(res.is_ok());
 
 			let _ = sender.send(res.clone());
 
-			res.ok().map(|res| RequestResult::PendingHead(relay_parent, res));
+			res.ok().map(|_res| RequestResult::ExtrinsicsShufflingSeed(relay_parent));
 		},
 	}
 

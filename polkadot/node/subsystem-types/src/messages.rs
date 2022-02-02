@@ -27,8 +27,9 @@ use futures::channel::oneshot;
 pub use sc_network::IfDisconnected;
 
 use cirrus_node_primitives::{BlockWeight, CollationGenerationConfig};
-use sp_executor::{ExecutionReceipt, FraudProof, OpaqueBundle};
+use sp_executor::{BundleEquivocationProof, FraudProof, OpaqueBundle, OpaqueExecutionReceipt, InvalidTransactionProof};
 use sp_runtime::OpaqueExtrinsic;
+use subspace_core_primitives::Randomness;
 use subspace_runtime_primitives::{opaque::Header as BlockHeader, BlockNumber, Hash};
 
 /// Subsystem messages where each message is always bound to a relay parent.
@@ -104,19 +105,20 @@ pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, crate::errors::RuntimeA
 /// A request to the Runtime API subsystem.
 #[derive(Debug)]
 pub enum RuntimeApiRequest {
-	/// Submit the candidate receipt to primary chain.
-	// TODO: remove later
-	SubmitCandidateReceipt(u32, Hash),
 	/// Submit the execution receipt to primary chain.
-	SubmitExecutionReceipt(ExecutionReceipt<Hash>),
+	SubmitExecutionReceipt(OpaqueExecutionReceipt),
 	/// Submit the transaction bundle to primary chain.
 	SubmitTransactionBundle(OpaqueBundle),
 	/// Submit the fraud proof to primary chain.
 	SubmitFraudProof(FraudProof),
+	/// Submit the bundle equivocation proof to primary chain.
+	SubmitBundleEquivocationProof(BundleEquivocationProof),
+	/// Submit the invalid transaction proof to primary chain.
+	SubmitInvalidTransactionProof(InvalidTransactionProof),
 	/// Extract the bundles from the extrinsics of a block.
 	ExtractBundles(Vec<OpaqueExtrinsic>, RuntimeApiSender<Vec<OpaqueBundle>>),
-	/// Get the pending head of executor chain.
-	PendingHead(RuntimeApiSender<Option<Hash>>),
+	/// Get the randomness seed for extrinsics shuffling.
+	ExtrinsicsShufflingSeed(BlockHeader, RuntimeApiSender<Randomness>),
 }
 
 /// A message to the Runtime API subsystem.
@@ -142,6 +144,10 @@ pub enum CollationGenerationMessage {
 	Initialize(CollationGenerationConfig),
 	/// Fraud proof needs to be submitted to primary chain.
 	FraudProof(FraudProof),
+	/// Bundle equivocation proof needs to be submitted to primary chain.
+	BundleEquivocationProof(BundleEquivocationProof),
+	/// Invalid transaction proof needs to be submitted to primary chain.
+	InvalidTransactionProof(InvalidTransactionProof),
 }
 
 impl CollationGenerationMessage {

@@ -1,34 +1,103 @@
+use rand::{seq::SliceRandom, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 use sc_client_api::BlockBackend;
+use sc_consensus::{
+	BlockImport, BlockImportParams, ForkChoiceStrategy, StateAction, StorageChanges,
+};
 use sp_api::ProvideRuntimeApi;
-use sp_runtime::{generic::BlockId, traits::Block as BlockT};
+use sp_consensus::BlockOrigin;
+use sp_inherents::{CreateInherentDataProviders, InherentData, InherentDataProvider};
+use sp_runtime::{
+	generic::BlockId,
+	traits::{BlakeTwo256, Block as BlockT, Hash as HashT, Header as HeaderT},
+};
+use std::{
+	collections::{BTreeMap, VecDeque},
+	fmt::Debug,
+};
 
+use cirrus_block_builder::{BlockBuilder, BuiltBlock, RecordProof};
 use cirrus_node_primitives::ProcessorResult;
 use cirrus_primitives::{AccountId, SecondaryApi};
 use sp_executor::{ExecutionReceipt, OpaqueBundle};
+use subspace_core_primitives::Randomness;
 use subspace_runtime_primitives::Hash as PHash;
 
 use super::{Executor, LOG_TARGET};
 use codec::{Decode, Encode};
 
-impl<Block, BS, RA, Client, TransactionPool> Executor<Block, BS, RA, Client, TransactionPool>
+/// Shuffles the extrinsics in a deterministic way.
+///
+/// The extrinsics are grouped by the signer. The extrinsics without a signer, i.e., unsigned
+/// extrinsics, are considered as a special group. The items in different groups are cross shuffled,
+/// while the order of items inside the same group is still maintained.
+fn shuffle_extrinsics<Extrinsic: Debug>(
+	extrinsics: Vec<(Option<AccountId>, Extrinsic)>,
+	shuffling_seed: Randomness,
+) -> Vec<Extrinsic> {
+	let mut rng = ChaCha8Rng::from_seed(shuffling_seed);
+
+	let mut positions = extrinsics
+		.iter()
+		.map(|(maybe_signer, _)| maybe_signer)
+		.cloned()
+		.collect::<Vec<_>>();
+
+	// Shuffles the positions using Fisher–Yates algorithm.
+	positions.shuffle(&mut rng);
+
+	let mut grouped_extrinsics: BTreeMap<Option<AccountId>, VecDeque<_>> =
+		extrinsics.into_iter().fold(BTreeMap::new(), |mut groups, (maybe_signer, tx)| {
+			groups.entry(maybe_signer).or_insert_with(VecDeque::new).push_back(tx);
+			groups
+		});
+
+	// The relative ordering for the items in the same group does not change.
+	let shuffled_extrinsics = positions
+		.into_iter()
+		.map(|maybe_signer| {
+			grouped_extrinsics
+				.get_mut(&maybe_signer)
+				.expect("Extrinsics are grouped correctly; qed")
+				.pop_front()
+				.expect("Extrinsic definitely exists as it's correctly grouped above; qed")
+		})
+		.collect::<Vec<_>>();
+
+	tracing::trace!(target: LOG_TARGET, ?shuffled_extrinsics, "Shuffled extrinsics");
+
+	shuffled_extrinsics
+}
+
+impl<Block, BS, RA, Client, TransactionPool, Backend, CIDP>
+	Executor<Block, BS, RA, Client, TransactionPool, Backend, CIDP>
 where
 	Block: BlockT,
 	Client: sp_blockchain::HeaderBackend<Block>,
+	for<'b> &'b Client: sc_consensus::BlockImport<
+		Block,
+		Transaction = sp_api::TransactionFor<RA, Block>,
+		Error = sp_consensus::Error,
+	>,
 	BS: BlockBackend<Block>,
+	Backend: sc_client_api::Backend<Block>,
 	RA: ProvideRuntimeApi<Block>,
-	RA::Api: SecondaryApi<Block, AccountId>,
+	RA::Api: SecondaryApi<Block, AccountId>
+		+ sp_block_builder::BlockBuilder<Block>
+		+ sp_api::ApiExt<
+			Block,
+			StateBackend = sc_client_api::backend::StateBackendFor<Backend, Block>,
+		>,
 	TransactionPool: sc_transaction_pool_api::TransactionPool<Block = Block>,
+	CIDP: CreateInherentDataProviders<Block, cirrus_primitives::Hash>,
 {
 	/// Actually implements `process_bundles`.
 	pub(super) async fn process_bundles_impl(
-		self,
+		&self,
 		primary_hash: PHash,
 		bundles: Vec<OpaqueBundle>,
-	) -> Option<ProcessorResult> {
-		// TODO:
-		// 1. [x] convert the bundles to a full tx list
-		// 2. [x] duplicate the full tx list
-		// 3. shuffle the full tx list by sender account
+		shuffling_seed: Randomness,
+	) -> Result<Option<ProcessorResult>, sp_blockchain::Error> {
 		let mut extrinsics = bundles
 			.into_iter()
 			.flat_map(|bundle| {
@@ -65,11 +134,15 @@ where
 		});
 		drop(seen);
 
-		let block_number = self.client.info().best_number;
+		tracing::trace!(target: LOG_TARGET, ?extrinsics, "Origin deduplicated extrinsics");
+
+		let parent_hash = self.client.info().best_hash;
+		let parent_number = self.client.info().best_number;
+
 		let extrinsics: Vec<_> = match self
 			.runtime_api
 			.runtime_api()
-			.extract_signer(&BlockId::Number(block_number), extrinsics)
+			.extract_signer(&BlockId::Hash(parent_hash), extrinsics)
 		{
 			Ok(res) => res,
 			Err(e) => {
@@ -78,16 +151,72 @@ where
 					error = ?e,
 					"Error at calling runtime api: extract_signer"
 				);
-				return None
+				return Err(e.into())
 			},
 		};
 
-		let _final_extrinsics = Self::shuffle_extrinsics(extrinsics);
+		let extrinsics =
+			shuffle_extrinsics::<<Block as BlockT>::Extrinsic>(extrinsics, shuffling_seed);
 
-		// TODO: now we have the final transaction list:
-		// - apply each tx one by one.
-		// - compute the incremental state root and add to the execution trace
-		// - produce ExecutionReceipt
+		let mut block_builder = BlockBuilder::new(
+			&*self.runtime_api,
+			parent_hash,
+			parent_number,
+			RecordProof::No,
+			Default::default(),
+			&*self.backend,
+		)?;
+
+		let inherent_data = self.inherent_data(parent_hash, primary_hash).await?;
+
+		let mut final_extrinsics = block_builder.create_inherents(inherent_data)?;
+		final_extrinsics.extend(extrinsics);
+
+		block_builder.set_extrinsics(final_extrinsics);
+
+		let BuiltBlock { block, storage_changes, proof: _ } = block_builder.build()?;
+
+		let (header, body) = block.deconstruct();
+		let state_root = *header.state_root();
+		let header_hash = header.hash();
+
+		let block_import_params = {
+			let mut import_block = BlockImportParams::new(BlockOrigin::Own, header);
+			import_block.body = Some(body);
+			import_block.state_action =
+				StateAction::ApplyChanges(StorageChanges::Changes(storage_changes));
+			// TODO: double check the fork choice is correct, see also ParachainBlockImport.
+			import_block.fork_choice = Some(ForkChoiceStrategy::LongestChain);
+			import_block
+		};
+		(&*self.client).import_block(block_import_params, Default::default()).await?;
+
+		let mut roots =
+			self.runtime_api.runtime_api().intermediate_roots(&BlockId::Hash(parent_hash))?;
+		roots.push(state_root.encode());
+
+		tracing::debug!(
+			target: LOG_TARGET,
+			intermediate_roots = ?roots
+				.iter()
+				.map(|r| {
+					Block::Hash::decode(&mut r.clone().as_slice())
+						.expect("Intermediate root uses the same Block hash type; qed")
+				})
+				.collect::<Vec<_>>(),
+			final_state_root = ?state_root,
+			"Calculating the state transition root for #{}", header_hash
+		);
+
+		let state_transition_root =
+			BlakeTwo256::ordered_trie_root(roots, sp_core::storage::StateVersion::V1);
+
+		let execution_receipt = ExecutionReceipt {
+			primary_hash,
+			secondary_hash: header_hash,
+			state_root,
+			state_transition_root,
+		};
 
 		// The applied txs can be fully removed from the transaction pool
 
@@ -95,28 +224,68 @@ where
 		let is_elected = true;
 
 		if is_elected {
-			// TODO: broadcast ER to all executors.
+			if let Err(e) = self.execution_receipt_sender.unbounded_send(execution_receipt.clone())
+			{
+				tracing::error!(target: LOG_TARGET, error = ?e, "Failed to send execution receipt");
+			}
 
 			// Return `Some(_)` to broadcast ER to all farmers via unsigned extrinsic.
-			Some(ProcessorResult {
-				execution_receipt: ExecutionReceipt {
-					primary_hash,
-					secondary_hash: Default::default(),
-					state_root: Default::default(),
-					state_transition_root: Default::default(),
-				},
-			})
+			Ok(Some(ProcessorResult { opaque_execution_receipt: execution_receipt.into() }))
 		} else {
-			None
+			Ok(None)
 		}
 	}
 
-	// TODO:
-	// 1. determine the randomness generator
-	// 2. Fisher-Yates
-	fn shuffle_extrinsics(
-		_extrinsics: Vec<(Option<AccountId>, <Block as BlockT>::Extrinsic)>,
-	) -> Vec<<Block as BlockT>::Extrinsic> {
-		todo!()
+	/// Get the inherent data.
+	async fn inherent_data(
+		&self,
+		parent: Block::Hash,
+		relay_parent: PHash,
+	) -> Result<InherentData, sp_blockchain::Error> {
+		let inherent_data_providers = self
+			.create_inherent_data_providers
+			.create_inherent_data_providers(parent, relay_parent)
+			.await?;
+
+		inherent_data_providers.create_inherent_data().map_err(|e| {
+			tracing::error!(
+				target: LOG_TARGET,
+				error = ?e,
+				"Failed to create inherent data.",
+			);
+			sp_blockchain::Error::Consensus(sp_consensus::Error::InherentData(e.into()))
+		})
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use sp_keyring::sr25519::Keyring;
+	use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
+
+	#[test]
+	fn shuffle_extrinsics_should_work() {
+		let alice = Keyring::Alice.to_account_id();
+		let bob = Keyring::Bob.to_account_id();
+		let charlie = Keyring::Charlie.to_account_id();
+
+		let extrinsics = vec![
+			(Some(alice.clone()), 10),
+			(None, 100),
+			(Some(bob.clone()), 1),
+			(Some(bob), 2),
+			(Some(charlie.clone()), 30),
+			(Some(alice.clone()), 11),
+			(Some(charlie), 31),
+			(None, 101),
+			(None, 102),
+			(Some(alice), 12),
+		];
+
+		let dummy_seed = BlakeTwo256::hash_of(&[1u8; 64]).into();
+		let shuffled_extrinsics = shuffle_extrinsics(extrinsics, dummy_seed);
+
+		assert_eq!(shuffled_extrinsics, vec![100, 30, 10, 1, 11, 101, 31, 12, 102, 2]);
 	}
 }

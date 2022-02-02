@@ -18,8 +18,8 @@
 //! PoC testsuite
 
 use crate::{
-    find_pre_digest, start_subspace, Config, Epoch, NewSlotNotification, SubspaceIntermediate,
-    SubspaceLink, SubspaceParams, SubspaceVerifier, INTERMEDIATE_KEY,
+    find_pre_digest, start_subspace, Config, NewSlotNotification, SubspaceLink, SubspaceParams,
+    SubspaceVerifier,
 };
 use codec::Encode;
 use futures::channel::oneshot;
@@ -36,8 +36,6 @@ use sc_consensus::{
     BlockCheckParams, BlockImport, BlockImportParams, BoxBlockImport, BoxJustificationImport,
     ImportResult, Verifier,
 };
-use sc_consensus_epochs::descendent_query;
-use sc_consensus_epochs::SharedEpochChanges;
 use sc_consensus_slots::{BackoffAuthoringOnFinalizedHeadLagging, SlotProportion};
 use sc_network::config::ProtocolConfig;
 use sc_network_test::{
@@ -53,19 +51,15 @@ use sp_consensus::{
 };
 use sp_consensus_slots::Slot;
 use sp_consensus_subspace::digests::{
-    CompatibleDigestItem, NextEpochDescriptor, PreDigest, SaltDescriptor, Solution,
-    SolutionRangeDescriptor,
+    CompatibleDigestItem, PreDigest, SaltDescriptor, SolutionRangeDescriptor,
 };
 use sp_consensus_subspace::inherents::InherentDataProvider;
-use sp_consensus_subspace::{
-    ConsensusLog, FarmerPublicKey, SubspaceApi, SubspaceEpochConfiguration, SUBSPACE_ENGINE_ID,
-};
+use sp_consensus_subspace::{FarmerPublicKey, FarmerSignature, SubspaceApi};
 use sp_core::crypto::UncheckedFrom;
 use sp_inherents::{CreateInherentDataProviders, InherentData};
 use sp_runtime::generic::{BlockId, Digest, DigestItem};
 use sp_runtime::traits::{Block as BlockT, Zero};
 use sp_timestamp::InherentDataProvider as TimestampInherentDataProvider;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -73,13 +67,9 @@ use std::sync::Arc;
 use std::{cell::RefCell, task::Poll, time::Duration};
 use subspace_archiving::archiver::Archiver;
 use subspace_core_primitives::objects::BlockObjectMapping;
-use subspace_core_primitives::{FlatPieces, LocalChallenge, Piece, Signature, Tag, PIECE_SIZE};
+use subspace_core_primitives::{FlatPieces, LocalChallenge, Piece, Signature, Solution, Tag};
 use subspace_solving::{SubspaceCodec, SOLUTION_SIGNING_CONTEXT};
 use substrate_test_runtime::{Block as TestBlock, Hash};
-
-type Item = DigestItem;
-
-type Error = sp_blockchain::Error;
 
 type TestClient = substrate_test_runtime_client::client::Client<
     substrate_test_runtime_client::Backend,
@@ -102,33 +92,23 @@ type SubspaceBlockImport =
 #[derive(Clone)]
 struct DummyFactory {
     client: Arc<TestClient>,
-    epoch_changes: SharedEpochChanges<TestBlock, Epoch>,
-    config: Config,
     mutator: Mutator,
 }
 
 struct DummyProposer {
     factory: DummyFactory,
     parent_hash: Hash,
-    parent_number: u64,
-    parent_slot: Slot,
 }
 
 impl Environment<TestBlock> for DummyFactory {
-    type CreateProposer = future::Ready<Result<DummyProposer, Error>>;
+    type CreateProposer = future::Ready<Result<DummyProposer, Self::Error>>;
     type Proposer = DummyProposer;
-    type Error = Error;
+    type Error = sp_blockchain::Error;
 
     fn init(&mut self, parent_header: &<TestBlock as BlockT>::Header) -> Self::CreateProposer {
-        let parent_slot = crate::find_pre_digest::<TestBlock>(parent_header)
-            .expect("parent header has a pre-digest")
-            .slot;
-
         future::ready(Ok(DummyProposer {
             factory: self.clone(),
             parent_hash: parent_header.hash(),
-            parent_number: *parent_header.number(),
-            parent_slot,
         }))
     }
 }
@@ -144,7 +124,7 @@ impl DummyProposer {
                 sc_client_api::TransactionFor<substrate_test_runtime_client::Backend, TestBlock>,
                 (),
             >,
-            Error,
+            sp_blockchain::Error,
         >,
     > {
         let block_builder = self
@@ -153,57 +133,22 @@ impl DummyProposer {
             .new_block_at(&BlockId::Hash(self.parent_hash), pre_digests, false)
             .unwrap();
 
-        let mut block = match block_builder.build().map_err(|e| e.into()) {
+        let mut block = match block_builder.build() {
             Ok(b) => b.block,
             Err(e) => return future::ready(Err(e)),
         };
 
-        let this_slot = crate::find_pre_digest::<TestBlock>(block.header())
-            .expect("baked block has valid pre-digest")
-            .slot;
-
-        // figure out if we should add a consensus digest, since the test runtime
-        // doesn't.
-        let epoch_changes = self.factory.epoch_changes.shared_data();
-        let epoch = epoch_changes
-            .epoch_data_for_child_of(
-                descendent_query(&*self.factory.client),
-                &self.parent_hash,
-                self.parent_number,
-                this_slot,
-                |slot| Epoch::genesis(&self.factory.config, slot),
-            )
-            .expect("client has data to find epoch")
-            .expect("can compute epoch for baked block");
-
-        let first_in_epoch = self.parent_slot < epoch.start_slot;
-        if first_in_epoch {
-            // push a `Consensus` digest signalling next change.
-            // we just reuse the same randomness as the prior
-            // epoch. this will break when we add light client support, since
-            // that will re-check the randomness logic off-chain.
-            let digest_data = ConsensusLog::NextEpochData(NextEpochDescriptor {
-                randomness: epoch.randomness.clone(),
-            })
-            .encode();
-            let digest = DigestItem::Consensus(SUBSPACE_ENGINE_ID, digest_data);
-            block.header.digest_mut().push(digest)
-        }
         {
-            let digest_data = ConsensusLog::SolutionRangeData(SolutionRangeDescriptor {
+            let digest = DigestItem::solution_range_descriptor(SolutionRangeDescriptor {
                 solution_range: u64::MAX,
-            })
-            .encode();
-            let digest = DigestItem::Consensus(SUBSPACE_ENGINE_ID, digest_data);
-            block.header.digest_mut().push(digest)
+            });
+            block.header.digest_mut().push(digest);
         }
         {
-            let digest_data = ConsensusLog::SaltData(SaltDescriptor {
+            let digest = DigestItem::salt_descriptor(SaltDescriptor {
                 salt: 0u64.to_le_bytes(),
-            })
-            .encode();
-            let digest = DigestItem::Consensus(SUBSPACE_ENGINE_ID, digest_data);
-            block.header.digest_mut().push(digest)
+            });
+            block.header.digest_mut().push(digest);
         }
 
         // mutate the block header according to the mutator.
@@ -218,10 +163,10 @@ impl DummyProposer {
 }
 
 impl Proposer<TestBlock> for DummyProposer {
-    type Error = Error;
+    type Error = sp_blockchain::Error;
     type Transaction =
         sc_client_api::TransactionFor<substrate_test_runtime_client::Backend, TestBlock>;
-    type Proposal = future::Ready<Result<Proposal<TestBlock, Self::Transaction, ()>, Error>>;
+    type Proposal = future::Ready<Result<Proposal<TestBlock, Self::Transaction, ()>, Self::Error>>;
     type ProofRecording = DisableProofRecording;
     type Proof = ();
 
@@ -263,7 +208,7 @@ where
         // TODO: Here we are hacking around lack of transaction support in test runtime and
         //  remove known root blocks for current block to make sure block import doesn't fail, this
         //  should be removed once runtime supports transactions
-        let block_number = block.header.number.into();
+        let block_number = block.header.number;
         let removed_root_blocks = self.link.root_blocks.lock().pop(&block_number);
 
         let import_result = self
@@ -376,8 +321,8 @@ impl TestNetFactory for SubspaceTestNet {
     ) {
         let client = client.as_client();
 
-        let config = Config::get_or_compute(&*client).expect("config available");
-        let (block_import, link) = crate::block_import(config, client.clone(), client.clone())
+        let config = Config::get(&*client).expect("config available");
+        let (block_import, link) = crate::block_import(config, client.clone(), client)
             .expect("can initialize block-import");
 
         let block_import = PanickingBlockImport {
@@ -417,7 +362,7 @@ impl TestNetFactory for SubspaceTestNet {
 
         TestVerifier {
             inner: SubspaceVerifier {
-                client: client.clone(),
+                client,
                 select_chain: longest_chain,
                 create_inherent_data_providers: Box::new(|_, _| async {
                     let timestamp = TimestampInherentDataProvider::from_system_time();
@@ -429,8 +374,6 @@ impl TestNetFactory for SubspaceTestNet {
 
                     Ok((timestamp, slot))
                 }),
-                config: data.link.config.clone(),
-                epoch_changes: data.link.epoch_changes.clone(),
                 can_author_with: AlwaysCanAuthor,
                 root_blocks: Arc::clone(&data.link.root_blocks),
                 telemetry: None,
@@ -514,8 +457,6 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
 
         let environ = DummyFactory {
             client: client.clone(),
-            config: data.link.config.clone(),
-            epoch_changes: data.link.epoch_changes.clone(),
             mutator: mutator.clone(),
         };
 
@@ -597,7 +538,7 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
                 .await
                 .unwrap()
                 .iter()
-                .flat_map(|flat_pieces| flat_pieces.chunks_exact(PIECE_SIZE))
+                .flat_map(|flat_pieces| flat_pieces.as_pieces())
                 .enumerate()
                 .choose(&mut rand::thread_rng())
                 .map(|(piece_index, piece)| (piece_index as u64, Piece::try_from(piece).unwrap()))
@@ -668,7 +609,7 @@ fn rejects_missing_inherent_digest() {
             .into_iter()
             .filter(|v| {
                 stage == Stage::PostSeal
-                    || CompatibleDigestItem::<FarmerPublicKey>::as_subspace_pre_digest(v).is_none()
+                    || DigestItem::as_subspace_pre_digest::<FarmerPublicKey>(v).is_none()
             })
             .collect()
     })
@@ -681,28 +622,9 @@ fn rejects_missing_seals() {
         let v = std::mem::take(&mut header.digest_mut().logs);
         header.digest_mut().logs = v
             .into_iter()
-            .filter(|v| {
-                stage == Stage::PreSeal
-                    || CompatibleDigestItem::<FarmerPublicKey>::as_subspace_seal(v).is_none()
-            })
+            .filter(|v| stage == Stage::PreSeal || DigestItem::as_subspace_seal(v).is_none())
             .collect()
     })
-}
-
-#[test]
-#[should_panic]
-fn rejects_missing_consensus_digests() {
-    run_one_test(|header: &mut TestHeader, stage| {
-        let v = std::mem::take(&mut header.digest_mut().logs);
-        header.digest_mut().logs = v
-            .into_iter()
-            .filter(|v| {
-                stage == Stage::PostSeal
-                    || CompatibleDigestItem::<FarmerPublicKey>::as_next_epoch_descriptor(v)
-                        .is_none()
-            })
-            .collect()
-    });
 }
 
 #[test]
@@ -710,16 +632,16 @@ fn wrong_consensus_engine_id_rejected() {
     sp_tracing::try_init_simple();
     let keypair = Keypair::generate();
     let ctx = schnorrkel::context::signing_context(SOLUTION_SIGNING_CONTEXT);
-    let bad_seal: Item = DigestItem::Seal([0; 4], keypair.sign(ctx.bytes(b"")).to_bytes().to_vec());
-    assert!(CompatibleDigestItem::<FarmerPublicKey>::as_subspace_pre_digest(&bad_seal).is_none());
-    assert!(CompatibleDigestItem::<FarmerPublicKey>::as_subspace_seal(&bad_seal).is_none())
+    let bad_seal = DigestItem::Seal([0; 4], keypair.sign(ctx.bytes(b"")).to_bytes().to_vec());
+    assert!(CompatibleDigestItem::as_subspace_pre_digest::<FarmerPublicKey>(&bad_seal).is_none());
+    assert!(CompatibleDigestItem::as_subspace_seal(&bad_seal).is_none())
 }
 
 #[test]
 fn malformed_pre_digest_rejected() {
     sp_tracing::try_init_simple();
-    let bad_seal: Item = DigestItem::Seal(SUBSPACE_ENGINE_ID, [0; 64].to_vec());
-    assert!(CompatibleDigestItem::<FarmerPublicKey>::as_subspace_pre_digest(&bad_seal).is_none());
+    let bad_seal = DigestItem::subspace_seal(FarmerSignature::unchecked_from([0u8; 64]));
+    assert!(CompatibleDigestItem::as_subspace_pre_digest::<FarmerPublicKey>(&bad_seal).is_none());
 }
 
 #[test]
@@ -727,20 +649,16 @@ fn sig_is_not_pre_digest() {
     sp_tracing::try_init_simple();
     let keypair = Keypair::generate();
     let ctx = schnorrkel::context::signing_context(SOLUTION_SIGNING_CONTEXT);
-    let bad_seal: Item = DigestItem::Seal(
-        SUBSPACE_ENGINE_ID,
-        keypair.sign(ctx.bytes(b"")).to_bytes().to_vec(),
-    );
-    assert!(CompatibleDigestItem::<FarmerPublicKey>::as_subspace_pre_digest(&bad_seal).is_none());
-    assert!(CompatibleDigestItem::<FarmerPublicKey>::as_subspace_seal(&bad_seal).is_some())
+    let bad_seal = DigestItem::subspace_seal(FarmerSignature::unchecked_from(
+        keypair.sign(ctx.bytes(b"")).to_bytes(),
+    ));
+    assert!(CompatibleDigestItem::as_subspace_pre_digest::<FarmerPublicKey>(&bad_seal).is_none());
+    assert!(CompatibleDigestItem::as_subspace_seal(&bad_seal).is_some())
 }
 
 /// Claims the given slot number. always returning a dummy block.
-pub fn dummy_claim_slot(
-    slot: Slot,
-    _epoch: &Epoch,
-) -> Option<(PreDigest<FarmerPublicKey>, FarmerPublicKey)> {
-    return Some((
+pub fn dummy_claim_slot(slot: Slot) -> Option<(PreDigest<FarmerPublicKey>, FarmerPublicKey)> {
+    Some((
         PreDigest {
             solution: Solution {
                 public_key: FarmerPublicKey::unchecked_from([0u8; 32]),
@@ -753,7 +671,7 @@ pub fn dummy_claim_slot(
             slot,
         },
         FarmerPublicKey::unchecked_from([0u8; 32]),
-    ));
+    ))
 }
 
 #[test]
@@ -761,24 +679,10 @@ fn can_author_block() {
     sp_tracing::try_init_simple();
 
     let mut i = 0;
-    let epoch = Epoch {
-        start_slot: 0.into(),
-        randomness: [0; 32],
-        epoch_index: 1,
-        duration: 100,
-        config: SubspaceEpochConfiguration { c: (3, 10) },
-    };
-
-    let mut _config = crate::SubspaceGenesisConfiguration {
-        slot_duration: 1000,
-        epoch_length: 100,
-        c: (3, 10),
-        randomness: [0; 32],
-    };
 
     // we might need to try a couple of times
     loop {
-        match dummy_claim_slot(i.into(), &epoch) {
+        match dummy_claim_slot(i.into()) {
             None => i += 1,
             Some(s) => {
                 debug!(target: "subspace", "Authored block {:?}", s.0);
@@ -813,7 +717,7 @@ fn propose_and_import_block<Transaction: Send + 'static>(
 
         (
             sp_runtime::generic::Digest {
-                logs: vec![Item::subspace_pre_digest(&PreDigest {
+                logs: vec![DigestItem::subspace_pre_digest(&PreDigest {
                     slot,
                     solution: Solution {
                         public_key: FarmerPublicKey::unchecked_from(keypair.public.to_bytes()),
@@ -829,27 +733,11 @@ fn propose_and_import_block<Transaction: Send + 'static>(
         )
     };
 
-    let parent_hash = parent.hash();
-
     let mut block = futures::executor::block_on(proposer.propose_with(pre_digest))
         .unwrap()
         .block;
 
-    let epoch_descriptor = proposer_factory
-        .epoch_changes
-        .shared_data()
-        .epoch_descriptor_for_child_of(
-            descendent_query(&*proposer_factory.client),
-            &parent_hash,
-            *parent.number(),
-            slot,
-        )
-        .unwrap()
-        .unwrap();
-
-    let seal: Item = CompatibleDigestItem::<FarmerPublicKey>::subspace_seal(
-        signature.to_vec().try_into().unwrap(),
-    );
+    let seal = DigestItem::subspace_seal(signature.to_vec().try_into().unwrap());
 
     let post_hash = {
         block.header.digest_mut().push(seal.clone());
@@ -861,10 +749,6 @@ fn propose_and_import_block<Transaction: Send + 'static>(
     let mut import = BlockImportParams::new(BlockOrigin::Own, block.header);
     import.post_digests.push(seal);
     import.body = Some(block.extrinsics);
-    import.intermediates.insert(
-        Cow::from(INTERMEDIATE_KEY),
-        Box::new(SubspaceIntermediate::<TestBlock> { epoch_descriptor }) as Box<_>,
-    );
     import.fork_choice = Some(ForkChoiceStrategy::LongestChain);
     let import_result = block_on(block_import.import_block(import, Default::default())).unwrap();
 
@@ -877,187 +761,6 @@ fn propose_and_import_block<Transaction: Send + 'static>(
 }
 
 #[test]
-fn importing_block_one_sets_genesis_epoch() {
-    let mut net = SubspaceTestNet::new(1);
-
-    let peer = net.peer(0);
-    let data = peer
-        .data
-        .as_ref()
-        .expect("Subspace link set up during initialization");
-    let client = peer.client().as_client().clone();
-
-    let mut proposer_factory = DummyFactory {
-        client: client.clone(),
-        config: data.link.config.clone(),
-        epoch_changes: data.link.epoch_changes.clone(),
-        mutator: Arc::new(|_, _| ()),
-    };
-
-    let mut block_import = data
-        .block_import
-        .lock()
-        .take()
-        .expect("import set up during init");
-
-    let genesis_header = client.header(&BlockId::Number(0)).unwrap().unwrap();
-
-    let block_hash = propose_and_import_block(
-        &genesis_header,
-        Some(999.into()),
-        &mut proposer_factory,
-        &mut block_import,
-    );
-
-    let genesis_epoch = Epoch::genesis(&data.link.config, 999.into());
-
-    let epoch_changes = data.link.epoch_changes.shared_data();
-    let epoch_for_second_block = epoch_changes
-        .epoch_data_for_child_of(
-            descendent_query(&*client),
-            &block_hash,
-            1,
-            1000.into(),
-            |slot| Epoch::genesis(&data.link.config, slot),
-        )
-        .unwrap()
-        .unwrap();
-
-    assert_eq!(epoch_for_second_block, genesis_epoch);
-}
-
-// TODO: We hacked code around finalization that broke this test
-// #[test]
-// fn importing_epoch_change_block_prunes_tree() {
-//     use sc_client_api::Finalizer;
-//
-//     let mut net = SubspaceTestNet::new(1);
-//
-//     let peer = net.peer(0);
-//     let data = peer
-//         .data
-//         .as_ref()
-//         .expect("Subspace link set up during initialization");
-//
-//     let client = peer
-//         .client()
-//         .as_client()
-//         .clone();
-//     let mut block_import = data
-//         .block_import
-//         .lock()
-//         .take()
-//         .expect("import set up during init");
-//     let epoch_changes = data.link.epoch_changes.clone();
-//
-//     let mut proposer_factory = DummyFactory {
-//         client: client.clone(),
-//         config: data.link.config.clone(),
-//         epoch_changes: data.link.epoch_changes.clone(),
-//         mutator: Arc::new(|_, _| ()),
-//     };
-//
-//     // This is just boilerplate code for proposing and importing n valid Subspace
-//     // blocks that are built on top of the given parent. The proposer takes care
-//     // of producing epoch change digests according to the epoch duration (which
-//     // is set to 6 slots in the test runtime).
-//     let mut propose_and_import_blocks = |parent_id, n| {
-//         let mut hashes = Vec::new();
-//         let mut parent_header = client.header(&parent_id).unwrap().unwrap();
-//
-//         for _ in 0..n {
-//             let block_hash = propose_and_import_block(
-//                 &parent_header,
-//                 None,
-//                 &mut proposer_factory,
-//                 &mut block_import,
-//             );
-//             hashes.push(block_hash);
-//             parent_header = client.header(&BlockId::Hash(block_hash)).unwrap().unwrap();
-//         }
-//
-//         hashes
-//     };
-//
-//     // This is the block tree that we're going to use in this test. Each node
-//     // represents an epoch change block, the epoch duration is 6 slots.
-//     //
-//     //    *---- F (#7)
-//     //   /                 *------ G (#19) - H (#25)
-//     //  /                 /
-//     // A (#1) - B (#7) - C (#13) - D (#19) - E (#25)
-//     //                              \
-//     //                               *------ I (#25)
-//
-//     // Create and import the canon chain and keep track of fork blocks (A, C, D)
-//     // from the diagram above.
-//     let canon_hashes = propose_and_import_blocks(BlockId::Number(0), 30);
-//
-//     // Create the forks
-//     let fork_1 = propose_and_import_blocks(BlockId::Hash(canon_hashes[0]), 10);
-//     let fork_2 = propose_and_import_blocks(BlockId::Hash(canon_hashes[12]), 15);
-//     let fork_3 = propose_and_import_blocks(BlockId::Hash(canon_hashes[18]), 10);
-//
-//     // We should be tracking a total of 9 epochs in the fork tree
-//     assert_eq!(epoch_changes.shared_data().tree().iter().count(), 9,);
-//
-//     // And only one root
-//     assert_eq!(epoch_changes.shared_data().tree().roots().count(), 1,);
-//
-//     // We finalize block #13 from the canon chain, so on the next epoch
-//     // change the tree should be pruned, to not contain F (#7).
-//     client
-//         .finalize_block(BlockId::Hash(canon_hashes[12]), None, false)
-//         .unwrap();
-//     propose_and_import_blocks(BlockId::Hash(client.chain_info().best_hash), 7);
-//
-//     // at this point no hashes from the first fork must exist on the tree
-//     assert!(!epoch_changes
-//         .shared_data()
-//         .tree()
-//         .iter()
-//         .map(|(h, _, _)| h)
-//         .any(|h| fork_1.contains(h)),);
-//
-//     // but the epoch changes from the other forks must still exist
-//     assert!(epoch_changes
-//         .shared_data()
-//         .tree()
-//         .iter()
-//         .map(|(h, _, _)| h)
-//         .any(|h| fork_2.contains(h)));
-//
-//     assert!(epoch_changes
-//         .shared_data()
-//         .tree()
-//         .iter()
-//         .map(|(h, _, _)| h)
-//         .any(|h| fork_3.contains(h)),);
-//
-//     // finalizing block #25 from the canon chain should prune out the second fork
-//     client
-//         .finalize_block(BlockId::Hash(canon_hashes[24]), None, false)
-//         .unwrap();
-//     propose_and_import_blocks(BlockId::Hash(client.chain_info().best_hash), 8);
-//
-//     // at this point no hashes from the second fork must exist on the tree
-//     assert!(!epoch_changes
-//         .shared_data()
-//         .tree()
-//         .iter()
-//         .map(|(h, _, _)| h)
-//         .any(|h| fork_2.contains(h)),);
-//
-//     // while epoch changes from the last fork should still exist
-//     assert!(epoch_changes
-//         .shared_data()
-//         .tree()
-//         .iter()
-//         .map(|(h, _, _)| h)
-//         .any(|h| fork_3.contains(h)),);
-// }
-
-#[test]
 #[should_panic]
 fn verify_slots_are_strictly_increasing() {
     let mut net = SubspaceTestNet::new(1);
@@ -1068,7 +771,7 @@ fn verify_slots_are_strictly_increasing() {
         .as_ref()
         .expect("Subspace link set up during initialization");
 
-    let client = peer.client().as_client().clone();
+    let client = peer.client().as_client();
     let mut block_import = data
         .block_import
         .lock()
@@ -1077,8 +780,6 @@ fn verify_slots_are_strictly_increasing() {
 
     let mut proposer_factory = DummyFactory {
         client: client.clone(),
-        config: data.link.config.clone(),
-        epoch_changes: data.link.epoch_changes.clone(),
         mutator: Arc::new(|_, _| ()),
     };
 

@@ -23,10 +23,10 @@ use serde::{Deserialize, Serialize};
 use sp_application_crypto::KeyTypeId;
 use sp_consensus_slots::Slot;
 use sp_core::bytes;
-use sp_executor::{ExecutionReceipt, OpaqueBundle};
+use sp_executor::{OpaqueBundle, OpaqueExecutionReceipt};
 use sp_runtime::traits::Hash as HashT;
 use std::pin::Pin;
-use subspace_core_primitives::Tag;
+use subspace_core_primitives::{Randomness, Tag};
 use subspace_runtime_primitives::{BlockNumber, Hash};
 
 /// Data required to produce bundles on executor node.
@@ -63,24 +63,6 @@ impl HeadData {
     }
 }
 
-pub struct Collation {
-    pub number: BlockNumber,
-    pub head_data: HeadData,
-}
-
-/// Result of the [`CollatorFn`] invocation.
-pub struct CollationResult {
-    /// The collation that was built.
-    pub collation: Collation,
-    // TODO: can be useful in the future?
-    /// An optional result sender that should be informed about a successfully seconded collation.
-    ///
-    /// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.
-    /// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
-    /// collation.
-    pub result_sender: Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>,
-}
-
 /// Result of the [`BundlerFn`] invocation.
 pub struct BundleResult {
     /// The opaque bundle that was built.
@@ -94,14 +76,14 @@ impl BundleResult {
 }
 
 /// Result of the [`ProcessorFn`] invocation.
-pub struct ProcessorResult<H = Hash> {
-    /// The execution receipt that was built.
-    pub execution_receipt: ExecutionReceipt<H>,
+pub struct ProcessorResult {
+    /// The opaque execution receipt that was built.
+    pub opaque_execution_receipt: OpaqueExecutionReceipt,
 }
 
 impl ProcessorResult {
-    pub fn to_execution_receipt(self) -> ExecutionReceipt<Hash> {
-        self.execution_receipt
+    pub fn to_opaque_execution_receipt(self) -> OpaqueExecutionReceipt {
+        self.opaque_execution_receipt
     }
 }
 
@@ -123,47 +105,28 @@ pub struct PersistedValidationData<H = Hash, N = BlockNumber> {
     pub relay_parent_storage_root: H,
 }
 
-impl CollationResult {
-    /// Convert into the inner values.
-    pub fn into_inner(
-        self,
-    ) -> (
-        Collation,
-        Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>,
-    ) {
-        (self.collation, self.result_sender)
-    }
-}
-
-/// Collation function.
-///
-/// Will be called with the hash of the relay chain block the parachain block should be build on and the
-/// [`ValidationData`] that provides information about the state of the parachain on the relay chain.
-///
-/// Returns an optional [`CollationResult`].
-pub type CollatorFn = Box<
-    dyn Fn(
-            Hash,
-            &PersistedValidationData,
-        ) -> Pin<Box<dyn Future<Output = Option<CollationResult>> + Send>>
-        + Send
-        + Sync,
->;
-
 /// Bundle function.
+///
+/// Will be called with each slot of the primary chain.
 ///
 /// Returns an optional [`BundleResult`].
 pub type BundlerFn = Box<
-    dyn Fn(ExecutorSlotInfo) -> Pin<Box<dyn Future<Output = Option<BundleResult>> + Send>>
+    dyn Fn(Hash, ExecutorSlotInfo) -> Pin<Box<dyn Future<Output = Option<BundleResult>> + Send>>
         + Send
         + Sync,
 >;
 
 /// Process function.
 ///
+/// Will be called with the hash of the primary chain block.
+///
 /// Returns an optional [`ProcessorResult`].
 pub type ProcessorFn = Box<
-    dyn Fn(Hash, Vec<OpaqueBundle>) -> Pin<Box<dyn Future<Output = Option<ProcessorResult>> + Send>>
+    dyn Fn(
+            Hash,
+            Vec<OpaqueBundle>,
+            Randomness,
+        ) -> Pin<Box<dyn Future<Output = Option<ProcessorResult>> + Send>>
         + Send
         + Sync,
 >;
@@ -191,11 +154,9 @@ pub type CollatorSignature = collator_app::Signature;
 pub struct CollationGenerationConfig {
     /// Collator's authentication key, so it can sign things.
     pub key: CollatorPair,
-    /// Collation function. See [`CollatorFn`] for more details.
-    pub collator: CollatorFn,
-    /// Transaction bundle function.
+    /// Transaction bundle function. See [`BundlerFn`] for more details.
     pub bundler: BundlerFn,
-    /// State processor function.
+    /// State processor function. See [`ProcessorFn`] for more details.
     pub processor: ProcessorFn,
 }
 

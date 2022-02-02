@@ -21,9 +21,8 @@ use sp_core::crypto::Ss58Codec;
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
 use subspace_runtime::{
-    AccountId, Balance, BalancesConfig, BlockNumber, BridgeKusamaGrandpaConfig, GenesisConfig,
-    SS58Prefix, Signature, SubspaceConfig, SudoConfig, SystemConfig, VestingConfig, DECIMAL_PLACES,
-    MILLISECS_PER_BLOCK, SSC, WASM_BINARY,
+    AccountId, Balance, BalancesConfig, BlockNumber, GenesisConfig, SS58Prefix, Signature,
+    SudoConfig, SystemConfig, VestingConfig, DECIMAL_PLACES, MILLISECS_PER_BLOCK, SSC, WASM_BINARY,
 };
 
 // The URL for the telemetry server.
@@ -154,6 +153,7 @@ pub fn testnet_config() -> Result<ChainSpec, String> {
         ),
         // Protocol ID
         Some("subspace"),
+        None,
         // Properties
         Some(properties),
         // Extensions
@@ -170,7 +170,6 @@ pub fn development_config() -> Result<ChainSpec, String> {
         // ID
         "dev",
         ChainType::Development,
-        // TODO: Provide a way for farmer to start with these accounts
         || {
             create_genesis_config(
                 wasm_binary,
@@ -191,6 +190,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
         // Telemetry
         None,
         // Protocol ID
+        None,
         None,
         // Properties
         None,
@@ -237,6 +237,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
         None,
         // Protocol ID
         None,
+        None,
         // Properties
         None,
         // Extensions
@@ -258,9 +259,6 @@ fn create_genesis_config(
             code: wasm_binary.to_vec(),
         },
         balances: BalancesConfig { balances },
-        subspace: SubspaceConfig {
-            epoch_config: Some(subspace_runtime::SUBSPACE_GENESIS_EPOCH_CONFIG),
-        },
         transaction_payment: Default::default(),
         sudo: SudoConfig {
             // Assign network admin rights.

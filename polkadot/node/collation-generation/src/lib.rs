@@ -26,7 +26,6 @@ use futures::{
 	sink::SinkExt,
 	stream::StreamExt,
 };
-use parity_scale_codec::Encode;
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, ChainApiMessage, CollationGenerationMessage, RuntimeApiMessage,
@@ -37,14 +36,12 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
-	request_extract_bundles, request_pending_head,
+	request_extract_bundles, request_extrinsics_shuffling_seed,
 };
 use std::sync::Arc;
 
-use cirrus_node_primitives::{
-	CollationGenerationConfig, ExecutorSlotInfo, PersistedValidationData,
-};
-use sp_executor::FraudProof;
+use cirrus_node_primitives::{CollationGenerationConfig, ExecutorSlotInfo};
+use sp_executor::{BundleEquivocationProof, FraudProof, InvalidTransactionProof};
 use subspace_runtime_primitives::Hash;
 
 mod error;
@@ -141,21 +138,51 @@ impl CollationGenerationSubsystem {
 				false
 			},
 			Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => true,
-			Ok(FromOverseer::Communication {
-				msg: CollationGenerationMessage::Initialize(config),
-			}) => {
-				if self.config.is_some() {
-					tracing::error!(target: LOG_TARGET, "double initialization");
-				} else {
-					self.config = Some(Arc::new(config));
-				}
-				false
-			},
-			Ok(FromOverseer::Communication {
-				msg: CollationGenerationMessage::FraudProof(fraud_proof),
-			}) => {
-				if let Err(err) = submit_fraud_proof(fraud_proof, ctx, sender).await {
-					tracing::warn!(target: LOG_TARGET, ?err, "failed to submit fraud proof");
+			Ok(FromOverseer::Communication { msg }) => {
+				match msg {
+					CollationGenerationMessage::Initialize(config) =>
+						if self.config.is_some() {
+							tracing::error!(target: LOG_TARGET, "double initialization");
+						} else {
+							self.config = Some(Arc::new(config));
+						},
+					CollationGenerationMessage::FraudProof(fraud_proof) => {
+						if let Err(err) = submit_fraud_proof(fraud_proof, ctx, sender).await {
+							tracing::warn!(
+								target: LOG_TARGET,
+								?err,
+								"failed to submit fraud proof"
+							);
+						}
+					},
+					CollationGenerationMessage::BundleEquivocationProof(
+						bundle_equivocation_proof,
+					) => {
+						if let Err(err) =
+							submit_bundle_equivocation_proof(bundle_equivocation_proof, ctx, sender)
+								.await
+						{
+							tracing::warn!(
+								target: LOG_TARGET,
+								?err,
+								"failed to submit bundle equivocation proof"
+							);
+						}
+					},
+					CollationGenerationMessage::InvalidTransactionProof(
+						invalid_transaction_proof,
+					) => {
+						if let Err(err) =
+							submit_invalid_transaction_proof(invalid_transaction_proof, ctx, sender)
+								.await
+						{
+							tracing::warn!(
+								target: LOG_TARGET,
+								?err,
+								"failed to submit invalid transaction proof"
+							);
+						}
+					},
 				}
 				false
 			},
@@ -206,71 +233,6 @@ async fn handle_new_activations<Context: SubsystemContext>(
 	sender: &mpsc::Sender<AllMessages>,
 ) -> crate::error::Result<()> {
 	for relay_parent in activated {
-		let task_config = config.clone();
-
-		// Request the current pending head of executor chain because the executor chain
-		// needs it to form a chain correctly.
-		let maybe_pending_head: Option<Hash> =
-			match request_pending_head(relay_parent, ctx.sender()).await.await? {
-				Ok(h) => h,
-				Err(e) => {
-					tracing::trace!(
-						target: LOG_TARGET,
-						relay_parent = ?relay_parent,
-						error = ?e,
-						"Pending head is not available",
-					);
-					continue
-				},
-			};
-
-		let validation_data = PersistedValidationData {
-			parent_head: maybe_pending_head.encode(),
-			..Default::default()
-		};
-
-		let (collation, _result_sender) =
-			match (task_config.collator)(relay_parent, &validation_data).await {
-				Some(collation) => collation.into_inner(),
-				None => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						"collator returned no collation on collate",
-					);
-					return Ok(())
-				},
-			};
-
-		// Pretend we are processing the ER and then submit it
-		// to primary chain via an unsigned extrinsic.
-		let head_hash = collation.head_data.hash();
-		let head_number = collation.number;
-
-		let mut task_sender = sender.clone();
-		ctx.spawn(
-			"collation generation collation builder",
-			Box::pin(async move {
-				if let Err(err) = task_sender
-					.send(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-						relay_parent,
-						RuntimeApiRequest::SubmitCandidateReceipt(head_number, head_hash),
-					)))
-					.await
-				{
-					tracing::warn!(
-						target: LOG_TARGET,
-						err = ?err,
-						"failed to send RuntimeApiRequest::SubmitCandidateReceipt",
-					);
-				} else {
-					tracing::debug!(
-						target: LOG_TARGET,
-						"Sent RuntimeApiRequest::SubmitCandidateReceipt successfully",
-					);
-				}
-			}),
-		)?;
-
 		// TODO: invoke this on finalized block?
 		process_primary_block(config.clone(), relay_parent, ctx, sender).await?;
 	}
@@ -310,16 +272,41 @@ async fn process_primary_block<Context: SubsystemContext>(
 
 	let bundles = request_extract_bundles(block_hash, extrinsics, ctx.sender()).await.await??;
 
-	let execution_receipt = match (config.processor)(block_hash, bundles).await {
-		Some(processor_result) => processor_result.to_execution_receipt(),
-		None => {
-			tracing::debug!(
-				target: LOG_TARGET,
-				"Skip sending the execution receipt because executor is not elected",
-			);
-			return Ok(())
-		},
+	let header = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(ChainApiMessage::BlockHeader(block_hash, tx)).await;
+		match rx.await? {
+			Err(err) => {
+				tracing::error!(
+					target: LOG_TARGET,
+					?err,
+					"Chain API subsystem temporarily unreachable"
+				);
+				return Ok(())
+			},
+			Ok(None) => {
+				tracing::error!(target: LOG_TARGET, ?block_hash, "BlockHeader unavailable");
+				return Ok(())
+			},
+			Ok(Some(h)) => h,
+		}
 	};
+
+	let shuffling_seed = request_extrinsics_shuffling_seed(block_hash, header, ctx.sender())
+		.await
+		.await??;
+
+	let opaque_execution_receipt =
+		match (config.processor)(block_hash, bundles, shuffling_seed).await {
+			Some(processor_result) => processor_result.to_opaque_execution_receipt(),
+			None => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Skip sending the execution receipt because executor is not elected",
+				);
+				return Ok(())
+			},
+		};
 
 	let best_hash = request_best_primary_hash(ctx).await?;
 
@@ -330,7 +317,7 @@ async fn process_primary_block<Context: SubsystemContext>(
 			if let Err(err) = task_sender
 				.send(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					best_hash,
-					RuntimeApiRequest::SubmitExecutionReceipt(execution_receipt),
+					RuntimeApiRequest::SubmitExecutionReceipt(opaque_execution_receipt),
 				)))
 				.await
 			{
@@ -365,15 +352,15 @@ async fn produce_bundle<Context: SubsystemContext>(
 	ctx: &mut Context,
 	sender: &mpsc::Sender<AllMessages>,
 ) -> SubsystemResult<()> {
-	let opaque_bundle = match (config.bundler)(slot_info).await {
+	let best_hash = request_best_primary_hash(ctx).await?;
+
+	let opaque_bundle = match (config.bundler)(best_hash, slot_info).await {
 		Some(bundle_result) => bundle_result.to_opaque_bundle(),
 		None => {
 			tracing::debug!(target: LOG_TARGET, "executor returned no bundle on bundling",);
 			return Ok(())
 		},
 	};
-
-	let best_hash = request_best_primary_hash(ctx).await?;
 
 	let mut task_sender = sender.clone();
 	ctx.spawn(
@@ -430,6 +417,76 @@ async fn submit_fraud_proof<Context: SubsystemContext>(
 				tracing::debug!(
 					target: LOG_TARGET,
 					"Sent RuntimeApiRequest::SubmitFraudProof successfully",
+				);
+			}
+		}),
+	)?;
+
+	Ok(())
+}
+
+async fn submit_bundle_equivocation_proof<Context: SubsystemContext>(
+	bundle_equivocation_proof: BundleEquivocationProof,
+	ctx: &mut Context,
+	sender: &mpsc::Sender<AllMessages>,
+) -> SubsystemResult<()> {
+	let best_hash = request_best_primary_hash(ctx).await?;
+
+	let mut task_sender = sender.clone();
+	ctx.spawn(
+		"collation generation bundle equivocation proof builder",
+		Box::pin(async move {
+			if let Err(err) = task_sender
+				.send(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					best_hash,
+					RuntimeApiRequest::SubmitBundleEquivocationProof(bundle_equivocation_proof),
+				)))
+				.await
+			{
+				tracing::warn!(
+					target: LOG_TARGET,
+					err = ?err,
+					"Failed to send RuntimeApiRequest::SubmitBundleEquivocationProof",
+				);
+			} else {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Sent RuntimeApiRequest::SubmitBundleEquivocationProof successfully",
+				);
+			}
+		}),
+	)?;
+
+	Ok(())
+}
+
+async fn submit_invalid_transaction_proof<Context: SubsystemContext>(
+	invalid_transaction_proof: InvalidTransactionProof,
+	ctx: &mut Context,
+	sender: &mpsc::Sender<AllMessages>,
+) -> SubsystemResult<()> {
+	let best_hash = request_best_primary_hash(ctx).await?;
+
+	let mut task_sender = sender.clone();
+	ctx.spawn(
+		"collation generation invalid transaction proof builder",
+		Box::pin(async move {
+			if let Err(err) = task_sender
+				.send(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					best_hash,
+					RuntimeApiRequest::SubmitInvalidTransactionProof(invalid_transaction_proof),
+				)))
+				.await
+			{
+				tracing::warn!(
+					target: LOG_TARGET,
+					err = ?err,
+					"Failed to send RuntimeApiRequest::SubmitInvalidTransactionProof",
+				);
+			} else {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Sent RuntimeApiRequest::SubmitInvalidTransactionProof successfully",
 				);
 			}
 		}),

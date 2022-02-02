@@ -15,6 +15,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(const_option)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
@@ -23,9 +24,10 @@
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use codec::{Compact, CompactLen, Decode, Encode};
+use core::time::Duration;
 use frame_support::traits::{
-    ConstU128, ConstU16, ConstU32, ConstU8, Currency, ExistenceRequirement, Get, Imbalance,
-    WithdrawReasons,
+    ConstU128, ConstU16, ConstU32, ConstU64, ConstU8, Currency, ExistenceRequirement, Get,
+    Imbalance, WithdrawReasons,
 };
 use frame_support::weights::{
     constants::{RocksDbWeight, WEIGHT_PER_SECOND},
@@ -35,17 +37,14 @@ use frame_support::{construct_runtime, parameter_types};
 use frame_system::limits::{BlockLength, BlockWeights};
 use frame_system::EnsureNever;
 use pallet_balances::NegativeImbalance;
-use sp_api::impl_runtime_apis;
+use sp_api::{impl_runtime_apis, BlockT, HashT, HeaderT};
+use sp_consensus_subspace::digests::CompatibleDigestItem;
 use sp_consensus_subspace::{
-    Epoch, EquivocationProof, FarmerPublicKey, Salts, SubspaceEpochConfiguration,
-    SubspaceGenesisConfiguration,
+    EquivocationProof, FarmerPublicKey, GlobalRandomnesses, Salts, SolutionRanges,
 };
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_executor::{FraudProof, OpaqueBundle};
-use sp_runtime::traits::{
-    AccountIdLookup, BlakeTwo256, Block as BlockT, DispatchInfoOf, Header as HeaderT,
-    PostDispatchInfoOf, Zero,
-};
+use sp_runtime::traits::{AccountIdLookup, BlakeTwo256, DispatchInfoOf, PostDispatchInfoOf, Zero};
 use sp_runtime::transaction_validity::{
     InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
 };
@@ -56,7 +55,7 @@ use sp_std::prelude::*;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use subspace_core_primitives::objects::{BlockObject, BlockObjectMapping};
-use subspace_core_primitives::{RootBlock, Sha256Hash, PIECE_SIZE};
+use subspace_core_primitives::{Randomness, RootBlock, Sha256Hash, PIECE_SIZE};
 pub use subspace_runtime_primitives::{
     opaque, AccountId, Balance, BlockNumber, Hash, Index, Moment, Signature, CONFIRMATION_DEPTH_K,
     MIN_REPLICATION_FACTOR, RECORDED_HISTORY_SEGMENT_SIZE, RECORD_SIZE,
@@ -85,6 +84,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
+    state_version: 1,
 };
 
 /// The version information used to identify this runtime when compiled natively.
@@ -129,19 +129,20 @@ const SLOT_DURATION: u64 = 1000;
 /// Must match ratio between block and slot duration in constants above.
 const SLOT_PROBABILITY: (u64, u64) = (1, 6);
 
+/// The amount of time, in blocks, between updates of global randomness.
+const GLOBAL_RANDOMNESS_UPDATE_INTERVAL: BlockNumber = 100;
+
 /// Era duration in blocks.
 const ERA_DURATION_IN_BLOCKS: BlockNumber = 2016;
 
-const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 256;
-const EPOCH_DURATION_IN_SLOTS: u64 =
-    EPOCH_DURATION_IN_BLOCKS as u64 * SLOT_PROBABILITY.1 / SLOT_PROBABILITY.0;
+const EQUIVOCATION_REPORT_LONGEVITY: BlockNumber = 256;
 
+/// Eon duration is 7 days
 const EON_DURATION_IN_SLOTS: u64 = 3600 * 24 * 7;
-
-/// The Subspace epoch configuration at genesis.
-pub const SUBSPACE_GENESIS_EPOCH_CONFIG: SubspaceEpochConfiguration = SubspaceEpochConfiguration {
-    c: SLOT_PROBABILITY,
-};
+/// Reveal next eon salt 1 day before eon end
+const EON_NEXT_SALT_REVEAL: u64 = EON_DURATION_IN_SLOTS
+    .checked_sub(3600 * 24)
+    .expect("Offset is smaller than eon duration; qed");
 
 // We assume initial plot size starts with the a single recorded history segment (which is erasure
 // coded of course, hence `*2`).
@@ -154,6 +155,8 @@ const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 
 /// Maximum block length for non-`Normal` extrinsic is 5 MiB.
 const MAX_BLOCK_LENGTH: u32 = 5 * 1024 * 1024;
+
+const MAX_OBJECT_MAPPING_RECURSION_DEPTH: u16 = 5;
 
 parameter_types! {
     pub const Version: RuntimeVersion = VERSION;
@@ -221,48 +224,39 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-    pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
-    pub const EraDuration: u32 = ERA_DURATION_IN_BLOCKS;
-    pub const EonDuration: u64 = EON_DURATION_IN_SLOTS;
-    pub const InitialSolutionRange: u64 = INITIAL_SOLUTION_RANGE;
     pub const SlotProbability: (u64, u64) = SLOT_PROBABILITY;
     pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
-    pub const ConfirmationDepthK: u32 = CONFIRMATION_DEPTH_K;
-    pub const RecordSize: u32 = RECORD_SIZE;
-    pub const RecordedHistorySegmentSize: u32 = RECORDED_HISTORY_SEGMENT_SIZE;
-    pub const ReportLongevity: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
 }
 
 impl pallet_subspace::Config for Runtime {
     type Event = Event;
-    type EpochDuration = EpochDuration;
-    type EraDuration = EraDuration;
-    type EonDuration = EonDuration;
-    type InitialSolutionRange = InitialSolutionRange;
+    type GlobalRandomnessUpdateInterval = ConstU32<GLOBAL_RANDOMNESS_UPDATE_INTERVAL>;
+    type EraDuration = ConstU32<ERA_DURATION_IN_BLOCKS>;
+    type EonDuration = ConstU64<EON_DURATION_IN_SLOTS>;
+    type EonNextSaltReveal = ConstU64<EON_NEXT_SALT_REVEAL>;
+    type InitialSolutionRange = ConstU64<INITIAL_SOLUTION_RANGE>;
     type SlotProbability = SlotProbability;
     type ExpectedBlockTime = ExpectedBlockTime;
-    type ConfirmationDepthK = ConfirmationDepthK;
-    type RecordSize = RecordSize;
-    type RecordedHistorySegmentSize = RecordedHistorySegmentSize;
-    type EpochChangeTrigger = pallet_subspace::NormalEpochChange;
+    type ConfirmationDepthK = ConstU32<CONFIRMATION_DEPTH_K>;
+    type RecordSize = ConstU32<RECORD_SIZE>;
+    type RecordedHistorySegmentSize = ConstU32<RECORDED_HISTORY_SEGMENT_SIZE>;
+    type GlobalRandomnessIntervalTrigger = pallet_subspace::NormalGlobalRandomnessInterval;
     type EraChangeTrigger = pallet_subspace::NormalEraChange;
     type EonChangeTrigger = pallet_subspace::NormalEonChange;
 
-    type HandleEquivocation =
-        pallet_subspace::equivocation::EquivocationHandler<OffencesSubspace, ReportLongevity>;
+    type HandleEquivocation = pallet_subspace::equivocation::EquivocationHandler<
+        OffencesSubspace,
+        ConstU64<{ EQUIVOCATION_REPORT_LONGEVITY as u64 }>,
+    >;
 
     type WeightInfo = ();
-}
-
-parameter_types! {
-    pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
 }
 
 impl pallet_timestamp::Config for Runtime {
     /// A timestamp: milliseconds since the unix epoch.
     type Moment = Moment;
     type OnTimestampSet = Subspace;
-    type MinimumPeriod = MinimumPeriod;
+    type MinimumPeriod = ConstU64<{ SLOT_DURATION / 2 }>;
     type WeightInfo = ();
 }
 
@@ -282,7 +276,6 @@ impl pallet_balances::Config for Runtime {
 }
 
 parameter_types! {
-    pub const ReplicationFactor: u16 = MIN_REPLICATION_FACTOR;
     pub const StorageFeesEscrowBlockReward: (u64, u64) = STORAGE_FEES_ESCROW_BLOCK_REWARD;
     pub const StorageFeesEscrowBlockTax: (u64, u64) = STORAGE_FEES_ESCROW_BLOCK_TAX;
 }
@@ -303,7 +296,7 @@ impl Get<u64> for TotalSpacePledged {
             .expect("Piece size is definitely small enough to fit into u64; qed");
         // Operations reordered to avoid u64 overflow, but essentially are:
         // u64::MAX * SlotProbability / (solution_range / PIECE_SIZE)
-        u64::MAX / Subspace::solution_range() * piece_size * SlotProbability::get().0
+        u64::MAX / Subspace::solution_ranges().current * piece_size * SlotProbability::get().0
             / SlotProbability::get().1
     }
 }
@@ -318,7 +311,7 @@ impl Get<u64> for BlockchainHistorySize {
 
 impl pallet_transaction_fees::Config for Runtime {
     type Event = Event;
-    type MinReplicationFactor = ReplicationFactor;
+    type MinReplicationFactor = ConstU16<MIN_REPLICATION_FACTOR>;
     type StorageFeesEscrowBlockReward = StorageFeesEscrowBlockReward;
     type StorageFeesEscrowBlockTax = StorageFeesEscrowBlockTax;
     type CreditSupply = CreditSupply;
@@ -490,7 +483,6 @@ impl pallet_object_store::Config for Runtime {
 parameter_types! {
     // This value doesn't matter, we don't use it (`VestedTransferOrigin = EnsureNever` below).
     pub const MinVestedTransfer: Balance = 0;
-    pub const MaxVestingSchedules: u32 = 2;
 }
 
 impl orml_vesting::Config for Runtime {
@@ -499,7 +491,7 @@ impl orml_vesting::Config for Runtime {
     type MinVestedTransfer = MinVestedTransfer;
     type VestedTransferOrigin = EnsureNever<AccountId>;
     type WeightInfo = ();
-    type MaxVestingSchedules = MaxVestingSchedules;
+    type MaxVestingSchedules = ConstU32<2>;
     type BlockNumberProvider = System;
 }
 
@@ -554,6 +546,7 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
+    frame_system::CheckNonZeroSender<Runtime>,
     frame_system::CheckSpecVersion<Runtime>,
     frame_system::CheckTxVersion<Runtime>,
     frame_system::CheckGenesis<Runtime>,
@@ -609,84 +602,76 @@ fn extract_object_store_block_object_mapping(
 }
 
 fn extract_utility_block_object_mapping(
-    base_offset: u32,
+    mut base_offset: u32,
     objects: &mut Vec<BlockObject>,
     call: &pallet_utility::Call<Runtime>,
+    mut recursion_depth_left: u16,
 ) {
-    // Add enum variant to the offset
-    let mut base_nested_call_offset = base_offset + 1;
+    if recursion_depth_left == 0 {
+        return;
+    }
+
+    recursion_depth_left -= 1;
+
+    // Add enum variant to the base offset.
+    base_offset += 1;
 
     match call {
         pallet_utility::Call::batch { calls } | pallet_utility::Call::batch_all { calls } => {
-            base_nested_call_offset += Compact::compact_len(&(calls.len() as u32)) as u32;
+            base_offset += Compact::compact_len(&(calls.len() as u32)) as u32;
 
             for call in calls {
-                // TODO: De-duplicate this `match`, it is repeated 2 more times below and one more
-                //  time in slightly different form in `extract_block_object_mapping()`
-                match call {
-                    Call::Feeds(call) => {
-                        // `+1` for enum variant offset
-                        extract_feeds_block_object_mapping(
-                            base_nested_call_offset + 1,
-                            objects,
-                            call,
-                        );
-                    }
-                    Call::ObjectStore(call) => {
-                        // `+1` for enum variant offset
-                        extract_object_store_block_object_mapping(
-                            base_nested_call_offset + 1,
-                            objects,
-                            call,
-                        );
-                    }
-                    _ => {}
-                }
+                extract_call_block_object_mapping(base_offset, objects, call, recursion_depth_left);
 
-                base_nested_call_offset += call.encoded_size() as u32;
+                base_offset += call.encoded_size() as u32;
             }
         }
         pallet_utility::Call::as_derivative { index, call } => {
-            base_nested_call_offset += index.encoded_size() as u32;
+            base_offset += index.encoded_size() as u32;
 
-            match call.as_ref() {
-                Call::Feeds(call) => {
-                    // `+1` for enum variant offset
-                    extract_feeds_block_object_mapping(base_nested_call_offset + 1, objects, call);
-                }
-                Call::ObjectStore(call) => {
-                    // `+1` for enum variant offset
-                    extract_object_store_block_object_mapping(
-                        base_nested_call_offset + 1,
-                        objects,
-                        call,
-                    );
-                }
-                _ => {}
-            }
+            extract_call_block_object_mapping(
+                base_offset,
+                objects,
+                call.as_ref(),
+                recursion_depth_left,
+            );
         }
         pallet_utility::Call::dispatch_as { as_origin, call } => {
-            base_nested_call_offset += as_origin.encoded_size() as u32;
+            base_offset += as_origin.encoded_size() as u32;
 
-            match call.as_ref() {
-                Call::Feeds(call) => {
-                    // `+1` for enum variant offset
-                    extract_feeds_block_object_mapping(base_nested_call_offset + 1, objects, call);
-                }
-                Call::ObjectStore(call) => {
-                    // `+1` for enum variant offset
-                    extract_object_store_block_object_mapping(
-                        base_nested_call_offset + 1,
-                        objects,
-                        call,
-                    );
-                }
-                _ => {}
-            }
+            extract_call_block_object_mapping(
+                base_offset,
+                objects,
+                call.as_ref(),
+                recursion_depth_left,
+            );
         }
         pallet_utility::Call::__Ignore(_, _) => {
             // Ignore.
         }
+    }
+}
+
+fn extract_call_block_object_mapping(
+    mut base_offset: u32,
+    objects: &mut Vec<BlockObject>,
+    call: &Call,
+    recursion_depth_left: u16,
+) {
+    // Add enum variant to the base offset.
+    base_offset += 1;
+
+    match call {
+        Call::Feeds(call) => {
+            extract_feeds_block_object_mapping(base_offset, objects, call);
+        }
+        Call::ObjectStore(call) => {
+            extract_object_store_block_object_mapping(base_offset, objects, call);
+        }
+        Call::Utility(call) => {
+            extract_utility_block_object_mapping(base_offset, objects, call, recursion_depth_left);
+        }
+        _ => {}
     }
 }
 
@@ -702,41 +687,19 @@ fn extract_block_object_mapping(block: Block) -> BlockObjectMapping {
             .unwrap_or_default();
         // Extrinsic starts with vector length and version byte, followed by optional signature and
         // `function` encoding.
-        // The last `+1` accounts for `Call::X()` enum variant encoding.
         let base_extrinsic_offset = base_offset
             + Compact::compact_len(
                 &((1 + signature_size + extrinsic.function.encoded_size()) as u32),
             )
             + 1
-            + signature_size
-            + 1;
+            + signature_size;
 
-        match &extrinsic.function {
-            Call::Feeds(call) => {
-                extract_feeds_block_object_mapping(
-                    base_extrinsic_offset as u32,
-                    &mut block_object_mapping.objects,
-                    call,
-                );
-            }
-            Call::ObjectStore(call) => {
-                extract_object_store_block_object_mapping(
-                    base_extrinsic_offset as u32,
-                    &mut block_object_mapping.objects,
-                    call,
-                );
-            }
-            Call::Utility(call) => {
-                extract_utility_block_object_mapping(
-                    base_extrinsic_offset as u32,
-                    &mut block_object_mapping.objects,
-                    call,
-                );
-            }
-            _ => {
-                // No other pallets store useful data yet.
-            }
-        }
+        extract_call_block_object_mapping(
+            base_extrinsic_offset as u32,
+            &mut block_object_mapping.objects,
+            &extrinsic.function,
+            MAX_OBJECT_MAPPING_RECURSION_DEPTH,
+        );
 
         base_offset += extrinsic.encoded_size();
     }
@@ -763,6 +726,28 @@ fn extract_bundles(extrinsics: Vec<OpaqueExtrinsic>) -> Vec<OpaqueBundle> {
             }
         })
         .collect()
+}
+
+fn extrinsics_shuffling_seed<Block: BlockT>(header: Block::Header) -> Randomness {
+    if header.number().is_zero() {
+        Randomness::default()
+    } else {
+        let mut pre_digest: Option<_> = None;
+        for log in header.digest().logs() {
+            match (
+                log.as_subspace_pre_digest::<FarmerPublicKey>(),
+                pre_digest.is_some(),
+            ) {
+                (Some(_), true) => panic!("Multiple Subspace pre-runtime digests in a header"),
+                (None, _) => {}
+                (s, false) => pre_digest = s,
+            }
+        }
+
+        let pre_digest = pre_digest.expect("Header must contain one pre-runtime digest; qed");
+
+        BlakeTwo256::hash_of(&pre_digest.solution.signature).into()
+    }
 }
 
 impl_runtime_apis! {
@@ -824,53 +809,32 @@ impl_runtime_apis! {
     }
 
     impl sp_consensus_subspace::SubspaceApi<Block> for Runtime {
-        fn confirmation_depth_k() -> u32 {
-            ConfirmationDepthK::get()
+        fn confirmation_depth_k() -> <<Block as BlockT>::Header as HeaderT>::Number {
+            <Self as pallet_subspace::Config>::ConfirmationDepthK::get()
         }
 
         fn record_size() -> u32 {
-            RecordSize::get()
+            <Self as pallet_subspace::Config>::RecordSize::get()
         }
 
         fn recorded_history_segment_size() -> u32 {
-            RecordedHistorySegmentSize::get()
+            <Self as pallet_subspace::Config>::RecordedHistorySegmentSize::get()
         }
 
-        fn configuration() -> SubspaceGenesisConfiguration {
-            // The choice of `c` parameter (where `1 - c` represents the
-            // probability of a slot being empty), is done in accordance to the
-            // slot duration and expected target block time, for safely
-            // resisting network delays of maximum two seconds.
-            // <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
-            SubspaceGenesisConfiguration {
-                slot_duration: Subspace::slot_duration(),
-                epoch_length: EpochDuration::get(),
-                c: SlotProbability::get(),
-                randomness: Subspace::randomness(),
-            }
+        fn slot_duration() -> Duration {
+            Duration::from_millis(Subspace::slot_duration())
         }
 
-        fn solution_range() -> u64 {
-            Subspace::solution_range()
+        fn global_randomnesses() -> GlobalRandomnesses {
+            Subspace::global_randomnesses()
+        }
+
+        fn solution_ranges() -> SolutionRanges {
+            Subspace::solution_ranges()
         }
 
         fn salts() -> Salts {
-            Salts {
-                salt: Subspace::salt(),
-                next_salt: Subspace::next_salt(),
-            }
-        }
-
-        fn current_epoch_start() -> sp_consensus_slots::Slot {
-            Subspace::current_epoch_start()
-        }
-
-        fn current_epoch() -> Epoch {
-            Subspace::current_epoch()
-        }
-
-        fn next_epoch() -> Epoch {
-            Subspace::next_epoch()
+            Subspace::salts()
         }
 
         fn submit_report_equivocation_extrinsic(
@@ -899,17 +863,16 @@ impl_runtime_apis! {
     }
 
     impl sp_executor::ExecutorApi<Block> for Runtime {
-        fn submit_candidate_receipt_unsigned(
-            head_number: <<Block as BlockT>::Header as HeaderT>::Number,
-            head_hash: <Block as BlockT>::Hash,
-        ) -> Option<()> {
-            Executor::submit_candidate_receipt_unsigned(head_number, head_hash).ok()
-        }
-
         fn submit_execution_receipt_unsigned(
-            execution_receipt: sp_executor::ExecutionReceipt<<Block as BlockT>::Hash>,
+            opaque_execution_receipt: sp_executor::OpaqueExecutionReceipt,
         ) -> Option<()> {
-            Executor::submit_execution_receipt_unsigned(execution_receipt).ok()
+            <sp_executor::ExecutionReceipt<<Block as BlockT>::Hash>>::decode(
+                &mut opaque_execution_receipt.encode().as_slice(),
+            )
+            .ok()
+            .and_then(|execution_receipt| {
+                Executor::submit_execution_receipt_unsigned(execution_receipt).ok()
+            })
         }
 
         fn submit_transaction_bundle_unsigned(opaque_bundle: OpaqueBundle) -> Option<()> {
@@ -920,16 +883,24 @@ impl_runtime_apis! {
             Executor::submit_fraud_proof_unsigned(fraud_proof).ok()
         }
 
+        fn submit_bundle_equivocation_proof_unsigned(
+            bundle_equivocation_proof: sp_executor::BundleEquivocationProof,
+        ) -> Option<()> {
+            Executor::submit_bundle_equivocation_proof_unsigned(bundle_equivocation_proof).ok()
+        }
+
+        fn submit_invalid_transaction_proof_unsigned(
+            invalid_transaction_proof: sp_executor::InvalidTransactionProof,
+        ) -> Option<()> {
+            Executor::submit_invalid_transaction_proof_unsigned(invalid_transaction_proof).ok()
+        }
+
         fn extract_bundles(extrinsics: Vec<OpaqueExtrinsic>) -> Vec<OpaqueBundle> {
             extract_bundles(extrinsics)
         }
 
-        fn head_hash(number: <<Block as BlockT>::Header as HeaderT>::Number) -> Option<<Block as BlockT>::Hash> {
-            Executor::head_hash(number)
-        }
-
-        fn pending_head() -> Option<<Block as BlockT>::Hash> {
-            Executor::pending_head()
+        fn extrinsics_shuffling_seed(header: <Block as BlockT>::Header) -> Randomness {
+            extrinsics_shuffling_seed::<Block>(header)
         }
     }
 

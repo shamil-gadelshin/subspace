@@ -24,16 +24,15 @@ pub mod inherents;
 pub mod offence;
 
 use crate::digests::{
-    CompatibleDigestItem, NextConfigDescriptor, NextEpochDescriptor, PreDigest, SaltDescriptor,
-    SolutionRangeDescriptor, UpdatedSaltDescriptor, UpdatedSolutionRangeDescriptor,
+    CompatibleDigestItem, GlobalRandomnessDescriptor, PreDigest, SaltDescriptor,
+    SolutionRangeDescriptor,
 };
 use codec::{Decode, Encode, MaxEncodedLen};
+use core::time::Duration;
 use scale_info::TypeInfo;
-#[cfg(feature = "std")]
-use serde::{Deserialize, Serialize};
-use sp_consensus_slots::Slot;
+use sp_api::{BlockT, HeaderT};
 use sp_core::crypto::KeyTypeId;
-use sp_runtime::{traits::Header, ConsensusEngineId, RuntimeAppPublic, RuntimeDebug};
+use sp_runtime::{ConsensusEngineId, RuntimeAppPublic, RuntimeDebug};
 use sp_std::vec::Vec;
 use subspace_core_primitives::objects::BlockObjectMapping;
 use subspace_core_primitives::{Randomness, RootBlock, Salt, Sha256Hash};
@@ -56,12 +55,7 @@ pub type FarmerSignature = app::Signature;
 pub type FarmerPublicKey = app::Public;
 
 /// The `ConsensusEngineId` of Subspace.
-pub const SUBSPACE_ENGINE_ID: ConsensusEngineId = *b"SUB_";
-
-/// How many blocks to wait before running the median algorithm for relative time
-/// This will not vary from chain to chain as it is not dependent on slot duration
-/// or epoch length.
-pub const MEDIAN_ALGORITHM_CARDINALITY: usize = 1200; // arbitrary suggestion by w3f-research.
+const SUBSPACE_ENGINE_ID: ConsensusEngineId = *b"SUB_";
 
 /// An equivocation proof for multiple block authorships on the same slot (i.e. double vote).
 pub type EquivocationProof<H> = sp_consensus_slots::EquivocationProof<H, FarmerPublicKey>;
@@ -74,74 +68,16 @@ pub type SubspaceBlockWeight = u128;
 
 /// An consensus log item for Subspace.
 #[derive(Decode, Encode, Clone, PartialEq, Eq, RuntimeDebug)]
-pub enum ConsensusLog {
-    /// The epoch has changed. This provides information about the _next_
-    /// epoch - information about the _current_ epoch (i.e. the one we've just
-    /// entered) should already be available earlier in the chain.
+enum ConsensusLog {
+    /// Global randomness for this block/interval.
     #[codec(index = 1)]
-    NextEpochData(NextEpochDescriptor),
-    /// The epoch has changed, and the epoch after the current one will
-    /// enact different epoch configurations.
+    GlobalRandomness(GlobalRandomnessDescriptor),
+    /// Solution range for this block/era.
     #[codec(index = 2)]
-    NextConfigData(NextConfigDescriptor),
-    /// Solution range for this block.
+    SolutionRange(SolutionRangeDescriptor),
+    /// Salt for this block/eon.
     #[codec(index = 3)]
-    SolutionRangeData(SolutionRangeDescriptor),
-    /// Salt for this block.
-    #[codec(index = 4)]
-    SaltData(SaltDescriptor),
-    /// The era has changed and the solution range has changed because of that.
-    #[codec(index = 5)]
-    NextSolutionRangeData(UpdatedSolutionRangeDescriptor),
-    /// The eon has changed and the salt has changed because of that.
-    #[codec(index = 6)]
-    UpdatedSaltData(UpdatedSaltDescriptor),
-}
-
-/// Configuration data used by the Subspace consensus engine.
-#[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
-pub struct SubspaceGenesisConfiguration {
-    /// The slot duration in milliseconds for Subspace. Currently, only
-    /// the value provided by this type at genesis will be used.
-    ///
-    /// Dynamic slot duration may be supported in the future.
-    pub slot_duration: u64,
-
-    /// The duration of epochs in slots.
-    pub epoch_length: u64,
-
-    /// A constant value that is used in the threshold calculation formula.
-    /// Expressed as a rational where the first member of the tuple is the
-    /// numerator and the second is the denominator. The rational should
-    /// represent a value between 0 and 1.
-    /// In the threshold formula calculation, `1 - c` represents the probability
-    /// of a slot being empty.
-    pub c: (u64, u64),
-
-    /// The randomness for the genesis epoch.
-    pub randomness: Randomness,
-}
-
-#[cfg(feature = "std")]
-impl sp_consensus::SlotData for SubspaceGenesisConfiguration {
-    fn slot_duration(&self) -> std::time::Duration {
-        std::time::Duration::from_millis(self.slot_duration)
-    }
-
-    const SLOT_KEY: &'static [u8] = b"subspace_configuration";
-}
-
-/// Configuration data used by the Subspace consensus engine.
-#[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct SubspaceEpochConfiguration {
-    /// A constant value that is used in the threshold calculation formula.
-    /// Expressed as a rational where the first member of the tuple is the
-    /// numerator and the second is the denominator. The rational should
-    /// represent a value between 0 and 1.
-    /// In the threshold formula calculation, `1 - c` represents the probability
-    /// of a slot being empty.
-    pub c: (u64, u64),
+    Salt(SaltDescriptor),
 }
 
 /// Verifies the equivocation proof by making sure that: both headers have
@@ -149,7 +85,7 @@ pub struct SubspaceEpochConfiguration {
 /// the same authority.
 pub fn check_equivocation_proof<H>(proof: EquivocationProof<H>) -> bool
 where
-    H: Header,
+    H: HeaderT,
 {
     let find_pre_digest = |header: &H| -> Option<PreDigest<FarmerPublicKey>> {
         header
@@ -160,8 +96,7 @@ where
     };
 
     let verify_seal_signature = |mut header: H, offender: &FarmerPublicKey| {
-        let seal =
-            CompatibleDigestItem::<FarmerPublicKey>::as_subspace_seal(&header.digest_mut().pop()?)?;
+        let seal = CompatibleDigestItem::as_subspace_seal(&header.digest_mut().pop()?)?;
         let pre_hash = header.hash();
 
         if !offender.verify(&pre_hash.as_ref(), &seal) {
@@ -205,50 +140,44 @@ where
     verify_proof().is_some()
 }
 
-/// An opaque type used to represent the key ownership proof at the runtime API
-/// boundary. The inner value is an encoded representation of the actual key
-/// ownership proof which will be parameterized when defining the runtime. At
-/// the runtime API boundary this type is unknown and as such we keep this
-/// opaque representation, implementors of the runtime API will have to make
-/// sure that all usages of `OpaqueKeyOwnershipProof` refer to the same type.
-#[derive(Decode, Encode, PartialEq)]
-pub struct OpaqueKeyOwnershipProof(Vec<u8>);
-impl OpaqueKeyOwnershipProof {
-    /// Create a new `OpaqueKeyOwnershipProof` using the given encoded
-    /// representation.
-    pub fn new(inner: Vec<u8>) -> OpaqueKeyOwnershipProof {
-        OpaqueKeyOwnershipProof(inner)
-    }
-
-    /// Try to decode this `OpaqueKeyOwnershipProof` into the given concrete key
-    /// ownership proof type.
-    pub fn decode<T: Decode>(self) -> Option<T> {
-        Decode::decode(&mut &self.0[..]).ok()
-    }
+/// Subspace global randomnesses used for deriving global challenges.
+#[derive(Default, Decode, Encode, MaxEncodedLen, PartialEq, Eq, Clone, Copy, Debug, TypeInfo)]
+pub struct GlobalRandomnesses {
+    /// Global randomness used for deriving global challenge in current block/interval.
+    pub current: Randomness,
+    /// Global randomness that will be used for deriving global challenge in the next
+    /// block/interval.
+    pub next: Option<Randomness>,
 }
 
-/// Subspace epoch information
-#[derive(Decode, Encode, PartialEq, Eq, Clone, Debug)]
-pub struct Epoch {
-    /// The epoch index.
-    pub epoch_index: u64,
-    /// The starting slot of the epoch.
-    pub start_slot: Slot,
-    /// The duration of this epoch.
-    pub duration: u64,
-    /// Randomness for this epoch.
-    pub randomness: Randomness,
-    /// Configuration of the epoch.
-    pub config: SubspaceEpochConfiguration,
+/// Subspace solution ranges used for challenges.
+#[derive(Decode, Encode, MaxEncodedLen, PartialEq, Eq, Clone, Copy, Debug, TypeInfo)]
+pub struct SolutionRanges {
+    /// Solution range in current block/era.
+    pub current: u64,
+    /// Solution range that will be used in the next block/era.
+    pub next: Option<u64>,
+}
+
+impl Default for SolutionRanges {
+    fn default() -> Self {
+        Self {
+            current: u64::MAX,
+            next: None,
+        }
+    }
 }
 
 /// Subspace salts used for challenges.
-#[derive(Decode, Encode, PartialEq, Eq, Clone, Debug)]
+#[derive(Default, Decode, Encode, MaxEncodedLen, PartialEq, Eq, Clone, Copy, Debug, TypeInfo)]
 pub struct Salts {
-    /// Salt used for challenges.
-    pub salt: Salt,
-    /// Salt used for challenges after `salt`.
-    pub next_salt: Salt,
+    /// Salt used for challenges in current block/eon.
+    pub current: Salt,
+    /// Salt used for challenges after `salt` in the next eon.
+    pub next: Option<Salt>,
+    /// Whether salt should be updated in the next block (next salt is known upfront for some time
+    /// and is not necessarily switching in the very next block).
+    pub switch_next_block: bool,
 }
 
 sp_api::decl_runtime_apis! {
@@ -256,7 +185,7 @@ sp_api::decl_runtime_apis! {
     pub trait SubspaceApi {
         /// Depth `K` after which a block enters the recorded history (a global constant, as opposed
         /// to the client-dependent transaction confirmation depth `k`).
-        fn confirmation_depth_k() -> u32;
+        fn confirmation_depth_k() -> <<Block as BlockT>::Header as HeaderT>::Number;
 
         /// The size of data in one piece (in bytes).
         fn record_size() -> u32;
@@ -264,24 +193,17 @@ sp_api::decl_runtime_apis! {
         /// Recorded history is encoded and plotted in segments of this size (in bytes).
         fn recorded_history_segment_size() -> u32;
 
-        /// Return the genesis configuration for Subspace. The configuration is only read on genesis.
-        fn configuration() -> SubspaceGenesisConfiguration;
+        /// The slot duration in milliseconds for Subspace.
+        fn slot_duration() -> Duration;
 
-        /// Current solution range.
-        fn solution_range() -> u64;
+        /// Global randomnesses used for deriving global challenges.
+        fn global_randomnesses() -> GlobalRandomnesses;
+
+        /// Solution ranges.
+        fn solution_ranges() -> SolutionRanges;
 
         /// Subspace salts used for challenges.
         fn salts() -> Salts;
-
-        /// Returns the slot that started the current epoch.
-        fn current_epoch_start() -> Slot;
-
-        /// Returns information regarding the current epoch.
-        fn current_epoch() -> Epoch;
-
-        /// Returns information regarding the next epoch (which was already
-        /// previously announced).
-        fn next_epoch() -> Epoch;
 
         /// Submits an unsigned extrinsic to report an equivocation. The caller must provide the
         /// equivocation proof. The extrinsic will be unsigned and should only be accepted for local

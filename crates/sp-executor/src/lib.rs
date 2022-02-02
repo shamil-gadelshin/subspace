@@ -19,11 +19,14 @@
 
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use sp_consensus_slots::Slot;
 use sp_core::H256;
-use sp_runtime::traits::{BlakeTwo256, Block as BlockT, Hash as HashT, Header as HeaderT};
+use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 use sp_runtime::{OpaqueExtrinsic, RuntimeDebug};
 use sp_std::vec::Vec;
 use sp_trie::StorageProof;
+use subspace_core_primitives::Randomness;
+use subspace_runtime_primitives::AccountId;
 
 /// Header of transaction bundle.
 #[derive(Decode, Encode, TypeInfo, PartialEq, Eq, Clone, RuntimeDebug)]
@@ -94,19 +97,30 @@ impl<Extrinsic: sp_runtime::traits::Extrinsic + Encode> From<Bundle<Extrinsic>> 
 #[derive(Decode, Encode, TypeInfo, PartialEq, Eq, Clone, RuntimeDebug)]
 pub struct ExecutionReceipt<Hash> {
     /// Primary block hash.
-    pub primary_hash: Hash,
+    pub primary_hash: H256,
     /// Secondary block hash?
     pub secondary_hash: Hash,
     /// State root after finishing the execution.
     pub state_root: Hash,
     /// Merkle root of the execution.
-    pub state_transition_root: Hash,
+    pub state_transition_root: H256,
 }
 
-impl<Hash: Copy> ExecutionReceipt<Hash> {
-    /// TODO: hash of ER?
-    pub fn hash(&self) -> Hash {
-        self.primary_hash
+impl<Hash: Encode> ExecutionReceipt<Hash> {
+    /// Returns the hash of this execution receipt.
+    pub fn hash(&self) -> H256 {
+        BlakeTwo256::hash_of(self)
+    }
+}
+
+// TODO: this might be unneccessary, ideally we could interact with the runtime using `ExecutionReceipt` directly.
+// Refer to the comment https://github.com/subspace/subspace/pull/219#discussion_r776749767
+#[derive(Decode, Encode, TypeInfo, PartialEq, Eq, Clone, RuntimeDebug)]
+pub struct OpaqueExecutionReceipt(Vec<u8>);
+
+impl<Hash: Encode> From<ExecutionReceipt<Hash>> for OpaqueExecutionReceipt {
+    fn from(inner: ExecutionReceipt<Hash>) -> Self {
+        Self(inner.encode())
     }
 }
 
@@ -117,18 +131,55 @@ pub struct FraudProof {
     pub proof: StorageProof,
 }
 
+/// Represents a bundle equivocation proof. An equivocation happens when an executor
+/// produces more than one bundle on the same slot. The proof of equivocation
+/// are the given distinct bundle headers that were signed by the validator and which
+/// include the slot number.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+pub struct BundleEquivocationProof {
+    /// The authority id of the equivocator.
+    pub offender: AccountId,
+    /// The slot at which the equivocation happened.
+    pub slot: Slot,
+    /// The first header involved in the equivocation.
+    pub first_header: BundleHeader,
+    /// The second header involved in the equivocation.
+    pub second_header: BundleHeader,
+}
+
+impl BundleEquivocationProof {
+    /// Returns the hash of this bundle equivocation proof.
+    pub fn hash(&self) -> H256 {
+        BlakeTwo256::hash_of(self)
+    }
+
+    // TODO: remove this later.
+    /// Constructs a dummy bundle equivocation proof.
+    pub fn dummy_at(slot_number: u64) -> Self {
+        let dummy_header = BundleHeader {
+            slot_number,
+            extrinsics_root: H256::default(),
+        };
+        Self {
+            offender: AccountId::decode(&mut sp_runtime::traits::TrailingZeroInput::zeroes())
+                .expect("Failed to create zero account"),
+            slot: Slot::default(),
+            first_header: dummy_header.clone(),
+            second_header: dummy_header,
+        }
+    }
+}
+
+/// Represents an invalid transaction proof.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+pub struct InvalidTransactionProof;
+
 sp_api::decl_runtime_apis! {
     /// API necessary for executor pallet.
     pub trait ExecutorApi {
-        /// Submits the candidate receipt via an unsigned extrinsic.
-        fn submit_candidate_receipt_unsigned(
-            head_number: <<Block as BlockT>::Header as HeaderT>::Number,
-            head_hash: <Block as BlockT>::Hash,
-        ) -> Option<()>;
-
         /// Submits the execution receipt via an unsigned extrinsic.
         fn submit_execution_receipt_unsigned(
-            execution_receipt: ExecutionReceipt<<Block as BlockT>::Hash>,
+            opaque_execution_receipt: OpaqueExecutionReceipt,
         ) -> Option<()>;
 
         /// Submits the transaction bundle via an unsigned extrinsic.
@@ -137,15 +188,20 @@ sp_api::decl_runtime_apis! {
         /// Submits the fraud proof via an unsigned extrinsic.
         fn submit_fraud_proof_unsigned(fraud_proof: FraudProof) -> Option<()>;
 
+        /// Submits the bundle equivocation proof via an unsigned extrinsic.
+        fn submit_bundle_equivocation_proof_unsigned(
+            bundle_equivocation_proof: BundleEquivocationProof,
+        ) -> Option<()>;
+
+        /// Submits the invalid transaction proof via an unsigned extrinsic.
+        fn submit_invalid_transaction_proof_unsigned(
+            invalid_transaction_proof: InvalidTransactionProof,
+        ) -> Option<()>;
+
         /// Extract the bundles from extrinsics in a block.
         fn extract_bundles(extrinsics: Vec<OpaqueExtrinsic>) -> Vec<OpaqueBundle>;
 
-        /// Returns the block hash given the block number.
-        fn head_hash(
-            number: <<Block as BlockT>::Header as HeaderT>::Number,
-        ) -> Option<<Block as BlockT>::Hash>;
-
-        /// Returns the latest block hash of executor chain.
-        fn pending_head() -> Option<<Block as BlockT>::Hash>;
+        /// Generates a randomness seed for extrinsics shuffling.
+        fn extrinsics_shuffling_seed(header: Block::Header) -> Randomness;
     }
 }

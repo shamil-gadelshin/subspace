@@ -49,6 +49,7 @@ mod pallet {
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
+    #[pallet::without_storage_info]
     pub struct Pallet<T>(_);
 
     /// The pallet's config trait.
@@ -93,7 +94,6 @@ mod pallet {
         ValueQuery,
     >;
 
-    // TODO: We probably don't need this in Subspace
     /// Events type.
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]

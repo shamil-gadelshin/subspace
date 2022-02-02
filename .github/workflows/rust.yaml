@@ -45,6 +45,7 @@ jobs:
           - ubuntu-20.04
           - macos-11
           - windows-2019
+          - windows-2022
 
     runs-on: ${{ matrix.os }}
 
@@ -52,12 +53,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
+      # Workaround as the newest version of MSVC does not support this latest version of CUDA, workaroud for Windows 11/Windows Server 2022.
+      - name: Add MSVC compiler
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          toolset: 14.29
+        if: matrix.os == 'windows-2022'
+
       - name: Rust toolchain
         uses: actions-rs/toolchain@v1
         # TODO: Below can be removed when https://github.com/actions-rs/toolchain/issues/126 is resolved
         with:
-          # TODO: roll back to nightly on new wasmtime release, ref https://github.com/bytecodealliance/rustix/issues/142
-          toolchain: nightly-2021-12-14
+          # TODO: roll back to nightly once https://github.com/paritytech/substrate/issues/10767 is resolved
+          toolchain: nightly-2022-01-19
           target: wasm32-unknown-unknown
           override: true
           components: rustfmt, clippy
@@ -100,6 +108,7 @@ jobs:
           - ubuntu-20.04
           - macos-11
           - windows-2019
+          - windows-2022
 
     runs-on: ${{ matrix.os }}
 
@@ -107,12 +116,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
+      # Workaround as the newest version of MSVC does not support this latest version of CUDA, workaroud for Windows 11/Windows Server 2022.
+      - name: Add MSVC compiler
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          toolset: 14.29
+        if: matrix.os == 'windows-2022'
+
       - name: Rust toolchain
         uses: actions-rs/toolchain@v1
         # TODO: Below can be removed when https://github.com/actions-rs/toolchain/issues/126 is resolved
         with:
-          # TODO: roll back to nightly on new wasmtime release, ref https://github.com/bytecodealliance/rustix/issues/142
-          toolchain: nightly-2021-12-14
+          # TODO: roll back to nightly once https://github.com/paritytech/substrate/issues/10767 is resolved
+          toolchain: nightly-2022-01-19
           target: wasm32-unknown-unknown
           override: true
           components: rustfmt, clippy

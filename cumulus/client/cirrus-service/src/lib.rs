@@ -29,12 +29,15 @@ use sc_consensus::{
 	import_queue::{ImportQueue, IncomingBlock, Link, Origin},
 	BlockImport,
 };
+use sc_network::NetworkService;
 use sc_service::{Configuration, Role, TaskManager};
 use sc_transaction_pool_api::TransactionPool;
+use sc_utils::mpsc::tracing_unbounded;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockOrigin;
 use sp_core::{traits::SpawnNamed, Pair};
+use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::{
 	traits::{Block as BlockT, NumberFor},
 	Justifications,
@@ -65,7 +68,18 @@ impl<C> Deref for PrimaryFullNode<C> {
 }
 
 /// Parameters given to [`start_executor`].
-pub struct StartExecutorParams<'a, Block: BlockT, BS, Client, Spawner, RClient, IQ, TP> {
+pub struct StartExecutorParams<
+	'a,
+	Block: BlockT,
+	BS,
+	Client,
+	Spawner,
+	RClient,
+	IQ,
+	TP,
+	Backend,
+	CIDP,
+> {
 	pub block_status: Arc<BS>,
 	pub client: Arc<Client>,
 	pub announce_block: Arc<dyn Fn(Block::Hash, Option<Vec<u8>>) + Send + Sync>,
@@ -75,10 +89,13 @@ pub struct StartExecutorParams<'a, Block: BlockT, BS, Client, Spawner, RClient, 
 	pub parachain_consensus: Box<dyn ParachainConsensus<Block>>,
 	pub import_queue: IQ,
 	pub transaction_pool: Arc<TP>,
+	pub network: Arc<NetworkService<Block, Block::Hash>>,
+	pub backend: Arc<Backend>,
+	pub create_inherent_data_providers: Arc<CIDP>,
 }
 
 /// Start an executor node.
-pub async fn start_executor<'a, Block, BS, Client, Backend, Spawner, RClient, IQ, TP>(
+pub async fn start_executor<'a, Block, BS, Client, Backend, Spawner, RClient, IQ, TP, CIDP>(
 	StartExecutorParams {
 		block_status,
 		client,
@@ -89,7 +106,10 @@ pub async fn start_executor<'a, Block, BS, Client, Backend, Spawner, RClient, IQ
 		parachain_consensus,
 		import_queue: _,
 		transaction_pool,
-	}: StartExecutorParams<'a, Block, BS, Client, Spawner, RClient, IQ, TP>,
+		network,
+		backend,
+		create_inherent_data_providers,
+	}: StartExecutorParams<'a, Block, BS, Client, Spawner, RClient, IQ, TP, Backend, CIDP>,
 ) -> sc_service::error::Result<()>
 where
 	Block: BlockT,
@@ -103,13 +123,23 @@ where
 		+ BlockchainEvents<Block>
 		+ ProvideRuntimeApi<Block>
 		+ 'static,
-	Client::Api: cirrus_primitives::SecondaryApi<Block, cirrus_primitives::AccountId>,
+	Client::Api: cirrus_primitives::SecondaryApi<Block, cirrus_primitives::AccountId>
+		+ sp_block_builder::BlockBuilder<Block>
+		+ sp_api::ApiExt<
+			Block,
+			StateBackend = sc_client_api::backend::StateBackendFor<Backend, Block>,
+		>,
 	RClient: RelaychainClient + Clone + Send + Sync + 'static,
-	for<'b> &'b Client: BlockImport<Block>,
+	for<'b> &'b Client: BlockImport<
+		Block,
+		Transaction = sp_api::TransactionFor<Client, Block>,
+		Error = sp_consensus::Error,
+	>,
 	Spawner: SpawnNamed + Clone + Send + Sync + 'static,
 	Backend: BackendT<Block> + 'static,
 	IQ: ImportQueue<Block> + 'static,
 	TP: TransactionPool<Block = Block> + 'static,
+	CIDP: CreateInherentDataProviders<Block, cirrus_primitives::Hash> + 'static,
 {
 	let consensus = cumulus_client_consensus_common::run_parachain_consensus(
 		client.clone(),
@@ -120,21 +150,44 @@ where
 		.spawn_essential_handle()
 		.spawn("cumulus-consensus", None, consensus);
 
-	cirrus_client_executor::start_executor(cirrus_client_executor::StartExecutorParams {
-		runtime_api: client.clone(),
-		client,
-		block_status,
-		announce_block,
-		overseer_handle: primary_chain_full_node
-			.overseer_handle
-			.clone()
-			.ok_or_else(|| "Subspace full node did not provide an `OverseerHandle`!")?,
-		spawner,
-		key: primary_chain_full_node.collator_key.clone(),
-		parachain_consensus,
-		transaction_pool,
-	})
-	.await;
+	let (bundle_sender, bundle_receiver) = tracing_unbounded("transaction_bundle_stream");
+	let (execution_receipt_sender, execution_receipt_receiver) =
+		tracing_unbounded("execution_receipt_stream");
+
+	let overseer_handle = primary_chain_full_node
+		.overseer_handle
+		.clone()
+		.ok_or_else(|| "Subspace full node did not provide an `OverseerHandle`!")?;
+
+	let executor =
+		cirrus_client_executor::start_executor(cirrus_client_executor::StartExecutorParams {
+			runtime_api: client.clone(),
+			client,
+			block_status,
+			announce_block,
+			overseer_handle,
+			spawner,
+			key: primary_chain_full_node.collator_key.clone(),
+			parachain_consensus,
+			transaction_pool,
+			bundle_sender,
+			execution_receipt_sender,
+			backend,
+			create_inherent_data_providers,
+		})
+		.await;
+
+	let executor_gossip = cirrus_client_executor_gossip::start_gossip_worker(
+		cirrus_client_executor_gossip::ExecutorGossipParams {
+			network,
+			executor,
+			bundle_receiver,
+			execution_receipt_receiver,
+		},
+	);
+	task_manager
+		.spawn_essential_handle()
+		.spawn_blocking("cirrus-gossip", None, executor_gossip);
 
 	task_manager.add_child(primary_chain_full_node.primary_chain_full_node.task_manager);
 

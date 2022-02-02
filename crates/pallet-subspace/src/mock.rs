@@ -16,28 +16,27 @@
 
 //! Test utilities
 
+use crate::equivocation::EquivocationHandler;
 use crate::{
     self as pallet_subspace, Config, CurrentSlot, FarmerPublicKey, NormalEonChange,
-    NormalEpochChange, NormalEraChange,
+    NormalEraChange, NormalGlobalRandomnessInterval,
 };
-use codec::Encode;
 use frame_support::parameter_types;
 use frame_support::traits::{ConstU128, ConstU32, ConstU64, OnInitialize};
-use frame_system::InitKind;
 use schnorrkel::Keypair;
 use sp_consensus_slots::Slot;
-use sp_consensus_subspace::digests::{PreDigest, Solution};
+use sp_consensus_subspace::digests::{CompatibleDigestItem, PreDigest};
 use sp_core::crypto::UncheckedFrom;
 use sp_core::sr25519::Pair;
 use sp_core::{Pair as PairTrait, H256};
-use sp_io;
 use sp_runtime::{
     testing::{Digest, DigestItem, Header, TestXt},
     traits::{Header as _, IdentityLookup},
     Perbill,
 };
 use subspace_core_primitives::{
-    ArchivedBlockProgress, LastArchivedBlock, LocalChallenge, Piece, RootBlock, Sha256Hash, Tag,
+    ArchivedBlockProgress, LastArchivedBlock, LocalChallenge, Piece, RootBlock, Sha256Hash,
+    Solution, Tag,
 };
 use subspace_solving::{SubspaceCodec, SOLUTION_SIGNING_CONTEXT};
 
@@ -50,11 +49,11 @@ frame_support::construct_runtime!(
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Subspace: pallet_subspace::{Pallet, Call, Storage, Config, Event, ValidateUnsigned},
-        OffencesSubspace: pallet_offences_subspace::{Pallet, Storage, Event},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        System: frame_system,
+        Balances: pallet_balances,
+        Subspace: pallet_subspace,
+        OffencesSubspace: pallet_offences_subspace,
+        Timestamp: pallet_timestamp,
     }
 );
 
@@ -130,9 +129,10 @@ pub const INITIAL_SOLUTION_RANGE: u64 =
     u64::MAX / (1024 * 1024 * 1024 / 4096) * SLOT_PROBABILITY.0 / SLOT_PROBABILITY.1;
 
 parameter_types! {
-    pub const EpochDuration: u64 = 3;
+    pub const GlobalRandomnessUpdateInterval: u64 = 10;
     pub const EraDuration: u32 = 4;
     pub const EonDuration: u32 = 5;
+    pub const EonNextSaltReveal: u64 = 3;
     // 1GB
     pub const InitialSolutionRange: u64 = INITIAL_SOLUTION_RANGE;
     pub const SlotProbability: (u64, u64) = SLOT_PROBABILITY;
@@ -145,21 +145,21 @@ parameter_types! {
 
 impl Config for Test {
     type Event = Event;
-    type EpochDuration = EpochDuration;
+    type GlobalRandomnessUpdateInterval = GlobalRandomnessUpdateInterval;
     type EraDuration = EraDuration;
     type EonDuration = EonDuration;
+    type EonNextSaltReveal = EonNextSaltReveal;
     type InitialSolutionRange = InitialSolutionRange;
     type SlotProbability = SlotProbability;
     type ExpectedBlockTime = ConstU64<1>;
     type ConfirmationDepthK = ConfirmationDepthK;
     type RecordSize = RecordSize;
     type RecordedHistorySegmentSize = RecordedHistorySegmentSize;
-    type EpochChangeTrigger = NormalEpochChange;
+    type GlobalRandomnessIntervalTrigger = NormalGlobalRandomnessInterval;
     type EraChangeTrigger = NormalEraChange;
     type EonChangeTrigger = NormalEonChange;
 
-    type HandleEquivocation =
-        crate::equivocation::EquivocationHandler<OffencesSubspace, ReportLongevity>;
+    type HandleEquivocation = EquivocationHandler<OffencesSubspace, ReportLongevity>;
 
     type WeightInfo = ();
 }
@@ -181,7 +181,14 @@ pub fn go_to_block(keypair: &Keypair, block: u64, slot: u64) {
     let piece_index = 0;
     let mut encoding = Piece::default();
     subspace_solving.encode(&mut encoding, piece_index).unwrap();
-    let tag: Tag = subspace_solving::create_tag(&encoding, Subspace::salt());
+    let tag: Tag = subspace_solving::create_tag(&encoding, {
+        let salts = Subspace::salts();
+        if salts.switch_next_block {
+            salts.next.unwrap()
+        } else {
+            salts.current
+        }
+    });
 
     let pre_digest = make_pre_digest(
         slot.into(),
@@ -195,7 +202,8 @@ pub fn go_to_block(keypair: &Keypair, block: u64, slot: u64) {
         },
     );
 
-    System::initialize(&block, &parent_hash, &pre_digest, InitKind::Full);
+    System::reset_events();
+    System::initialize(&block, &parent_hash, &pre_digest);
 
     Subspace::on_initialize(block);
 }
@@ -210,11 +218,7 @@ pub fn progress_to_block(keypair: &Keypair, n: u64) {
 }
 
 pub fn make_pre_digest(slot: Slot, solution: Solution<FarmerPublicKey>) -> Digest {
-    let digest_data = PreDigest { slot, solution };
-    let log = DigestItem::PreRuntime(
-        sp_consensus_subspace::SUBSPACE_ENGINE_ID,
-        digest_data.encode(),
-    );
+    let log = DigestItem::subspace_pre_digest(&PreDigest { slot, solution });
     Digest { logs: vec![log] }
 }
 
@@ -230,8 +234,6 @@ pub fn generate_equivocation_proof(
     keypair: &Keypair,
     slot: Slot,
 ) -> sp_consensus_subspace::EquivocationProof<Header> {
-    use sp_consensus_subspace::digests::CompatibleDigestItem;
-
     let current_block = System::block_number();
     let current_slot = CurrentSlot::<Test>::get();
 
@@ -255,7 +257,8 @@ pub fn generate_equivocation_proof(
                 tag,
             },
         );
-        System::initialize(&current_block, &parent_hash, &pre_digest, InitKind::Full);
+        System::reset_events();
+        System::initialize(&current_block, &parent_hash, &pre_digest);
         System::set_block_number(current_block);
         Timestamp::set_timestamp(current_block);
         System::finalize()
@@ -266,8 +269,7 @@ pub fn generate_equivocation_proof(
     let seal_header = |header: &mut Header| {
         let prehash = header.hash();
         let signature = Pair::from(keypair.secret.clone()).sign(prehash.as_ref());
-        let seal =
-            <DigestItem as CompatibleDigestItem<FarmerPublicKey>>::subspace_seal(signature.into());
+        let seal = DigestItem::subspace_seal(signature.into());
         header.digest_mut().push(seal);
     };
 

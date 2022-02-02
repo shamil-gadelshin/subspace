@@ -2,11 +2,14 @@
 resolver = "2"
 members = [
     "crates/*",
+    "cumulus/client/block-builder",
     "cumulus/client/cli",
     "cumulus/client/cirrus-service",
     "cumulus/client/cirrus-executor",
     "cumulus/client/consensus/common",
     "cumulus/client/consensus/relay-chain",
+    "cumulus/client/executor-gossip",
+    "cumulus/pallets/executive",
     "cumulus/parachain-template/node",
     "cumulus/parachain-template/runtime",
     "cumulus/primitives",
@@ -71,6 +74,8 @@ sha3 = { opt-level = 3 }
 sloth256-189 = { opt-level = 3 }
 smallvec = { opt-level = 3 }
 snow = { opt-level = 3 }
+subspace-core-primitives = { opt-level = 3 }
+subspace-archiving = { opt-level = 3 }
 twox-hash = { opt-level = 3 }
 uint = { opt-level = 3 }
 wasmi = { opt-level = 3 }
