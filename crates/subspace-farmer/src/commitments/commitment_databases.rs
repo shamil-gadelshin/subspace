@@ -5,6 +5,7 @@ use parking_lot::Mutex;
 use rocksdb::{Options, DB};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use std::fmt;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -32,6 +33,12 @@ pub(super) struct DbEntry {
     db: Mutex<Option<Arc<DB>>>,
 }
 
+impl fmt::Debug for DbEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DbEntry").field("salt", &self.salt).finish()
+    }
+}
+
 impl Deref for DbEntry {
     type Target = Mutex<Option<Arc<DB>>>;
 
@@ -43,7 +50,7 @@ impl Deref for DbEntry {
 #[derive(Debug)]
 pub(super) struct CommitmentDatabases {
     base_directory: PathBuf,
-    databases: LruCache<Salt, Arc<DbEntry>>,
+    databases: Mutex<LruCache<Salt, Arc<DbEntry>>>,
     metadata: Mutex<CommitmentMetadata>,
 }
 
@@ -97,24 +104,25 @@ impl CommitmentDatabases {
             })
             .collect();
 
+        assert!(metadata.cache.len() <= COMMITMENTS_CACHE_SIZE);
+
         metadata.persist_metadata_cache()?;
 
         // Open databases that were fully created during previous run
         for (salt, _status) in &metadata.cache {
             let db = DB::open(&Options::default(), base_directory.join(hex::encode(salt)))
                 .map_err(CommitmentError::CommitmentDb)?;
-            databases.put(
-                *salt,
-                Arc::new(DbEntry {
-                    salt: *salt,
-                    db: Mutex::new(Some(Arc::new(db))),
-                }),
-            );
+            let db_entry = Arc::new(DbEntry {
+                salt: *salt,
+                db: Mutex::new(Some(Arc::new(db))),
+            });
+
+            databases.put(*salt, Arc::clone(&db_entry));
         }
 
         Ok::<_, CommitmentError>(CommitmentDatabases {
             base_directory,
-            databases,
+            databases: Mutex::new(databases),
             metadata: Mutex::new(metadata),
         })
     }
@@ -122,21 +130,23 @@ impl CommitmentDatabases {
     /// Get salts for all current database entries
     pub(super) fn get_salts(&self) -> Vec<Salt> {
         self.databases
+            .lock()
             .iter()
             .map(|(salt, _db_entry)| *salt)
             .collect()
     }
 
-    pub(super) fn get_db_entry(&self, salt: &Salt) -> Option<&Arc<DbEntry>> {
-        self.databases.peek(salt)
+    pub(super) fn get_db_entry(&self, salt: &Salt) -> Option<Arc<DbEntry>> {
+        self.databases.lock().peek(salt).cloned()
     }
 
     /// Returns `Ok(None)` if entry for this salt already exists.
     pub(super) fn create_db_entry(
-        &mut self,
+        &self,
         salt: Salt,
     ) -> Result<Option<CreateDbEntryResult>, CommitmentError> {
-        if self.databases.contains(&salt) {
+        let mut databases = self.databases.lock();
+        if databases.contains(&salt) {
             return Ok(None);
         }
 
@@ -146,12 +156,12 @@ impl CommitmentDatabases {
         });
         let mut removed_entry_salt = None;
 
-        let old_db_entry = if self.databases.len() >= COMMITMENTS_CACHE_SIZE {
-            self.databases.pop_lru().map(|(_salt, db_entry)| db_entry)
+        let old_db_entry = if databases.len() >= COMMITMENTS_CACHE_SIZE {
+            databases.pop_lru().map(|(_salt, db_entry)| db_entry)
         } else {
             None
         };
-        self.databases.put(salt, Arc::clone(&db_entry));
+        databases.put(salt, Arc::clone(&db_entry));
 
         if let Some(old_db_entry) = old_db_entry {
             let old_salt = old_db_entry.salt;
@@ -191,19 +201,15 @@ impl CommitmentDatabases {
         }))
     }
 
-    pub(super) fn mark_in_progress(&mut self, salt: Salt) -> Result<(), CommitmentError> {
+    pub(super) fn mark_in_progress(&self, salt: Salt) -> Result<(), CommitmentError> {
         self.update_status(salt, CommitmentStatus::InProgress)
     }
 
-    pub(super) fn mark_created(&mut self, salt: Salt) -> Result<(), CommitmentError> {
+    pub(super) fn mark_created(&self, salt: Salt) -> Result<(), CommitmentError> {
         self.update_status(salt, CommitmentStatus::Created)
     }
 
-    fn update_status(
-        &mut self,
-        salt: Salt,
-        status: CommitmentStatus,
-    ) -> Result<(), CommitmentError> {
+    fn update_status(&self, salt: Salt, status: CommitmentStatus) -> Result<(), CommitmentError> {
         let mut metadata = self.metadata.lock();
         metadata.cache.push_front((salt, status));
 

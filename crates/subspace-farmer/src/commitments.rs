@@ -74,7 +74,7 @@ impl Commitments {
 
     /// Create commitments for all pieces for a given salt
     pub(crate) fn create(&self, salt: Salt, plot: Plot) -> Result<(), CommitmentError> {
-        let mut commitment_databases = self.inner.commitment_databases.lock();
+        let commitment_databases = self.inner.commitment_databases.lock();
 
         let db_entry = match commitment_databases.create_db_entry(salt)? {
             Some(CreateDbEntryResult {
@@ -135,7 +135,7 @@ impl Commitments {
         // deadlock
         drop(db_guard);
 
-        let mut commitment_databases = self.inner.commitment_databases.lock();
+        let commitment_databases = self.inner.commitment_databases.lock();
 
         // Check if database was already been removed
         if commitment_databases
@@ -168,13 +168,7 @@ impl Commitments {
         let salts = self.inner.commitment_databases.lock().get_salts();
 
         for salt in salts {
-            let db_entry = match self
-                .inner
-                .commitment_databases
-                .lock()
-                .get_db_entry(&salt)
-                .cloned()
-            {
+            let db_entry = match self.inner.commitment_databases.lock().get_db_entry(&salt) {
                 Some(db_entry) => db_entry,
                 None => {
                     continue;
@@ -207,7 +201,7 @@ impl Commitments {
     /// Finds the commitment/s falling in the range of the challenge
     pub(crate) fn find_by_range(&self, target: Tag, range: u64, salt: Salt) -> Option<(Tag, u64)> {
         let commitment_databases = self.inner.commitment_databases.try_lock()?;
-        let db_entry = Arc::clone(commitment_databases.get_db_entry(&salt)?);
+        let db_entry = commitment_databases.get_db_entry(&salt)?;
 
         let db_guard = db_entry.try_lock()?;
         let db = db_guard.clone()?;
