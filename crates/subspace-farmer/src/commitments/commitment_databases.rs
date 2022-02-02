@@ -44,8 +44,30 @@ impl Deref for DbEntry {
 pub(super) struct CommitmentDatabases {
     base_directory: PathBuf,
     databases: LruCache<Salt, Arc<DbEntry>>,
-    metadata_cache: HashMap<Salt, CommitmentStatus>,
-    metadata_db: Arc<DB>,
+    metadata: Mutex<CommitmentMetadata>,
+}
+
+#[derive(Debug)]
+pub(super) struct CommitmentMetadata {
+    cache: HashMap<Salt, CommitmentStatus>,
+    db: Arc<DB>,
+}
+
+impl CommitmentMetadata {
+    fn persist_metadata_cache(&mut self) -> Result<(), CommitmentError> {
+        let prepared_metadata_cache: HashMap<String, CommitmentStatus> = self
+            .cache
+            .iter()
+            .map(|(salt, status)| (hex::encode(salt), *status))
+            .collect();
+
+        self.db
+            .put(
+                COMMITMENTS_KEY,
+                &serde_json::to_vec(&prepared_metadata_cache).unwrap(),
+            )
+            .map_err(CommitmentError::MetadataDb)
+    }
 }
 
 impl CommitmentDatabases {
@@ -64,15 +86,14 @@ impl CommitmentDatabases {
             })
             .unwrap_or_default();
 
-        let mut commitment_databases = CommitmentDatabases {
-            base_directory: base_directory.clone(),
-            databases: LruCache::new(COMMITMENTS_CACHE_SIZE),
-            metadata_cache,
-            metadata_db: Arc::new(metadata_db),
+        let mut metadata = CommitmentMetadata {
+            cache: metadata_cache,
+            db: Arc::new(metadata_db),
         };
+        let mut databases = LruCache::new(COMMITMENTS_CACHE_SIZE);
 
-        if commitment_databases
-            .metadata_cache
+        if metadata
+            .cache
             .drain_filter(|salt, status| match status {
                 CommitmentStatus::InProgress => {
                     if let Err(error) =
@@ -91,14 +112,14 @@ impl CommitmentDatabases {
             .next()
             .is_some()
         {
-            commitment_databases.persist_metadata_cache()?;
+            metadata.persist_metadata_cache()?;
         }
 
         // Open databases that were fully created during previous run
-        for salt in commitment_databases.metadata_cache.keys() {
+        for salt in metadata.cache.keys() {
             let db = DB::open(&Options::default(), base_directory.join(hex::encode(salt)))
                 .map_err(CommitmentError::CommitmentDb)?;
-            commitment_databases.databases.put(
+            databases.put(
                 *salt,
                 Arc::new(DbEntry {
                     salt: *salt,
@@ -107,7 +128,11 @@ impl CommitmentDatabases {
             );
         }
 
-        Ok::<_, CommitmentError>(commitment_databases)
+        Ok::<_, CommitmentError>(CommitmentDatabases {
+            base_directory: base_directory.clone(),
+            databases,
+            metadata: Mutex::new(metadata),
+        })
     }
 
     /// Get salts for all current database entries
@@ -150,7 +175,7 @@ impl CommitmentDatabases {
             let old_db_path = self.base_directory.join(hex::encode(old_salt));
 
             // Remove old commitments for `old_salt`
-            self.metadata_cache.remove(&old_salt);
+            self.metadata.lock().cache.remove(&old_salt);
 
             tokio::task::spawn_blocking(move || {
                 // Take a lock to make sure database was released by whatever user there was and we
@@ -188,23 +213,9 @@ impl CommitmentDatabases {
         salt: Salt,
         status: CommitmentStatus,
     ) -> Result<(), CommitmentError> {
-        self.metadata_cache.insert(salt, status);
+        let mut metadata = self.metadata.lock();
+        metadata.cache.insert(salt, status);
 
-        self.persist_metadata_cache()
-    }
-
-    fn persist_metadata_cache(&self) -> Result<(), CommitmentError> {
-        let prepared_metadata_cache: HashMap<String, CommitmentStatus> = self
-            .metadata_cache
-            .iter()
-            .map(|(salt, status)| (hex::encode(salt), *status))
-            .collect();
-
-        self.metadata_db
-            .put(
-                COMMITMENTS_KEY,
-                &serde_json::to_vec(&prepared_metadata_cache).unwrap(),
-            )
-            .map_err(CommitmentError::MetadataDb)
+        metadata.persist_metadata_cache()
     }
 }
