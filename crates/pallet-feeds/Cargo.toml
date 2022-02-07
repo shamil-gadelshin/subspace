@@ -23,21 +23,17 @@ sp-std = { version = "4.0.0-dev", default-features = false, git = "https://githu
 subspace-core-primitives = { version = "0.1.0", default-features = false, path = "../subspace-core-primitives" }
 pallet-bridge-grandpa = { version = "0.1.0", git = "http://github.com/isserge/parity-bridges-common", default-features = false, branch = "master" }
 bp-runtime = { version = "0.1.0", git = "http://github.com/isserge/parity-bridges-common", default-features = false, branch = "master" }
-sp-runtime = { version = "4.0.0", default-features = false, git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd" }
+sp-runtime = { version = "4.1.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6" }
 bp-kusama = { version = "0.1.0", git = "http://github.com/isserge/parity-bridges-common", default-features = false, branch = "master" }
 hex-literal = "0.3.4"
 bp-header-chain = { version = "0.1.0", git = "http://github.com/isserge/parity-bridges-common", default-features = false, branch = "master" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6" }
 serde_json = "1.0.59"
-pallet-im-online = { git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd" }
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd", default-features = false }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", rev = "5bd5b842d4ea520d281b1398e1f54907c9862fcd" }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6", default-features = false }
 
 [dev-dependencies]
 serde = "1.0.132"
 sp-io = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6" }
-sp-runtime = { version = "4.1.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6" }
 
 [features]
 default = ["std"]
