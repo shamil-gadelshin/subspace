@@ -34,7 +34,7 @@ mod mock;
 #[cfg(all(feature = "std", test))]
 mod tests;
 
-pub type BlockNumber = u32;
+pub type BlockNumber = u64;
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
