@@ -167,24 +167,26 @@ mod pallet {
             log::info!("decoded: {:?}", block);
 
             // only Kusama blocks for now
-            // TODO: only for block number 0
             if feed_id == 0 {
-                // TODO: check if authority weights should be 1
-                let kusama_initial_authorities: Vec<(GrandpaId, u64)> = vec![
-                    (hex!["76620f7c98bce8619979c2b58cf2b0aff71824126d2b039358729dad993223db"].unchecked_into(), 1),
-                    (hex!["e2234d661bee4a04c38392c75d1566200aa9e6ae44dd98ee8765e4cc9af63cb7"].unchecked_into(), 1),
-                    (hex!["5b57ed1443c8967f461db1f6eb2ada24794d163a668f1cf9d9ce3235dfad8799"].unchecked_into(), 1),
-                    (hex!["e60d23f49e93c1c1f2d7c115957df5bbd7faf5ebf138d1e9d02e8b39a1f63df0"].unchecked_into(), 1),
-                ];
-
-                let init_data = InitializationData {
-                    header: Box::new(block.block.header),
-                    authority_list: kusama_initial_authorities,
-                    set_id: 0,
-                    is_halted: false,
-                };
+                // init bridge at genesis block
+                if block.block.header.number == 0 {
+                    // TODO: check if authority weights should be 1
+                    let kusama_initial_authorities: Vec<(GrandpaId, u64)> = vec![
+                        (hex!["76620f7c98bce8619979c2b58cf2b0aff71824126d2b039358729dad993223db"].unchecked_into(), 1),
+                        (hex!["e2234d661bee4a04c38392c75d1566200aa9e6ae44dd98ee8765e4cc9af63cb7"].unchecked_into(), 1),
+                        (hex!["5b57ed1443c8967f461db1f6eb2ada24794d163a668f1cf9d9ce3235dfad8799"].unchecked_into(), 1),
+                        (hex!["e60d23f49e93c1c1f2d7c115957df5bbd7faf5ebf138d1e9d02e8b39a1f63df0"].unchecked_into(), 1),
+                    ];
     
-                pallet_bridge_grandpa::Pallet::<T>::initialize(origin, init_data);
+                    let init_data = InitializationData {
+                        header: Box::new(block.block.header),
+                        authority_list: kusama_initial_authorities,
+                        set_id: 0,
+                        is_halted: false,
+                    };
+        
+                    pallet_bridge_grandpa::Pallet::<T>::initialize(origin, init_data);
+                }
                 
                 // no justifications - PoA block
                 if block.justifications.is_none() {
