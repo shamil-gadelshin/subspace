@@ -167,6 +167,7 @@ mod pallet {
             log::info!("decoded: {:?}", block);
 
             // only Kusama blocks for now
+            // TODO: only for block number 0
             if feed_id == 0 {
                 // TODO: check if authority weights should be 1
                 let kusama_initial_authorities: Vec<(GrandpaId, u64)> = vec![
