@@ -33,7 +33,7 @@ application-crypto = { package = "sp-application-crypto", git = "https://github.
 
 [dev-dependencies]
 serde = "1.0.132"
-sp-io = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6" }
+sp-io = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6" }
 
 [features]
 default = ["std"]
