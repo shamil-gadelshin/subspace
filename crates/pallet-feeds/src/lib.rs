@@ -24,7 +24,7 @@ use codec::{Decode, Encode};
 use core::mem;
 pub use pallet::*;
 use sp_core::RuntimeDebug;
-use sp_runtime::traits::{BlakeTwo256, Verify};
+use sp_runtime::traits::Verify;
 use sp_runtime::{generic, MultiSignature, OpaqueExtrinsic};
 use sp_std::prelude::*;
 use subspace_core_primitives::{crypto, Sha256Hash};
@@ -35,17 +35,16 @@ mod mock;
 mod tests;
 
 pub type BlockNumber = u64;
-pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-pub struct Block {
+pub struct Block<Header> {
     /// The block header.
     pub header: Header,
     /// The accompanying extrinsics.
     pub extrinsics: Vec<OpaqueExtrinsic>,
 }
 
-pub type SignedBlock = generic::SignedBlock<Block>;
+pub type SignedBlock<Header> = generic::SignedBlock<Block<Header>>;
 pub type Signature = MultiSignature;
 pub type AccountPublic = <Signature as Verify>::Signer;
 pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
@@ -55,11 +54,13 @@ pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
 mod pallet {
     use super::SignedBlock;
     use bp_header_chain::InitializationData;
+    use bp_runtime::Chain;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
     use grandpa::AuthorityId as GrandpaId;
     use hex_literal::hex;
     use sp_core::crypto::UncheckedInto;
+    use sp_runtime::traits::Header;
     use sp_std::prelude::*;
 
     #[pallet::config]
@@ -115,7 +116,10 @@ mod pallet {
             object_size: u64,
         },
         /// New feed was created.
-        FeedCreated { feed_id: FeedId, who: <T as frame_system::Config>::AccountId },
+        FeedCreated {
+            feed_id: FeedId,
+            who: <T as frame_system::Config>::AccountId,
+        },
         /// Submitted object is valid
         ObjectIsValid { metadata: ObjectMetadata },
         /// Submitted object is not valid
@@ -158,18 +162,23 @@ mod pallet {
             object: Object,
             metadata: ObjectMetadata,
         ) -> DispatchResult {
-            let who = ensure_signed(origin)?;
+            let who = ensure_signed(origin.clone())?;
 
             let object_size = object.len() as u64;
 
-            let block = SignedBlock::decode(&mut &object[..]).unwrap();
+            let block = SignedBlock::<
+                <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header,
+            >::decode(&mut &object[..])
+            .unwrap();
 
             log::info!("decoded: {:?}", block);
+
+            let block_number = *block.block.header.number();
 
             // only Kusama blocks for now
             if feed_id == 0 {
                 // init bridge at genesis block
-                if block.block.header.number == 0 {
+                if block_number == 0u32.into() {
                     // TODO: check if authority weights should be 1
                     let kusama_initial_authorities: Vec<(GrandpaId, u64)> = vec![
                         (hex!["76620f7c98bce8619979c2b58cf2b0aff71824126d2b039358729dad993223db"].unchecked_into(), 1),
@@ -177,23 +186,22 @@ mod pallet {
                         (hex!["5b57ed1443c8967f461db1f6eb2ada24794d163a668f1cf9d9ce3235dfad8799"].unchecked_into(), 1),
                         (hex!["e60d23f49e93c1c1f2d7c115957df5bbd7faf5ebf138d1e9d02e8b39a1f63df0"].unchecked_into(), 1),
                     ];
-    
-                    let init_data = InitializationData {
+
+                    let init_data = InitializationData::<
+                        <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header,
+                    > {
                         header: Box::new(block.block.header),
                         authority_list: kusama_initial_authorities,
                         set_id: 0,
                         is_halted: false,
                     };
-        
+
                     pallet_bridge_grandpa::Pallet::<T>::initialize(origin, init_data);
                 }
-                
+
                 // no justifications - PoA block
                 if block.justifications.is_none() {
-                    log::info!(
-                        "No justifications, assume valid: {:?}",
-                        block.block.header.number
-                    );
+                    log::info!("No justifications, assume valid: {:?}", block_number);
 
                     Self::deposit_event(Event::ObjectIsValid {
                         metadata: metadata.clone(),
