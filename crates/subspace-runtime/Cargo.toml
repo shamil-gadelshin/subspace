@@ -50,8 +50,8 @@ sp-transaction-pool = { version = "4.0.0-dev", default-features = false, git = "
 sp-version = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6" }
 subspace-core-primitives = { version = "0.1.0", default-features = false, path = "../subspace-core-primitives" }
 subspace-runtime-primitives = { version = "0.1.0", default-features = false, path = "../subspace-runtime-primitives" }
-pallet-bridge-grandpa = { version = "0.1.0", git = "http://github.com/isserge/parity-bridges-common", default-features = false, branch = "master" }
-bp-kusama = { version = "0.1.0", git = "http://github.com/isserge/parity-bridges-common", default-features = false, branch = "master" }
+pallet-bridge-grandpa = { version = "0.1.0", path = "../grandpa", default-features = false }
+bp-kusama = { version = "0.1.0", path = "../bp-kusama", default-features = false }
 
 # Used for the node template's RPCs
 frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6" }
