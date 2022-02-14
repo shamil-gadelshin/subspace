@@ -3,11 +3,9 @@ mod commitment_databases;
 mod tests;
 
 use crate::plot::Plot;
-use arc_swap::ArcSwapOption;
-use commitment_databases::{CommitmentDatabases, CreateDbEntryResult, DbEntry};
+use commitment_databases::{CommitmentDatabases, CreateDbEntryResult};
 use event_listener_primitives::{Bag, HandlerId};
 use log::{error, trace};
-use parking_lot::Mutex;
 use rayon::prelude::*;
 use rocksdb::DB;
 use std::io;
@@ -50,9 +48,7 @@ struct Handlers {
 struct Inner {
     base_directory: PathBuf,
     handlers: Handlers,
-    current: ArcSwapOption<DbEntry>,
-    next: ArcSwapOption<DbEntry>,
-    commitment_databases: Mutex<CommitmentDatabases>,
+    commitment_databases: Arc<CommitmentDatabases>,
 }
 
 #[derive(Debug, Clone)]
@@ -63,16 +59,11 @@ pub struct Commitments {
 impl Commitments {
     /// Creates new commitments database
     pub fn new(base_directory: PathBuf) -> Result<Self, CommitmentError> {
-        let mut commitment_databases = CommitmentDatabases::new(base_directory.clone())?;
-
-        let (current, next) = commitment_databases.get_db_entries();
-
+        let commitment_databases = CommitmentDatabases::new(base_directory.clone())?;
         let inner = Inner {
             base_directory,
             handlers: Handlers::default(),
-            current: ArcSwapOption::new(current),
-            next: ArcSwapOption::new(next),
-            commitment_databases: Mutex::new(commitment_databases),
+            commitment_databases: Arc::new(commitment_databases),
         };
 
         Ok(Self {
@@ -82,7 +73,7 @@ impl Commitments {
 
     /// Create commitments for all pieces for a given salt
     pub(crate) fn create(&self, salt: Salt, plot: Plot) -> Result<(), CommitmentError> {
-        let mut commitment_databases = self.inner.commitment_databases.lock();
+        let commitment_databases = self.inner.commitment_databases.clone();
 
         let db_entry = match commitment_databases.create_db_entry(salt)? {
             Some(CreateDbEntryResult {
@@ -105,14 +96,8 @@ impl Commitments {
                 return Ok(());
             }
         };
-        let (current, next) = commitment_databases.get_db_entries();
-        self.inner.current.swap(current);
-        self.inner.next.swap(next);
 
         let mut db_guard = db_entry.lock();
-        // Release lock to allow working with other databases, but hold lock for `db_entry.db` such
-        // that nothing else can modify it.
-        drop(commitment_databases);
 
         let db_path = self.inner.base_directory.join(hex::encode(salt));
 
@@ -146,7 +131,7 @@ impl Commitments {
         // deadlock
         drop(db_guard);
 
-        let mut commitment_databases = self.inner.commitment_databases.lock();
+        let commitment_databases = self.inner.commitment_databases.clone();
 
         // Check if database was already been removed
         if commitment_databases
@@ -176,16 +161,10 @@ impl Commitments {
         pieces: &Arc<FlatPieces>,
         start_offset: u64,
     ) -> Result<(), CommitmentError> {
-        let salts = self.inner.commitment_databases.lock().get_salts();
+        let salts = self.inner.commitment_databases.clone().get_salts();
 
         for salt in salts {
-            let db_entry = match self
-                .inner
-                .commitment_databases
-                .lock()
-                .get_db_entry(&salt)
-                .cloned()
-            {
+            let db_entry = match self.inner.commitment_databases.clone().get_db_entry(&salt) {
                 Some(db_entry) => db_entry,
                 None => {
                     continue;
@@ -217,9 +196,11 @@ impl Commitments {
 
     /// Finds the commitment/s falling in the range of the challenge
     pub(crate) fn find_by_range(&self, target: Tag, range: u64, salt: Salt) -> Option<(Tag, u64)> {
-        let db_entry = self.get_local_db_entry(&salt)?;
+        let commitment_databases = self.inner.commitment_databases.clone();
+        let db_entry = commitment_databases.get_db_entry(&salt);
 
-        let db_guard = db_entry.try_lock()?;
+        let db_entry_guard = db_entry.unwrap();
+        let db_guard = db_entry_guard.lock();
         let db = db_guard.clone()?;
 
         let mut iter = db.raw_iterator();
@@ -278,21 +259,5 @@ impl Commitments {
         callback: Arc<dyn Fn(&CommitmentStatusChange) + Send + Sync + 'static>,
     ) -> HandlerId {
         self.inner.handlers.status_change.add(callback)
-    }
-
-    fn get_local_db_entry(&self, salt: &Salt) -> Option<Arc<DbEntry>> {
-        if let Some(current) = self.inner.current.load_full() {
-            if current.salt() == salt {
-                return Some(current);
-            }
-        }
-
-        if let Some(next) = self.inner.next.load_full() {
-            if next.salt() == salt {
-                return Some(next);
-            }
-        }
-
-        None
     }
 }
