@@ -22,7 +22,7 @@ use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
 use subspace_runtime::{
     AccountId, Balance, BalancesConfig, BlockNumber, GenesisConfig, SS58Prefix, Signature,
-    SudoConfig, SystemConfig, VestingConfig, DECIMAL_PLACES, MILLISECS_PER_BLOCK, SSC, WASM_BINARY,
+    SudoConfig, SystemConfig, VestingConfig, BridgeKusamaGrandpaConfig, DECIMAL_PLACES, MILLISECS_PER_BLOCK, SSC, WASM_BINARY,
 };
 
 // The URL for the telemetry server.

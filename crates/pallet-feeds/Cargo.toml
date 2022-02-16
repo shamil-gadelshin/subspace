@@ -23,13 +23,12 @@ sp-std = { version = "4.0.0-dev", default-features = false, git = "https://githu
 subspace-core-primitives = { version = "0.1.0", default-features = false, path = "../subspace-core-primitives" }
 sp-runtime = { version = "4.1.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6" }
 hex-literal = "0.3.4"
-bp-kusama = { version = "0.1.0", path = "../bp-kusama", default-features = false }
 pallet-bridge-grandpa = { version = "0.1.0", path = "../grandpa", default-features = false }
 bp-runtime = { version = "0.1.0", path = "../bp-runtime", default-features = false }
 bp-header-chain = { version = "0.1.0", path = "../bp-header-chain", default-features = false }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6" }
-serde_json = "1.0.59"
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6", default-features = false }
 application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", rev = "2c4549689dbb86c23725dac2f82af35faa07c9f6", default-features = false }
+serde_json = "1.0.59"
 
 [dev-dependencies]
 serde = "1.0.132"
@@ -48,9 +47,9 @@ std = [
   "subspace-core-primitives/std",
   "pallet-bridge-grandpa/std",
   "bp-runtime/std",
-  "sp-runtime/std",
-  "bp-kusama/std",
-  "bp-header-chain/std",
+  # "sp-runtime/std",
+  # "bp-kusama/std",
+  # "bp-header-chain/std",
   "application-crypto/std",
 ]
 try-runtime = ["frame-support/try-runtime"]

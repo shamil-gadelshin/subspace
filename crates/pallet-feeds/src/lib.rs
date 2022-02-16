@@ -57,7 +57,7 @@ mod pallet {
     use bp_runtime::Chain;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
-    use grandpa::AuthorityId as GrandpaId;
+    use sp_finality_grandpa::AuthorityId as GrandpaId;
     use hex_literal::hex;
     use sp_core::crypto::UncheckedInto;
     use sp_runtime::traits::Header;
