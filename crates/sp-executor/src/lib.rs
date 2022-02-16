@@ -25,7 +25,7 @@ use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 use sp_runtime::{OpaqueExtrinsic, RuntimeDebug};
 use sp_std::vec::Vec;
 use sp_trie::StorageProof;
-use subspace_core_primitives::Randomness;
+use subspace_core_primitives::{Randomness, Sha256Hash};
 use subspace_runtime_primitives::AccountId;
 
 /// Header of transaction bundle.
@@ -98,12 +98,12 @@ impl<Extrinsic: sp_runtime::traits::Extrinsic + Encode> From<Bundle<Extrinsic>> 
 pub struct ExecutionReceipt<Hash> {
     /// Primary block hash.
     pub primary_hash: H256,
-    /// Secondary block hash?
+    /// Secondary block hash.
     pub secondary_hash: Hash,
-    /// State root after finishing the execution.
-    pub state_root: Hash,
-    /// Merkle root of the execution.
-    pub state_transition_root: H256,
+    /// List of storage roots collected during the block execution.
+    pub trace: Vec<Hash>,
+    /// The merkle root of `trace`.
+    pub trace_root: Sha256Hash,
 }
 
 impl<Hash: Encode> ExecutionReceipt<Hash> {
@@ -127,6 +127,10 @@ impl<Hash: Encode> From<ExecutionReceipt<Hash>> for OpaqueExecutionReceipt {
 /// Fraud proof for the state computation.
 #[derive(Decode, Encode, TypeInfo, PartialEq, Eq, Clone, RuntimeDebug)]
 pub struct FraudProof {
+    /// State root before the fraudulent transaction.
+    pub pre_state_root: H256,
+    /// State root after the fraudulent transaction.
+    pub post_state_root: H256,
     /// Proof recorded during the computation.
     pub proof: StorageProof,
 }
