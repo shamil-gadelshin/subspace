@@ -24,7 +24,7 @@ use codec::{Decode, Encode};
 use core::mem;
 pub use pallet::*;
 use sp_core::RuntimeDebug;
-use sp_runtime::traits::Verify;
+use sp_runtime::traits::{Header as HeaderT, Verify};
 use sp_runtime::{generic, MultiSignature, OpaqueExtrinsic};
 use sp_std::prelude::*;
 use subspace_core_primitives::{crypto, Sha256Hash};
@@ -44,6 +44,16 @@ pub struct Block<Header> {
     pub extrinsics: Vec<OpaqueExtrinsic>,
 }
 
+#[derive(Debug, PartialEq, Encode, Decode, Clone)]
+pub struct FinalityProof<Header: HeaderT> {
+    /// The hash of block F for which justification is provided.
+    pub block: Header::Hash,
+    /// Justification of the block F.
+    pub justification: Vec<u8>,
+    /// The set of headers in the range (B; F] that we believe are unknown to the caller. Ordered.
+    pub unknown_headers: Vec<Header>,
+}
+
 pub type SignedBlock<Header> = generic::SignedBlock<Block<Header>>;
 pub type Signature = MultiSignature;
 pub type AccountPublic = <Signature as Verify>::Signer;
@@ -52,15 +62,16 @@ pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
 
 #[frame_support::pallet]
 mod pallet {
+    use super::FinalityProof;
     use super::SignedBlock;
     use bp_header_chain::InitializationData;
     use bp_runtime::Chain;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
-    use sp_finality_grandpa::AuthorityId as GrandpaId;
     use hex_literal::hex;
     use sp_core::crypto::UncheckedInto;
-    use sp_runtime::traits::Header;
+    use sp_finality_grandpa::AuthorityId as GrandpaId;
+    use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
     use sp_std::prelude::*;
 
     #[pallet::config]
@@ -131,6 +142,8 @@ mod pallet {
     pub enum Error<T> {
         /// `FeedId` doesn't exist
         UnknownFeedId,
+        /// Failed to decode finality proof
+        FailedDecodingProof,
     }
 
     #[pallet::call]
@@ -161,6 +174,7 @@ mod pallet {
             feed_id: FeedId,
             object: Object,
             metadata: ObjectMetadata,
+            proof: Option<Vec<u8>>,
         ) -> DispatchResult {
             let who = ensure_signed(origin.clone())?;
 
@@ -173,18 +187,53 @@ mod pallet {
 
             log::info!("decoded: {:?}", block);
 
+            let remote_proof = proof.unwrap_or_default();
+
+            // original:
+            // let proof = super::FinalityProof::<Block::Header>::decode(&mut &remote_proof[..])
+			// .map_err(|_| ClientError::BadJustification("failed to decode finality proof".into()))?;
+
+            let proof = FinalityProof::<<Type as BlockT>::Header>::decode(&mut &remote_proof[..])
+                .map_err(|_| Error::<T>::FailedDecodingProof)?;
+
             let block_number = *block.block.header.number();
 
             // only Kusama blocks for now
             if feed_id == 0 {
+                log::info!("Is Kusama feed");
                 // init bridge at genesis block
                 if block_number == 0u32.into() {
+                    log::info!("Kusama block number {:?}", block_number);
                     // TODO: check if authority weights should be 1
                     let kusama_initial_authorities: Vec<(GrandpaId, u64)> = vec![
-                        (hex!["76620f7c98bce8619979c2b58cf2b0aff71824126d2b039358729dad993223db"].unchecked_into(), 1),
-                        (hex!["e2234d661bee4a04c38392c75d1566200aa9e6ae44dd98ee8765e4cc9af63cb7"].unchecked_into(), 1),
-                        (hex!["5b57ed1443c8967f461db1f6eb2ada24794d163a668f1cf9d9ce3235dfad8799"].unchecked_into(), 1),
-                        (hex!["e60d23f49e93c1c1f2d7c115957df5bbd7faf5ebf138d1e9d02e8b39a1f63df0"].unchecked_into(), 1),
+                        (
+                            hex![
+                                "76620f7c98bce8619979c2b58cf2b0aff71824126d2b039358729dad993223db"
+                            ]
+                            .unchecked_into(),
+                            1,
+                        ),
+                        (
+                            hex![
+                                "e2234d661bee4a04c38392c75d1566200aa9e6ae44dd98ee8765e4cc9af63cb7"
+                            ]
+                            .unchecked_into(),
+                            1,
+                        ),
+                        (
+                            hex![
+                                "5b57ed1443c8967f461db1f6eb2ada24794d163a668f1cf9d9ce3235dfad8799"
+                            ]
+                            .unchecked_into(),
+                            1,
+                        ),
+                        (
+                            hex![
+                                "e60d23f49e93c1c1f2d7c115957df5bbd7faf5ebf138d1e9d02e8b39a1f63df0"
+                            ]
+                            .unchecked_into(),
+                            1,
+                        ),
                     ];
 
                     let init_data = InitializationData::<
@@ -196,23 +245,30 @@ mod pallet {
                         is_halted: false,
                     };
 
-                    pallet_bridge_grandpa::Pallet::<T>::initialize(origin, init_data);
+                    pallet_bridge_grandpa::Pallet::<T>::initialize(origin, init_data.clone())
+                        .map(|_| init_data);
                 }
 
-                // no justifications - PoA block
-                if block.justifications.is_none() {
-                    log::info!("No justifications, assume valid: {:?}", block_number);
+                // pallet_bridge_grandpa::Pallet::<T>::submit_finality_proof(
+                //     origin,
+                //     Box::new(block.block.header),
+                //     justification,
+                // );
 
-                    Self::deposit_event(Event::ObjectIsValid {
-                        metadata: metadata.clone(),
-                    });
-                } else {
-                    log::info!("justifications: {:?}", block.justifications);
+                // // no justifications - PoA block
+                // if block.justifications.is_none() {
+                //     log::info!("No justifications, assume valid: {:?}", block_number);
 
-                    // Self::deposit_event(Event::ObjectIsInvalid {
-                    //     metadata: metadata.clone(),
-                    // });
-                }
+                //     Self::deposit_event(Event::ObjectIsValid {
+                //         metadata: metadata.clone(),
+                //     });
+                // } else {
+                //     log::info!("justifications: {:?}", block.justifications);
+
+                //     // Self::deposit_event(Event::ObjectIsInvalid {
+                //     //     metadata: metadata.clone(),
+                //     // });
+                // }
             }
 
             log::debug!("metadata: {:?}", metadata);
