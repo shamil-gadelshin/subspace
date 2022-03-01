@@ -44,7 +44,7 @@ pub struct Block<Header> {
     pub extrinsics: Vec<OpaqueExtrinsic>,
 }
 
-#[derive(Debug, PartialEq, Encode, Decode, Clone)]
+#[derive(Debug, Encode, Decode, Clone)]
 pub struct FinalityProof<Header: HeaderT> {
     /// The hash of block F for which justification is provided.
     pub block: Header::Hash,
@@ -62,7 +62,6 @@ pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
 
 #[frame_support::pallet]
 mod pallet {
-    use super::FinalityProof;
     use super::SignedBlock;
     use bp_header_chain::InitializationData;
     use bp_runtime::Chain;
@@ -71,7 +70,7 @@ mod pallet {
     use hex_literal::hex;
     use sp_core::crypto::UncheckedInto;
     use sp_finality_grandpa::AuthorityId as GrandpaId;
-    use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
+    use sp_runtime::traits::Header as HeaderT;
     use sp_std::prelude::*;
 
     #[pallet::config]
@@ -189,12 +188,10 @@ mod pallet {
 
             let remote_proof = proof.unwrap_or_default();
 
-            // original:
-            // let proof = super::FinalityProof::<Block::Header>::decode(&mut &remote_proof[..])
-			// .map_err(|_| ClientError::BadJustification("failed to decode finality proof".into()))?;
-
-            let proof = FinalityProof::<<Type as BlockT>::Header>::decode(&mut &remote_proof[..])
+            let proof = super::FinalityProof::<T::Header>::decode(&mut &remote_proof[..])
                 .map_err(|_| Error::<T>::FailedDecodingProof)?;
+
+            log::info!("proof {:?}", proof);
 
             let block_number = *block.block.header.number();
 
