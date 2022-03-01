@@ -63,7 +63,7 @@ pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
 #[frame_support::pallet]
 mod pallet {
     use super::SignedBlock;
-    use bp_header_chain::InitializationData;
+    use bp_header_chain::{justification::GrandpaJustification, InitializationData};
     use bp_runtime::Chain;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
@@ -143,6 +143,8 @@ mod pallet {
         UnknownFeedId,
         /// Failed to decode finality proof
         FailedDecodingProof,
+        /// Failed to decode justification
+        FailedDecodingJustification,
     }
 
     #[pallet::call]
@@ -191,7 +193,9 @@ mod pallet {
             let proof = super::FinalityProof::<T::Header>::decode(&mut &remote_proof[..])
                 .map_err(|_| Error::<T>::FailedDecodingProof)?;
 
-            log::info!("proof {:?}", proof);
+            log::info!("proof block hash {:?}", proof.block);
+            log::info!("proof justification {:?}", proof.justification.len());
+            log::info!("proof unknown_headers {:?}", proof.unknown_headers.len());
 
             let block_number = *block.block.header.number();
 
@@ -236,21 +240,26 @@ mod pallet {
                     let init_data = InitializationData::<
                         <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header,
                     > {
-                        header: Box::new(block.block.header),
+                        header: Box::new(block.block.header.clone()),
                         authority_list: kusama_initial_authorities,
                         set_id: 0,
                         is_halted: false,
                     };
 
-                    pallet_bridge_grandpa::Pallet::<T>::initialize(origin, init_data.clone())
+                    pallet_bridge_grandpa::Pallet::<T>::initialize(origin.clone(), init_data.clone())
                         .map(|_| init_data);
                 }
 
-                // pallet_bridge_grandpa::Pallet::<T>::submit_finality_proof(
-                //     origin,
-                //     Box::new(block.block.header),
-                //     justification,
-                // );
+                let justification: GrandpaJustification<
+                    <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header,
+                > = Decode::decode(&mut &proof.justification[..])
+                    .map_err(|_| Error::<T>::FailedDecodingJustification)?;
+
+                pallet_bridge_grandpa::Pallet::<T>::submit_finality_proof(
+                    origin,
+                    Box::new(block.block.header),
+                    justification,
+                );
 
                 // // no justifications - PoA block
                 // if block.justifications.is_none() {
