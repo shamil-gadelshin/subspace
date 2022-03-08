@@ -115,6 +115,9 @@ mod pallet {
     #[pallet::getter(fn current_feed_id)]
     pub(super) type CurrentFeedId<T: Config> = StorageValue<_, FeedId, ValueQuery>;
 
+    pub(super) type BridgedChainHeader<T> =
+        <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header;
+
     /// `pallet-feeds` events
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -168,7 +171,7 @@ mod pallet {
             // initialise bridge
             if header.is_some() {
                 let header =
-                    <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header::decode(
+                    BridgedChainHeader::<T>::decode(
                         &mut &header.unwrap()[..],
                     )
                     .map_err(|_| Error::<T>::FailedDecodingHeader)?;
@@ -198,9 +201,7 @@ mod pallet {
                     ),
                 ];
 
-                let init_data = InitializationData::<
-                    <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header,
-                > {
+                let init_data = InitializationData::<BridgedChainHeader<T>> {
                     header: Box::new(header),
                     authority_list: kusama_initial_authorities,
                     set_id: 0,
@@ -238,9 +239,7 @@ mod pallet {
 
             let object_size = object.len() as u64;
 
-            let block = SignedBlock::<
-                <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header,
-            >::decode(&mut &object[..])
+            let block = SignedBlock::<BridgedChainHeader<T>>::decode(&mut &object[..])
                 .map_err(|_| Error::<T>::FailedDecodingBlock)?;
 
             let block_number = *block.block.header.number();
@@ -253,10 +252,10 @@ mod pallet {
 
                 log::info!("Kusama block number {:?}", block_number);
 
-                let justification: GrandpaJustification<
-                    <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header,
-                > = Decode::decode(&mut &proof.justification[..])
-                    .map_err(|_| Error::<T>::FailedDecodingJustification)?;
+                let justification = GrandpaJustification::<BridgedChainHeader<T>>::decode(
+                    &mut &proof.justification[..],
+                )
+                .map_err(|_| Error::<T>::FailedDecodingJustification)?;
 
                 let finality_proof_result =
                     pallet_bridge_grandpa::Pallet::<T>::submit_finality_proof(
