@@ -147,6 +147,8 @@ mod pallet {
         FailedDecodingJustification,
         /// Failed to decode header when initialising bridge
         FailedDecodingHeader,
+        /// Failed to decode block
+        FailedDecodingBlock,
     }
 
     #[pallet::call]
@@ -165,9 +167,13 @@ mod pallet {
 
             // initialise bridge
             if header.is_some() {
-                let header = <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header::decode(&mut &header.unwrap()[..])
+                let header =
+                    <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header::decode(
+                        &mut &header.unwrap()[..],
+                    )
                     .map_err(|_| Error::<T>::FailedDecodingHeader)?;
-    
+
+                // TODO: add polkadot
                 // TODO: check if authority weights should be 1
                 let kusama_initial_authorities: Vec<(GrandpaId, u64)> = vec![
                     (
@@ -235,18 +241,13 @@ mod pallet {
             let block = SignedBlock::<
                 <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header,
             >::decode(&mut &object[..])
-            .unwrap();
-
-            log::info!("decoded: {:?}", block);
+                .map_err(|_| Error::<T>::FailedDecodingBlock)?;
 
             let block_number = *block.block.header.number();
 
             // TODO: add Polkadot
             if feed_id == 0 {
-                log::info!("Is Kusama feed");
-
                 let remote_proof = proof.unwrap_or_default();
-
                 let proof = super::FinalityProof::<T::Header>::decode(&mut &remote_proof[..])
                     .map_err(|_| Error::<T>::FailedDecodingProof)?;
 
@@ -266,7 +267,7 @@ mod pallet {
 
                 match finality_proof_result {
                     Err(error) => {
-                        log::info!("finality proof result error {:?}", error); // Invalid justification
+                        log::info!("finality proof error {:?}", error); // Invalid justification
                     }
                     Ok(_) => {
                         log::info!("finality proof OK");
