@@ -145,6 +145,8 @@ mod pallet {
         FailedDecodingProof,
         /// Failed to decode justification
         FailedDecodingJustification,
+        /// Failed to decode header when initialising bridge
+        FailedDecodingHeader,
     }
 
     #[pallet::call]
@@ -152,7 +154,7 @@ mod pallet {
         // TODO: add proper weights
         /// Create a new feed
         #[pallet::weight(10_000)]
-        pub fn create(origin: OriginFor<T>) -> DispatchResult {
+        pub fn create(origin: OriginFor<T>, header: Option<Vec<u8>>) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             let feed_id = Self::current_feed_id();
@@ -160,6 +162,55 @@ mod pallet {
             CurrentFeedId::<T>::mutate(|feed_id| *feed_id = feed_id.saturating_add(1));
 
             Totals::<T>::insert(feed_id, TotalObjectsAndSize::default());
+
+            // initialise bridge
+            if header.is_some() {
+                let header = <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header::decode(&mut &header.unwrap()[..])
+                    .map_err(|_| Error::<T>::FailedDecodingHeader)?;
+    
+                // TODO: check if authority weights should be 1
+                let kusama_initial_authorities: Vec<(GrandpaId, u64)> = vec![
+                    (
+                        hex!["76620f7c98bce8619979c2b58cf2b0aff71824126d2b039358729dad993223db"]
+                            .unchecked_into(),
+                        1,
+                    ),
+                    (
+                        hex!["e2234d661bee4a04c38392c75d1566200aa9e6ae44dd98ee8765e4cc9af63cb7"]
+                            .unchecked_into(),
+                        1,
+                    ),
+                    (
+                        hex!["5b57ed1443c8967f461db1f6eb2ada24794d163a668f1cf9d9ce3235dfad8799"]
+                            .unchecked_into(),
+                        1,
+                    ),
+                    (
+                        hex!["e60d23f49e93c1c1f2d7c115957df5bbd7faf5ebf138d1e9d02e8b39a1f63df0"]
+                            .unchecked_into(),
+                        1,
+                    ),
+                ];
+
+                let init_data = InitializationData::<
+                    <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header,
+                > {
+                    header: Box::new(header),
+                    authority_list: kusama_initial_authorities,
+                    set_id: 0,
+                    is_halted: false,
+                };
+
+                let initialize_result = pallet_bridge_grandpa::Pallet::<T>::initialize(
+                    RawOrigin::Root.into(),
+                    init_data.clone(),
+                );
+
+                match initialize_result {
+                    Err(error) => log::info!("Failed to initialize bridge: {:?}", error),
+                    Ok(_) => log::info!("Bridge successfuly initialized"),
+                }
+            }
 
             Self::deposit_event(Event::FeedCreated { feed_id, who });
 
@@ -193,57 +244,13 @@ mod pallet {
             // TODO: add Polkadot
             if feed_id == 0 {
                 log::info!("Is Kusama feed");
-                // TODO: init bridge once, probably when creating feed
-                // if block_number == 0u32.into() {
+
                 let remote_proof = proof.unwrap_or_default();
 
                 let proof = super::FinalityProof::<T::Header>::decode(&mut &remote_proof[..])
                     .map_err(|_| Error::<T>::FailedDecodingProof)?;
 
                 log::info!("Kusama block number {:?}", block_number);
-                // TODO: check if authority weights should be 1
-                let kusama_initial_authorities: Vec<(GrandpaId, u64)> = vec![
-                    (
-                        hex!["76620f7c98bce8619979c2b58cf2b0aff71824126d2b039358729dad993223db"]
-                            .unchecked_into(),
-                        1,
-                    ),
-                    (
-                        hex!["e2234d661bee4a04c38392c75d1566200aa9e6ae44dd98ee8765e4cc9af63cb7"]
-                            .unchecked_into(),
-                        1,
-                    ),
-                    (
-                        hex!["5b57ed1443c8967f461db1f6eb2ada24794d163a668f1cf9d9ce3235dfad8799"]
-                            .unchecked_into(),
-                        1,
-                    ),
-                    (
-                        hex!["e60d23f49e93c1c1f2d7c115957df5bbd7faf5ebf138d1e9d02e8b39a1f63df0"]
-                            .unchecked_into(),
-                        1,
-                    ),
-                ];
-
-                let init_data = InitializationData::<
-                    <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header,
-                > {
-                    header: Box::new(block.block.header.clone()),
-                    authority_list: kusama_initial_authorities,
-                    set_id: 0,
-                    is_halted: false,
-                };
-
-                let initialize_result = pallet_bridge_grandpa::Pallet::<T>::initialize(
-                    RawOrigin::Root.into(),
-                    init_data.clone(),
-                );
-
-                match initialize_result {
-                    Err(error) => log::info!("Failed to initialize bridge: {:?}", error),
-                    Ok(_) => log::info!("Bridge successfuly initialized"),
-                }
-                // }
 
                 let justification: GrandpaJustification<
                     <<T as pallet_bridge_grandpa::Config>::BridgedChain as Chain>::Header,
@@ -259,7 +266,7 @@ mod pallet {
 
                 match finality_proof_result {
                     Err(error) => {
-                        log::info!("finality proof result error {:?}", error);
+                        log::info!("finality proof result error {:?}", error); // Invalid justification
                     }
                     Ok(_) => {
                         log::info!("finality proof OK");
