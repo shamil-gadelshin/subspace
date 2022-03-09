@@ -485,7 +485,11 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
 
         let task_manager = TaskManager::new(tokio_runtime.handle().clone(), None).unwrap();
 
-        super::start_subspace_archiver(&data.link, client.clone(), &task_manager.spawn_handle());
+        super::start_subspace_archiver(
+            &data.link,
+            client.clone(),
+            &task_manager.spawn_essential_handle(),
+        );
 
         let (archived_pieces_sender, archived_pieces_receiver) = oneshot::channel();
 
@@ -556,6 +560,9 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
                     let _ = solution_sender
                         .send(Solution {
                             public_key: FarmerPublicKey::unchecked_from(keypair.public.to_bytes()),
+                            reward_address: FarmerPublicKey::unchecked_from(
+                                keypair.public.to_bytes(),
+                            ),
                             piece_index,
                             encoding,
                             signature: keypair.sign(ctx.bytes(&tag)).to_bytes().into(),
@@ -662,6 +669,7 @@ pub fn dummy_claim_slot(slot: Slot) -> Option<(PreDigest<FarmerPublicKey>, Farme
         PreDigest {
             solution: Solution {
                 public_key: FarmerPublicKey::unchecked_from([0u8; 32]),
+                reward_address: FarmerPublicKey::unchecked_from([0u8; 32]),
                 piece_index: 0,
                 encoding: Piece::default(),
                 signature: Signature::default(),
@@ -721,6 +729,7 @@ fn propose_and_import_block<Transaction: Send + 'static>(
                     slot,
                     solution: Solution {
                         public_key: FarmerPublicKey::unchecked_from(keypair.public.to_bytes()),
+                        reward_address: FarmerPublicKey::unchecked_from(keypair.public.to_bytes()),
                         piece_index: 0,
                         encoding,
                         signature: signature.into(),
@@ -838,7 +847,7 @@ fn verify_slots_are_strictly_increasing() {
 //     let tokio_runtime = sc_cli::build_runtime().unwrap();
 //     let task_manager = TaskManager::new(tokio_runtime.handle().clone(), None).unwrap();
 //
-//     super::start_subspace_archiver(&data.link, client.clone(), &task_manager.spawn_handle());
+//     super::start_subspace_archiver(&data.link, client.clone(), &task_manager.spawn_essential_handle());
 //
 //     let mut archived_segment_notification_stream =
 //         data.link.archived_segment_notification_stream.subscribe();
