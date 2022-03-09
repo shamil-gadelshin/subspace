@@ -21,7 +21,7 @@
 
 pub use pallet::*;
 
-use core::{mem, fmt};
+use core::{fmt, mem};
 
 use application_crypto::KeyTypeId;
 use bp_header_chain::justification::GrandpaJustification;
@@ -164,6 +164,8 @@ mod pallet {
     pub enum Error<T> {
         /// `FeedId` doesn't exist
         UnknownFeedId,
+        /// Failed to decode finality proof
+        FailedDecodingProof,
         /// Failed to decode block
         FailedDecodingBlock,
     }
@@ -244,7 +246,7 @@ mod pallet {
             feed_id: FeedId,
             object: Object,
             metadata: ObjectMetadata,
-            proof: super::FinalityProof<T>,
+            proof: Option<Vec<u8>>,
         ) -> DispatchResult {
             let who = ensure_signed(origin.clone())?;
 
@@ -259,19 +261,24 @@ mod pallet {
             if feed_id == 0 {
                 log::info!("Kusama block number {:?}", block_number);
 
-                let finality_proof_result =
-                    pallet_bridge_grandpa::Pallet::<T>::submit_finality_proof(
-                        origin,
-                        Box::new(block.block.header),
-                        proof.justification,
-                    );
+                if let Some(proof) = proof {
+                    let proof = super::FinalityProof::<T>::decode(&mut &proof[..])
+                        .map_err(|_| Error::<T>::FailedDecodingProof)?;
 
-                match finality_proof_result {
-                    Err(error) => {
-                        log::info!("finality proof error {:?}", error); // Invalid justification
-                    }
-                    Ok(_) => {
-                        log::info!("finality proof OK");
+                    let finality_proof_result =
+                        pallet_bridge_grandpa::Pallet::<T>::submit_finality_proof(
+                            origin,
+                            Box::new(block.block.header),
+                            proof.justification,
+                        );
+
+                    match finality_proof_result {
+                        Err(error) => {
+                            log::info!("finality proof error {:?}", error); // Invalid justification
+                        }
+                        Ok(_) => {
+                            log::info!("finality proof OK");
+                        }
                     }
                 }
             }
