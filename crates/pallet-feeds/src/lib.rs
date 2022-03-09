@@ -19,12 +19,16 @@
 #![forbid(unsafe_code)]
 #![warn(rust_2018_idioms, missing_debug_implementations)]
 
-use application_crypto::KeyTypeId;
-use codec::{Decode, Encode};
-use core::mem;
 pub use pallet::*;
+
+use core::{mem, fmt};
+
+use application_crypto::KeyTypeId;
+use bp_header_chain::justification::GrandpaJustification;
+use codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
-use sp_runtime::traits::{Header as HeaderT, Verify};
+use sp_runtime::traits::Verify;
 use sp_runtime::{generic, MultiSignature, OpaqueExtrinsic};
 use sp_std::prelude::*;
 use subspace_core_primitives::{crypto, Sha256Hash};
@@ -36,7 +40,7 @@ mod tests;
 
 pub type BlockNumber = u64;
 
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub struct Block<Header> {
     /// The block header.
     pub header: Header,
@@ -44,14 +48,30 @@ pub struct Block<Header> {
     pub extrinsics: Vec<OpaqueExtrinsic>,
 }
 
-#[derive(Debug, Encode, Decode, Clone)]
-pub struct FinalityProof<Header: HeaderT> {
+#[derive(Encode, Decode, Clone, TypeInfo, PartialEq, Eq)]
+#[scale_info(bounds(
+    T::Hash: TypeInfo + 'static,
+    T::Header: TypeInfo + 'static,
+    GrandpaJustification<BridgedChainHeader<T>>: TypeInfo + 'static,
+))]
+#[scale_info(skip_type_params(T))]
+pub struct FinalityProof<T: Config> {
     /// The hash of block F for which justification is provided.
-    pub block: Header::Hash,
+    pub block: T::Hash,
     /// Justification of the block F.
-    pub justification: Vec<u8>,
+    pub justification: GrandpaJustification<BridgedChainHeader<T>>,
     /// The set of headers in the range (B; F] that we believe are unknown to the caller. Ordered.
-    pub unknown_headers: Vec<Header>,
+    pub unknown_headers: Vec<T::Header>,
+}
+
+impl<T: Config> fmt::Debug for FinalityProof<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FinalityProof")
+            .field("block", &self.block)
+            .field("justification", &self.justification)
+            .field("unknown_headers", &self.unknown_headers)
+            .finish()
+    }
 }
 
 pub type SignedBlock<Header> = generic::SignedBlock<Block<Header>>;
@@ -63,7 +83,7 @@ pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
 #[frame_support::pallet]
 mod pallet {
     use super::SignedBlock;
-    use bp_header_chain::{justification::GrandpaJustification, InitializationData};
+    use bp_header_chain::InitializationData;
     use bp_runtime::Chain;
     use frame_support::pallet_prelude::*;
     use frame_system::{pallet_prelude::*, RawOrigin};
@@ -144,12 +164,6 @@ mod pallet {
     pub enum Error<T> {
         /// `FeedId` doesn't exist
         UnknownFeedId,
-        /// Failed to decode finality proof
-        FailedDecodingProof,
-        /// Failed to decode justification
-        FailedDecodingJustification,
-        /// Failed to decode header when initialising bridge
-        FailedDecodingHeader,
         /// Failed to decode block
         FailedDecodingBlock,
     }
@@ -159,7 +173,10 @@ mod pallet {
         // TODO: add proper weights
         /// Create a new feed
         #[pallet::weight(10_000)]
-        pub fn create(origin: OriginFor<T>, header: Option<Vec<u8>>) -> DispatchResult {
+        pub fn create(
+            origin: OriginFor<T>,
+            header: Option<BridgedChainHeader<T>>,
+        ) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             let feed_id = Self::current_feed_id();
@@ -169,13 +186,7 @@ mod pallet {
             Totals::<T>::insert(feed_id, TotalObjectsAndSize::default());
 
             // initialise bridge
-            if header.is_some() {
-                let header =
-                    BridgedChainHeader::<T>::decode(
-                        &mut &header.unwrap()[..],
-                    )
-                    .map_err(|_| Error::<T>::FailedDecodingHeader)?;
-
+            if let Some(header) = header {
                 // TODO: add polkadot
                 // TODO: check if authority weights should be 1
                 let kusama_initial_authorities: Vec<(GrandpaId, u64)> = vec![
@@ -233,7 +244,7 @@ mod pallet {
             feed_id: FeedId,
             object: Object,
             metadata: ObjectMetadata,
-            proof: Option<Vec<u8>>,
+            proof: super::FinalityProof<T>,
         ) -> DispatchResult {
             let who = ensure_signed(origin.clone())?;
 
@@ -246,22 +257,13 @@ mod pallet {
 
             // TODO: add Polkadot
             if feed_id == 0 {
-                let remote_proof = proof.unwrap_or_default();
-                let proof = super::FinalityProof::<T::Header>::decode(&mut &remote_proof[..])
-                    .map_err(|_| Error::<T>::FailedDecodingProof)?;
-
                 log::info!("Kusama block number {:?}", block_number);
-
-                let justification = GrandpaJustification::<BridgedChainHeader<T>>::decode(
-                    &mut &proof.justification[..],
-                )
-                .map_err(|_| Error::<T>::FailedDecodingJustification)?;
 
                 let finality_proof_result =
                     pallet_bridge_grandpa::Pallet::<T>::submit_finality_proof(
                         origin,
                         Box::new(block.block.header),
-                        justification,
+                        proof.justification,
                     );
 
                 match finality_proof_result {
