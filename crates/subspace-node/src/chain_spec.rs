@@ -22,10 +22,8 @@ use sc_telemetry::TelemetryEndpoints;
 use sp_core::crypto::Ss58Codec;
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
-use subspace_runtime::{
-    AccountId, Balance, BalancesConfig, BlockNumber, GenesisConfig, SS58Prefix, Signature,
-    SudoConfig, SystemConfig, VestingConfig, BridgeKusamaGrandpaConfig, DECIMAL_PLACES, MILLISECS_PER_BLOCK, SSC, WASM_BINARY,
-};
+use subspace_runtime::{BridgeKusamaGrandpaConfig, VestingConfig};
+use subspace_runtime_primitives::{AccountId, Balance, BlockNumber, Signature};
 
 // The URL for the telemetry server.
 const POLKADOT_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";

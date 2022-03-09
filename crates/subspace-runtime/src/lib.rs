@@ -472,6 +472,18 @@ impl pallet_rewards::Config for Runtime {
     type WeightInfo = ();
 }
 
+parameter_types! {
+    pub const MaxRequests: u32 = 50;
+    pub const HeadersToKeep: u32 = 7 * bp_kusama::DAYS as u32;
+}
+
+impl pallet_bridge_grandpa::Config for Runtime {
+    type BridgedChain = bp_kusama::Kusama;
+    type MaxRequests = MaxRequests;
+    type HeadersToKeep = HeadersToKeep;
+    type WeightInfo = ();
+}
+
 impl pallet_feeds::Config for Runtime {
     type Event = Event;
 }
@@ -493,18 +505,6 @@ impl orml_vesting::Config for Runtime {
     type WeightInfo = ();
     type MaxVestingSchedules = ConstU32<2>;
     type BlockNumberProvider = System;
-}
-
-parameter_types! {
-    pub const MaxRequests: u32 = 50;
-    pub const HeadersToKeep: u32 = 7 * bp_kusama::DAYS as u32;
-}
-
-impl pallet_bridge_grandpa::Config for Runtime {
-    type BridgedChain = bp_kusama::Kusama;
-    type MaxRequests = MaxRequests;
-    type HeadersToKeep = HeadersToKeep;
-    type WeightInfo = ();
 }
 
 construct_runtime!(
