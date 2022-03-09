@@ -9021,6 +9021,7 @@ dependencies = [
 name = "subspace-test-runtime"
 version = "0.1.0"
 dependencies = [
+ "bp-kusama",
  "frame-executive",
  "frame-support",
  "frame-system",
@@ -9028,6 +9029,7 @@ dependencies = [
  "hex-literal",
  "orml-vesting",
  "pallet-balances",
+ "pallet-bridge-grandpa",
  "pallet-executor",
  "pallet-feeds",
  "pallet-object-store",
