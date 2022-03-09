@@ -50,6 +50,8 @@ sp-transaction-pool = { version = "4.0.0-dev", default-features = false, git = "
 sp-version = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", rev = "e6def65920d30029e42d498cb07cec5dd433b927" }
 subspace-core-primitives = { version = "0.1.0", default-features = false, path = "../../crates/subspace-core-primitives" }
 subspace-runtime-primitives = { version = "0.1.0", default-features = false, path = "../../crates/subspace-runtime-primitives" }
+pallet-bridge-grandpa = { version = "0.1.0", path = "../grandpa", default-features = false }
+bp-kusama = { version = "0.1.0", path = "../bp-kusama", default-features = false }
 
 # Used for the node template's RPCs
 frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", rev = "e6def65920d30029e42d498cb07cec5dd433b927" }
@@ -80,6 +82,8 @@ std = [
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
 	"pallet-utility/std",
+	"pallet-bridge-grandpa/std",
+	"bp-kusama/std",
 	"scale-info/std",
 	"sp-api/std",
 	"sp-block-builder/std",

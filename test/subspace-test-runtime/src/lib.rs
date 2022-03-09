@@ -492,6 +492,18 @@ impl orml_vesting::Config for Runtime {
     type BlockNumberProvider = System;
 }
 
+parameter_types! {
+    pub const MaxRequests: u32 = 50;
+    pub const HeadersToKeep: u32 = 7 * bp_kusama::DAYS as u32;
+}
+
+impl pallet_bridge_grandpa::Config for Runtime {
+    type BridgedChain = bp_kusama::Kusama;
+    type MaxRequests = MaxRequests;
+    type HeadersToKeep = HeadersToKeep;
+    type WeightInfo = ();
+}
+
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -515,6 +527,8 @@ construct_runtime!(
         Executor: pallet_executor = 11,
 
         Vesting: orml_vesting = 7,
+
+        BridgeKusamaGrandpa: pallet_bridge_grandpa = 13,
 
         // Reserve some room for other pallets as we'll remove sudo pallet eventually.
         Sudo: pallet_sudo = 100,
@@ -920,5 +934,17 @@ impl_runtime_apis! {
         ) -> pallet_transaction_payment::FeeDetails<Balance> {
             TransactionPayment::query_fee_details(uxt, len)
         }
+    }
+
+    impl bp_kusama::KusamaFinalityApi<Block> for Runtime {
+        fn best_finalized() -> (bp_kusama::BlockNumber, bp_kusama::Hash) {
+            let header = BridgeKusamaGrandpa::best_finalized();
+            (header.number, header.hash())
+        }
+
+        // not implemented in the current version, but is implemented in 'master'
+        // fn is_known_header(hash: bp_kusama::Hash) -> bool {
+        //     BridgeKusamaGrandpa::is_known_header(hash)
+        // }
     }
 }
