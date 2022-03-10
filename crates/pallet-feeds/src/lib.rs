@@ -59,7 +59,7 @@ pub struct FinalityProof<T: Config> {
     /// The hash of block F for which justification is provided.
     pub block: T::Hash,
     /// Justification of the block F.
-    pub justification: GrandpaJustification<BridgedChainHeader<T>>,
+    pub justification: Vec<u8>,
     /// The set of headers in the range (B; F] that we believe are unknown to the caller. Ordered.
     pub unknown_headers: Vec<T::Header>,
 }
@@ -83,7 +83,7 @@ pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
 #[frame_support::pallet]
 mod pallet {
     use super::SignedBlock;
-    use bp_header_chain::InitializationData;
+    use bp_header_chain::{justification::GrandpaJustification, InitializationData};
     use bp_runtime::Chain;
     use frame_support::pallet_prelude::*;
     use frame_system::{pallet_prelude::*, RawOrigin};
@@ -166,6 +166,8 @@ mod pallet {
         UnknownFeedId,
         /// Failed to decode finality proof
         FailedDecodingProof,
+        /// Failed to decode justification
+        FailedDecodingJustification,
         /// Failed to decode block
         FailedDecodingBlock,
     }
@@ -265,11 +267,16 @@ mod pallet {
                     let proof = super::FinalityProof::<T>::decode(&mut &proof[..])
                         .map_err(|_| Error::<T>::FailedDecodingProof)?;
 
+                    let justification = GrandpaJustification::<BridgedChainHeader<T>>::decode(
+                            &mut &proof.justification[..],
+                        )
+                        .map_err(|_| Error::<T>::FailedDecodingJustification)?;
+
                     let finality_proof_result =
                         pallet_bridge_grandpa::Pallet::<T>::submit_finality_proof(
                             origin,
                             Box::new(block.block.header),
-                            proof.justification,
+                            justification,
                         );
 
                     match finality_proof_result {
