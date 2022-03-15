@@ -254,37 +254,50 @@ mod pallet {
 
             let object_size = object.len() as u64;
 
-            let block = SignedBlock::<BridgedChainHeader<T>>::decode(&mut &object[..])
-                .map_err(|_| Error::<T>::FailedDecodingBlock)?;
+            let block = SignedBlock::<BridgedChainHeader<T>>::decode(&mut &object[..]).map_err(
+                |error| {
+                    log::error!(
+                        "Cannot decode block for feed_id {:?}, error: {:?}",
+                        feed_id,
+                        error
+                    );
+                    Error::<T>::FailedDecodingBlock
+                },
+            )?;
 
             let block_number = *block.block.header.number();
 
+            log::info!("Kusama block number {:?}", block_number);
             // TODO: add Polkadot
             if feed_id == 0 {
-                log::info!("Kusama block number {:?}", block_number);
-
                 if let Some(proof) = proof {
                     let proof = super::FinalityProof::<T>::decode(&mut &proof[..])
                         .map_err(|_| Error::<T>::FailedDecodingProof)?;
 
                     let justification = GrandpaJustification::<BridgedChainHeader<T>>::decode(
-                            &mut &proof.justification[..],
-                        )
-                        .map_err(|_| Error::<T>::FailedDecodingJustification)?;
+                        &mut &proof.justification[..],
+                    )
+                    .map_err(|_| Error::<T>::FailedDecodingJustification)?;
 
-                    let finality_proof_result =
-                        pallet_bridge_grandpa::Pallet::<T>::submit_finality_proof(
-                            origin,
-                            Box::new(block.block.header),
-                            justification,
-                        );
-
-                    match finality_proof_result {
-                        Err(error) => {
-                            log::info!("finality proof error {:?}", error); // Invalid justification
-                        }
-                        Ok(_) => {
-                            log::info!("finality proof OK");
+                    let target_number = justification.commit.target_number;
+                    
+                    if block_number < target_number {
+                        log::info!("Justification commit is descendant - ASSUME VALID");
+                    } else {
+                        let finality_proof_result =
+                            pallet_bridge_grandpa::Pallet::<T>::submit_finality_proof(
+                                origin,
+                                Box::new(block.block.header),
+                                justification,
+                            );
+    
+                        match finality_proof_result {
+                            Err(error) => {
+                                log::info!("finality proof error {:?}", error); // Invalid justification
+                            }
+                            Ok(_) => {
+                                log::info!("finality proof OK");
+                            }
                         }
                     }
                 }
