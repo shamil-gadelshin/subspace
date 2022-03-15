@@ -207,5 +207,7 @@ sp_api::decl_runtime_apis! {
 
         /// Generates a randomness seed for extrinsics shuffling.
         fn extrinsics_shuffling_seed(header: Block::Header) -> Randomness;
+
+        fn execution_wasm_blob() -> sp_std::borrow::Cow<'static, [u8]>;
     }
 }

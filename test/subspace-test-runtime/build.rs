@@ -14,12 +14,30 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::path::PathBuf;
 use substrate_wasm_builder::WasmBuilder;
 
 fn main() {
+    // Build Subspace WASM runtime.
     WasmBuilder::new()
         .with_current_project()
         .export_heap_base()
         .import_memory()
-        .build()
+        .build();
+
+    // Build Cirrus WASM runtime.
+    let mut manifest_dir: PathBuf = std::env::var("CARGO_MANIFEST_DIR")
+        .expect("`CARGO_MANIFEST_DIR` is always set for `build.rs` files; qed")
+        .into();
+    manifest_dir.pop();
+    manifest_dir.pop();
+    manifest_dir.push("cumulus/parachain-template/runtime/Cargo.toml");
+
+    WasmBuilder::new()
+        .with_project(&manifest_dir)
+        .expect("Cirrus runtime directory must be valid")
+        .export_heap_base()
+        .import_memory()
+        .set_file_name("execution_wasm_binary.rs")
+        .build();
 }

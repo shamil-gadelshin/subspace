@@ -23,6 +23,15 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+mod cirrus_wasm {
+    // Make the Execution WASM binary available in no_std environment.
+    include!(concat!(env!("OUT_DIR"), "/execution_wasm_binary.rs"));
+
+    pub use self::WASM_BINARY as EXECUTION_WASM_BINARY;
+    pub use self::WASM_BINARY_BLOATY as EXECUTION_WASM_BINARY_BLOATY;
+}
+
+pub use cirrus_wasm::{EXECUTION_WASM_BINARY, EXECUTION_WASM_BINARY_BLOATY};
 use codec::{Compact, CompactLen, Decode, Encode};
 use core::time::Duration;
 use frame_support::traits::{
@@ -887,6 +896,10 @@ impl_runtime_apis! {
 
         fn extrinsics_shuffling_seed(header: <Block as BlockT>::Header) -> Randomness {
             extrinsics_shuffling_seed::<Block>(header)
+        }
+
+        fn execution_wasm_blob() -> sp_std::borrow::Cow<'static, [u8]> {
+            EXECUTION_WASM_BINARY.expect("Execution runtime blob unavaliable").into()
         }
     }
 
