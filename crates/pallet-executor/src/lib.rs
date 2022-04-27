@@ -94,6 +94,11 @@ mod pallet {
         BundleEquivocationProofProcessed,
         /// An invalid transaction proof was processed.
         InvalidTransactionProofProcessed,
+        /// New executor.
+        NewExecutor {
+            id: T::AccountId,
+            authority_id: ExecutorId,
+        },
     }
 
     #[pallet::call]
@@ -194,6 +199,19 @@ mod pallet {
 
             Self::deposit_event(Event::InvalidTransactionProofProcessed);
 
+            Ok(())
+        }
+
+        // TODO: remove once unnecessary.
+        #[pallet::weight(10_000)]
+        pub fn initialize_executor(
+            origin: OriginFor<T>,
+            executor: (T::AccountId, ExecutorId),
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            <Executor<T>>::put(executor.clone());
+            let (id, authority_id) = executor;
+            Self::deposit_event(Event::NewExecutor { id, authority_id });
             Ok(())
         }
     }
