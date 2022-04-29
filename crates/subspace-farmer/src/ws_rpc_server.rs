@@ -7,10 +7,7 @@ use jsonrpsee::proc_macros::rpc;
 use log::{debug, error};
 use parity_scale_codec::{Compact, CompactLen, Decode, Encode};
 use serde::{Deserialize, Serialize};
-use std::{
-    ops::{Deref, DerefMut},
-    sync::Arc,
-};
+use std::ops::{Deref, DerefMut};
 use subspace_archiving::archiver::{Segment, SegmentItem};
 use subspace_core_primitives::{Piece, PieceIndex, Sha256Hash, PIECE_SIZE};
 
@@ -145,7 +142,7 @@ pub trait Rpc {
 /// let rpc_server = RpcServerImpl::new(
 ///     3840,
 ///     3480 * 128,
-///     Arc::new(vec![plot]),
+///     vec![plot],
 ///     object_mappings,
 /// );
 /// let stop_handle = ws_server.start(rpc_server.into_rpc())?;
@@ -156,7 +153,7 @@ pub trait Rpc {
 pub struct RpcServerImpl {
     record_size: u32,
     merkle_num_leaves: u32,
-    plots: Arc<Vec<Plot>>,
+    plots: Vec<Plot>,
     object_mappings: ObjectMappings,
 }
 
@@ -164,7 +161,7 @@ impl RpcServerImpl {
     pub fn new(
         record_size: u32,
         recorded_history_segment_size: u32,
-        plots: Arc<Vec<Plot>>,
+        plots: Vec<Plot>,
         object_mappings: ObjectMappings,
     ) -> Self {
         Self {
@@ -428,7 +425,7 @@ impl RpcServerImpl {
 
     /// Read and decode the whole piece
     async fn read_and_decode_piece(&self, piece_index: PieceIndex) -> Result<Piece, Error> {
-        let plots = Arc::clone(&self.plots);
+        let plots = self.plots.clone();
         tokio::task::spawn_blocking(move || plot::retrieve_piece_from_plots(&plots, piece_index))
             .await
             .unwrap()
@@ -444,7 +441,7 @@ impl RpcServerImpl {
 #[async_trait]
 impl RpcServer for RpcServerImpl {
     async fn get_piece(&self, piece_index: PieceIndex) -> Result<Option<HexPiece>, Error> {
-        let plots = Arc::clone(&self.plots);
+        let plots = self.plots.clone();
         tokio::task::spawn_blocking(move || plot::retrieve_piece_from_plots(&plots, piece_index))
             .await
             .unwrap()

@@ -1,17 +1,11 @@
 use anyhow::{anyhow, Result};
 use jsonrpsee::ws_server::WsServerBuilder;
 use log::{info, warn};
-use std::mem;
-use std::sync::Arc;
 use std::time::Duration;
 use subspace_core_primitives::PIECE_SIZE;
 use subspace_farmer::multi_farming::MultiFarming;
 use subspace_farmer::ws_rpc_server::{RpcServer, RpcServerImpl};
-use subspace_farmer::{retrieve_piece_from_plots, NodeRpcClient, ObjectMappings, Plot, RpcClient};
-use subspace_networking::libp2p::multiaddr::Protocol;
-use subspace_networking::libp2p::multihash::Multihash;
-use subspace_networking::multimess::MultihashCode;
-use subspace_networking::Config;
+use subspace_farmer::{NodeRpcClient, ObjectMappings, RpcClient};
 use subspace_rpc_primitives::FarmerMetadata;
 
 use crate::FarmingArgs;
@@ -87,6 +81,8 @@ pub(crate) async fn farm(
         best_block_number_check_interval,
         plot_size,
         max_plot_size,
+        bootstrap_nodes,
+        listen_on,
     )
     .await?;
 
@@ -114,58 +110,12 @@ pub(crate) async fn farm(
     let rpc_server = RpcServerImpl::new(
         record_size,
         recorded_history_segment_size,
-        Arc::clone(&multi_farming.plots),
+        multi_farming.plots.clone(),
         object_mappings.clone(),
     );
     let _stop_handle = ws_server.start(rpc_server.into_rpc())?;
 
     info!("WS RPC server listening on {}", ws_server_addr);
 
-    let (node, mut node_runner) = subspace_networking::create(Config {
-        bootstrap_nodes,
-        listen_on,
-        value_getter: Arc::new({
-            let plots = Arc::clone(&multi_farming.plots);
-
-            move |key| networking_getter(&plots, key)
-        }),
-        allow_non_globals_in_dht: true,
-        // TODO: Persistent identity
-        ..Config::with_generated_keypair()
-    })
-    .await?;
-
-    node.on_new_listener(Arc::new({
-        let node_id = node.id();
-
-        move |multiaddr| {
-            info!(
-                "Listening on {}",
-                multiaddr.clone().with(Protocol::P2p(node_id.into()))
-            );
-        }
-    }))
-    .detach();
-
-    tokio::spawn(async move {
-        info!("Starting subspace network node instance");
-
-        node_runner.run().await;
-    });
-
     multi_farming.wait().await
-}
-
-fn networking_getter(plots: &[Plot], key: &Multihash) -> Option<Vec<u8>> {
-    let code = key.code();
-
-    if code != u64::from(MultihashCode::Piece) && code != u64::from(MultihashCode::PieceIndex) {
-        return None;
-    }
-
-    let piece_index = u64::from_le_bytes(key.digest()[..mem::size_of::<u64>()].try_into().ok()?);
-
-    retrieve_piece_from_plots(plots, piece_index)
-        .expect("Decoding of local pieces must never fail")
-        .map(|piece| piece.to_vec())
 }

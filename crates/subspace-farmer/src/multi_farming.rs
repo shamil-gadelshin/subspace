@@ -12,15 +12,23 @@ use std::{
     time::Duration,
 };
 use subspace_core_primitives::{PublicKey, PIECE_SIZE};
+use subspace_networking::{
+    libp2p::{identity::ed25519, multiaddr::Protocol, Multiaddr},
+    multimess::MultihashCode,
+    Config,
+};
 use subspace_solving::SubspaceCodec;
 
 /// Abstraction around having multiple `Plot`s, `Farming`s and `Plotting`s.
 ///
 /// It is needed because of the limit of a single plot size from the consensus
 /// (`pallet_subspace::MaxPlotSize`) in order to support any amount of disk space from user.
+// TODO: tie `plots`, `farmings`, `networking_nodes`, `networking_node_runners` together as they
+// always will have same length.
 pub struct MultiFarming {
-    pub plots: Arc<Vec<Plot>>,
+    pub plots: Vec<Plot>,
     farmings: Vec<Farming>,
+    networking_node_runners: Vec<subspace_networking::NodeRunner>,
     archiving: Archiving,
 }
 
@@ -52,6 +60,8 @@ impl MultiFarming {
         best_block_number_check_interval: Duration,
         total_plot_size: u64,
         max_plot_size: u64,
+        bootstrap_nodes: Vec<Multiaddr>,
+        listen_on: Vec<Multiaddr>,
     ) -> anyhow::Result<Self> {
         let plot_sizes = get_plot_sizes(total_plot_size, max_plot_size);
         Self::new_inner(
@@ -68,6 +78,8 @@ impl MultiFarming {
                     max_piece_count,
                 )
             },
+            bootstrap_nodes,
+            listen_on,
         )
         .await
     }
@@ -80,13 +92,16 @@ impl MultiFarming {
         best_block_number_check_interval: Duration,
         plot_sizes: Vec<u64>,
         new_plot: impl Fn(usize, PublicKey, u64) -> Result<Plot, PlotError> + Clone + Send + 'static,
+        bootstrap_nodes: Vec<Multiaddr>,
+        listen_on: Vec<Multiaddr>,
     ) -> anyhow::Result<Self> {
         let mut plots = Vec::with_capacity(plot_sizes.len());
         let mut subspace_codecs = Vec::with_capacity(plot_sizes.len());
         let mut commitments = Vec::with_capacity(plot_sizes.len());
         let mut farmings = Vec::with_capacity(plot_sizes.len());
+        let mut networking_node_runners = Vec::with_capacity(plot_sizes.len());
 
-        let results = plot_sizes
+        let mut results = plot_sizes
             .into_iter()
             .enumerate()
             .map(|(plot_index, max_plot_pieces)| {
@@ -116,17 +131,147 @@ impl MultiFarming {
                         plot.clone(),
                         plot_commitments.clone(),
                         client.clone(),
-                        identity,
+                        identity.clone(),
                         reward_address,
                     );
 
-                    Ok::<_, anyhow::Error>((plot, subspace_codec, plot_commitments, farming))
+                    Ok::<_, anyhow::Error>((
+                        identity,
+                        plot,
+                        subspace_codec,
+                        plot_commitments,
+                        farming,
+                    ))
                 })
             })
-            .collect::<Vec<_>>();
+            .collect::<Vec<_>>()
+            .into_iter();
+
+        // Only the first node listens on publicly known addresses
+        let first_node_listeners = {
+            let (identity, plot, subspace_codec, plot_commitments, farming) = results
+                .next()
+                .expect("There is always at least one plot")
+                .await
+                .unwrap()?;
+
+            let (node, node_runner) = subspace_networking::create(Config {
+                bootstrap_nodes: bootstrap_nodes.clone(),
+                value_getter: Arc::new({
+                    let plot = plot.clone();
+                    move |key| {
+                        let code = key.code();
+
+                        if code != u64::from(MultihashCode::Piece)
+                            && code != u64::from(MultihashCode::PieceIndex)
+                        {
+                            return None;
+                        }
+
+                        let piece_index = u64::from_le_bytes(
+                            key.digest()[..std::mem::size_of::<u64>()].try_into().ok()?,
+                        );
+                        plot.read(piece_index)
+                            .ok()
+                            .and_then(|mut piece| {
+                                subspace_codec
+                                    .decode(&mut piece, piece_index)
+                                    .ok()
+                                    .map(move |()| piece)
+                            })
+                            .map(|piece| piece.to_vec())
+                    }
+                }),
+                allow_non_globals_in_dht: true,
+                listen_on,
+                ..Config::with_keypair(ed25519::Keypair::from(
+                    // TODO: substitute with `sr25519` once its support is done in libp2p
+                    ed25519::SecretKey::from_bytes(identity.secret_key().to_bytes())
+                        .expect("Always valid"),
+                ))
+            })
+            .await?;
+
+            node.on_new_listener(Arc::new({
+                let node_id = node.id();
+
+                move |multiaddr| {
+                    info!(
+                        "Listening on {}",
+                        multiaddr.clone().with(Protocol::P2p(node_id.into()))
+                    );
+                }
+            }))
+            .detach();
+
+            let listeners = node.listeners();
+
+            networking_node_runners.push(node_runner);
+            plots.push(plot);
+            subspace_codecs.push(subspace_codec);
+            commitments.push(plot_commitments);
+            farmings.push(farming);
+
+            dbg!(listeners)
+        };
+
+        let mut bootstrap_nodes = first_node_listeners;
 
         for result_future in results {
-            let (plot, subspace_codec, plot_commitments, farming) = result_future.await.unwrap()?;
+            let (identity, plot, subspace_codec, plot_commitments, farming) =
+                result_future.await.unwrap()?;
+
+            let (node, node_runner) = subspace_networking::create(Config {
+                bootstrap_nodes: bootstrap_nodes.clone(),
+                value_getter: Arc::new({
+                    let plot = plot.clone();
+                    move |key| {
+                        let code = key.code();
+
+                        if code != u64::from(MultihashCode::Piece)
+                            && code != u64::from(MultihashCode::PieceIndex)
+                        {
+                            return None;
+                        }
+
+                        let piece_index = u64::from_le_bytes(
+                            key.digest()[..std::mem::size_of::<u64>()].try_into().ok()?,
+                        );
+                        plot.read(piece_index)
+                            .ok()
+                            .and_then(|mut piece| {
+                                subspace_codec
+                                    .decode(&mut piece, piece_index)
+                                    .ok()
+                                    .map(move |()| piece)
+                            })
+                            .map(|piece| piece.to_vec())
+                    }
+                }),
+                allow_non_globals_in_dht: true,
+                ..Config::with_keypair(ed25519::Keypair::from(
+                    // TODO: substitute with `sr25519` once its support is done in libp2p
+                    ed25519::SecretKey::from_bytes(identity.secret_key().to_bytes())
+                        .expect("Always valid"),
+                ))
+            })
+            .await?;
+
+            node.on_new_listener(Arc::new({
+                let node_id = node.id();
+
+                move |multiaddr| {
+                    info!(
+                        "Listening on {}",
+                        multiaddr.clone().with(Protocol::P2p(node_id.into()))
+                    );
+                }
+            }))
+            .detach();
+
+            bootstrap_nodes.append(&mut dbg!(node.listeners()));
+
+            networking_node_runners.push(node_runner);
             plots.push(plot);
             subspace_codecs.push(subspace_codec);
             commitments.push(plot_commitments);
@@ -170,9 +315,10 @@ impl MultiFarming {
         .await?;
 
         Ok(Self {
-            plots: Arc::new(plots),
+            plots,
             farmings,
             archiving,
+            networking_node_runners,
         })
     }
 
@@ -183,11 +329,17 @@ impl MultiFarming {
             .into_iter()
             .map(|farming| farming.wait())
             .collect::<FuturesUnordered<_>>();
+        let mut node_runners = self
+            .networking_node_runners
+            .into_iter()
+            .map(|mut node_runner| async move { node_runner.run().await })
+            .collect::<FuturesUnordered<_>>();
 
         tokio::select! {
             res = farming.select_next_some() => {
                 res?;
             },
+            () = node_runners.select_next_some() => {},
             res = self.archiving.wait() => {
                 res?;
             },
