@@ -62,6 +62,7 @@ mod bundle_producer;
 mod merkle_tree;
 #[cfg(test)]
 mod tests;
+mod verification;
 mod worker;
 
 use crate::{
@@ -725,18 +726,9 @@ where
 		// TODO: What happens for this obvious error?
 		if local_receipt.trace.len() != execution_receipt.trace.len() {}
 
-		if let Some((local_trace_idx, local_root)) = local_receipt
-			.trace
-			.iter()
-			.enumerate()
-			.zip(execution_receipt.trace.iter().enumerate())
-			.find_map(|((local_idx, local_root), (_, external_root))| {
-				if local_root != external_root {
-					Some((local_idx, local_root))
-				} else {
-					None
-				}
-			}) {
+		if let Some((local_trace_idx, local_root)) =
+			crate::verification::compare_receipt(&local_receipt, execution_receipt)
+		{
 			let header = self.header(execution_receipt.secondary_hash)?;
 			let parent_header = self.header(*header.parent_hash())?;
 
@@ -759,7 +751,7 @@ where
 			let fraud_proof = if local_trace_idx == 0 {
 				// `initialize_block` execution proof.
 				let pre_state_root = as_h256(parent_header.state_root())?;
-				let post_state_root = as_h256(local_root)?;
+				let post_state_root = as_h256(&local_root)?;
 
 				let new_header = Block::Header::new(
 					block_number,
@@ -788,7 +780,7 @@ where
 			} else if local_trace_idx == local_receipt.trace.len() - 1 {
 				// `finalize_block` execution proof.
 				let pre_state_root = as_h256(&execution_receipt.trace[local_trace_idx - 1])?;
-				let post_state_root = as_h256(local_root)?;
+				let post_state_root = as_h256(&local_root)?;
 				let execution_phase = ExecutionPhase::FinalizeBlock;
 
 				let block_builder = BlockBuilder::new(
@@ -823,7 +815,7 @@ where
 			} else {
 				// Regular extrinsic execution proof.
 				let pre_state_root = as_h256(&execution_receipt.trace[local_trace_idx - 1])?;
-				let post_state_root = as_h256(local_root)?;
+				let post_state_root = as_h256(&local_root)?;
 
 				let (proof, execution_phase) = self.create_extrinsic_execution_proof(
 					local_trace_idx - 1,

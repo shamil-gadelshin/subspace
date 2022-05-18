@@ -280,8 +280,43 @@ where
 				target: LOG_TARGET,
 				"Skip generating signed execution receipt as the primary node is still major syncing..."
 			);
+
+			/*
+
+			// collect new receipts in this block
+			// This info should be persistent in aux db.
+			if let Some(receipts) = NewExecutionReceipt_event_in_this_block {
+				for included_receipt in receipts {
+                    // TODO: Modify the pruning machenism to keep the recent receipts around the best execution chain number
+					let local_receipt = load_execution_receipt_at(receipt.primary_number);
+					if !compare(local_receipt, included_receipt) {
+						// Only one valid receipt per block for now.
+						// Cache this receipt and wait for a FP in next X blocks.
+						// Add this receipt to the aux db:
+						// Map: (block_number_of_invalid_receipt, (end_at, invalid_receipt))
+					}
+				}
+			}
+
+			*/
+
 			return Ok(())
 		}
+
+		/*
+		 * Check invalid receipts that don't have a fraud proof reported.
+		 *
+		 * Is there a chance that the fraud proof is stale as that invalid receipt has been
+		 * considered as confirmed?
+		 *
+			let block_to_check = current_block_number - X;
+
+			if let Some(invalid_receipt_without_FP) = block_to_check {
+				// Create FP
+			}
+		*/
+
+
 
 		let best_execution_chain_number = self
 			.primary_chain_client
