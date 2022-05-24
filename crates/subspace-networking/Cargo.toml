@@ -25,14 +25,8 @@ tokio = { version = "1.18.2", features = ["macros", "parking_lot", "rt-multi-thr
 tracing = "0.1"
 uint = "0.9.3"
 
-[dependencies.libp2p-core]
-git = "https://github.com/subspace/rust-libp2p"
-branch = "add-sr25519-keys"
-features = ["sr25519"]
-
 [dependencies.libp2p]
-git = "https://github.com/subspace/rust-libp2p"
-branch = "add-sr25519-keys"
+version = "0.44.0"
 default-features = false
 features = [
     "dns-tokio",
@@ -41,6 +35,7 @@ features = [
     "kad",
     "noise",
     "ping",
+    "sr25519",
     "tcp-tokio",
     "websocket",
     "yamux"
