@@ -310,7 +310,7 @@ mod tests {
 			&create_execution_receipt(PRUNING_DEPTH + 3),
 		);
 
-		// Create PRUNING_DEPTH + 3 receipt, best_execution_chain_number is PRUNING_DEPTH + 3.
+		// Create PRUNING_DEPTH + 4 receipt, best_execution_chain_number is PRUNING_DEPTH + 3.
 		let block_hash = Hash::random();
 		write_receipt_at(
 			block_hash,
