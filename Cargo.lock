@@ -8093,6 +8093,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "tracing-subscriber 0.2.25",
 ]
 
 [[package]]
