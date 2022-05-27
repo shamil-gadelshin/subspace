@@ -437,6 +437,11 @@ mod pallet {
     #[pallet::storage]
     pub(super) type PorRandomness<T> = StorageValue<_, Randomness>;
 
+    /// Enable storage access for al users.
+    #[pallet::storage]
+    #[pallet::getter(fn is_storage_access_enabled)]
+    pub(super) type IsStorageAccessEnabled<T> = StorageValue<_, bool, ValueQuery>;
+
     #[pallet::hooks]
     impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
         fn on_initialize(block_number: T::BlockNumber) -> Weight {
@@ -481,7 +486,7 @@ mod pallet {
             Self::do_store_root_blocks(root_blocks)
         }
 
-        /// Enables solution range adjustment after every era.
+        /// Enable solution range adjustment after every era.
         /// Note: No effect on the solution range for the current era
         #[pallet::weight(T::DbWeight::get().writes(1))]
         pub fn enable_solution_range_adjustment(
@@ -512,7 +517,7 @@ mod pallet {
             Self::do_vote(*signed_vote)
         }
 
-        /// Enables rewards for blocks and votes at specified block height.
+        /// Enable rewards for blocks and votes at specified block height.
         #[pallet::weight(T::DbWeight::get().writes(1))]
         pub fn enable_rewards(
             origin: OriginFor<T>,
@@ -521,6 +526,16 @@ mod pallet {
             ensure_root(origin)?;
 
             Self::do_enable_rewards(height)
+        }
+
+        /// Enable storage access for all users.
+        #[pallet::weight(T::DbWeight::get().writes(1))]
+        pub fn enable_storage_access(origin: OriginFor<T>) -> DispatchResult {
+            ensure_root(origin)?;
+
+            IsStorageAccessEnabled::<T>::put(true);
+
+            Ok(())
         }
     }
 
