@@ -301,6 +301,8 @@ mod pallet {
     pub struct GenesisConfig {
         /// Whether rewards should be enabled.
         pub enable_rewards: bool,
+        /// Whether storage access should be enabled.
+        pub enable_storage_access: bool,
     }
 
     #[cfg(feature = "std")]
@@ -308,6 +310,7 @@ mod pallet {
         fn default() -> Self {
             Self {
                 enable_rewards: true,
+                enable_storage_access: true,
             }
         }
     }
@@ -316,8 +319,9 @@ mod pallet {
     impl<T: Config> GenesisBuild<T> for GenesisConfig {
         fn build(&self) {
             if self.enable_rewards {
-                EnableRewards::<T>::put::<T::BlockNumber>(One::one())
+                EnableRewards::<T>::put::<T::BlockNumber>(One::one());
             }
+            IsStorageAccessEnabled::<T>::put(self.enable_storage_access);
         }
     }
 
@@ -437,7 +441,7 @@ mod pallet {
     #[pallet::storage]
     pub(super) type PorRandomness<T> = StorageValue<_, Randomness>;
 
-    /// Enable storage access for al users.
+    /// Enable storage access for all users.
     #[pallet::storage]
     #[pallet::getter(fn is_storage_access_enabled)]
     pub(super) type IsStorageAccessEnabled<T> = StorageValue<_, bool, ValueQuery>;
