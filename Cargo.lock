@@ -8235,6 +8235,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.2.25",
+ "uint",
 ]
 
 [[package]]

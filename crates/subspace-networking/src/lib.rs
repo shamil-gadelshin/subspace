@@ -25,7 +25,7 @@ mod node_runner;
 mod shared;
 mod utils;
 
-pub use crate::node::{Node, TopicSubscription};
+pub use crate::node::{Node, TopicSubscription, U256};
 pub use crate::node_runner::NodeRunner;
 pub use create::{create, Config, CreationError};
 pub use libp2p;
