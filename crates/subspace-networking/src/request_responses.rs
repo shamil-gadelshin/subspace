@@ -62,16 +62,8 @@ use std::{
 };
 
 pub use libp2p::request_response::{InboundFailure, OutboundFailure, RequestId};
-use sc_peerset::{PeersetHandle, ReputationChange, BANNED_THRESHOLD};
+use sc_peerset::{PeersetHandle, ReputationChange};
 use tracing::{debug, error, warn};
-
-pub struct Request {
-    pub data: u64,
-}
-
-pub struct Response {
-    pub data: u64,
-}
 
 /// Configuration for a single request-response protocol.
 #[derive(Debug, Clone)]
@@ -594,24 +586,7 @@ impl NetworkBehaviour for RequestResponsesBehaviour {
                         });
                         return Poll::Pending;
                     }
-                    Poll::Ready(reputation) => {
-                        // Once we get the reputation we can continue processing the request.
-
-                        // TODO: delete
-                        // let reputation = reputation.expect(
-                        //     "The channel can only be closed if the peerset no longer exists; qed",
-                        // );
-
-                        // if reputation < BANNED_THRESHOLD {
-                        //     debug!(
-                        //         target: "sub-libp2p",
-                        //         "Cannot handle requests from a node with a low reputation {}: {}",
-                        //         peer,
-                        //         reputation,
-                        //     );
-                        //     continue 'poll_all;
-                        // }
-
+                    Poll::Ready(_) => {
                         let (tx, rx) = oneshot::channel();
 
                         // Submit the request to the "response builder" passed by the user at
