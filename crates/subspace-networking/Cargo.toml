@@ -24,6 +24,9 @@ thiserror = "1.0.31"
 tokio = { version = "1.18.2", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
 tracing = "0.1"
 uint = "0.9.3"
+unsigned-varint = { version = "0.7.1", features = ["futures", "asynchronous_codec"] }
+async-trait = "0.1"
+sc-peerset = { version = "4.0.0-dev", package = 'sc-peerset', git = 'https://github.com/paritytech/substrate.git'}
 
 [dependencies.libp2p]
 version = "0.44.0"
@@ -37,7 +40,8 @@ features = [
     "ping",
     "tcp-tokio",
     "websocket",
-    "yamux"
+    "yamux",
+    "request-response"
 ]
 
 [dev-dependencies]
