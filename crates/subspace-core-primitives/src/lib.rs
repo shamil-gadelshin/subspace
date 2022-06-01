@@ -461,6 +461,8 @@ pub type PieceIndex = u64;
 
 /// Hash of `PieceIndex`
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 pub struct PieceIndexHash(pub Sha256Hash);
 
 impl From<PieceIndex> for PieceIndexHash {
