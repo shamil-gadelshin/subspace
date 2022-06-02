@@ -2,11 +2,11 @@ use env_logger::Env;
 use futures::channel::mpsc;
 use futures::StreamExt;
 use libp2p::multiaddr::Protocol;
-use subspace_core_primitives::Piece;
 use std::sync::Arc;
 use std::time::Duration;
-use subspace_networking::{Config, Response, Request};
+use subspace_core_primitives::Piece;
 use subspace_core_primitives::PieceIndexHash;
+use subspace_networking::{Config, Request, Response};
 
 #[tokio::main]
 async fn main() {
@@ -21,7 +21,10 @@ async fn main() {
         allow_non_globals_in_dht: true,
         request_handler: Arc::new(|req| {
             println!("Request handler for request: {:?}", req);
-            Some(Response { pieces: vec![Piece::default()] })
+            Some(Response {
+                pieces: vec![Piece::default()],
+                next_piece_hash_index: None,
+            })
         }),
         ..Config::with_generated_keypair()
     };
@@ -64,7 +67,17 @@ async fn main() {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     tokio::spawn(async move {
-        node_2.send_request(node_1.id(), Request {start: PieceIndexHash([1u8; 32])}).await.unwrap();
+        node_2
+            .send_request(
+                node_1.id(),
+                Request {
+                    from: PieceIndexHash([1u8; 32]),
+                    to: PieceIndexHash([1u8; 32]),
+                    next_piece_hash_index: None,
+                },
+            )
+            .await
+            .unwrap();
     });
 
     tokio::time::sleep(Duration::from_secs(5)).await;
