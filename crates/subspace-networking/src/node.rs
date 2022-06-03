@@ -17,10 +17,10 @@ use std::pin::Pin;
 use std::sync::Arc;
 use subspace_core_primitives::{Piece, PieceIndexHash};
 use thiserror::Error;
-use tracing::{error, trace, warn};
+use tracing::{debug, error, trace, warn};
 use uint::construct_uint;
 
-//TODO: Use a similar structure from the common crates.
+// TODO: Use a similar structure from the common crates.
 // Clean allowed clippy warnings for the module on deletion.
 // U256 with 256 bits consisting of 4 x 64-bit words
 construct_uint! {
@@ -227,9 +227,7 @@ impl Node {
         self.shared.handlers.new_listener.add(callback)
     }
 
-    // TODO: timeouts?
-    // TODO: tracing
-    /// The method accesses the DSN and returns a stream with `Piece` items.
+    /// The method requests the DSN and returns a stream with `Piece` items.
     /// It looks for the suitable peer for the provided `PieceIndexHash` range by
     /// searching the underlying Kademlia network for the PeerId closest
     /// (by XOR-metric) to the middle of the range. After that it requests the
@@ -284,6 +282,11 @@ impl Node {
             // indicates the next starting point for a request, initially None
             let mut next_piece_hash_index = None;
             loop {
+                trace!(
+                    "Sending 'Piece-by-range' request to {} with {:?}",
+                    peer_id,
+                    next_piece_hash_index
+                );
                 // request data by range and starting point
                 let response = Node::send_pieces_by_range_request_inner(
                     shared.clone(),
@@ -313,7 +316,7 @@ impl Node {
                         next_piece_hash_index = response.next_piece_hash_index
                     }
                     Err(err) => {
-                        warn!("Piece-by-range request returned an error: {}", err);
+                        debug!("Piece-by-range request returned an error: {}", err);
                         break;
                     }
                 }
