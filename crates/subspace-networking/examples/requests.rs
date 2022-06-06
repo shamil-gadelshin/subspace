@@ -4,8 +4,7 @@ use futures::StreamExt;
 use libp2p::multiaddr::Protocol;
 use std::sync::Arc;
 use std::time::Duration;
-use subspace_core_primitives::Piece;
-use subspace_core_primitives::PieceIndexHash;
+use subspace_core_primitives::{Piece, PieceIndexHash};
 use subspace_networking::{Config, PiecesByRangeRequest, PiecesByRangeResponse};
 
 #[tokio::main]

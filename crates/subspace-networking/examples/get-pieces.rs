@@ -69,7 +69,7 @@ async fn main() {
 
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    let hashed_peer_id = PieceIndexHash(crypto::sha256_hash(node_1.id().to_bytes()));
+    let hashed_peer_id = PieceIndexHash(crypto::sha256_hash(&node_1.id().to_bytes()));
 
     let stream_future = node_2.get_pieces_by_range(hashed_peer_id, hashed_peer_id);
     if let Ok(mut stream) = stream_future.await {
