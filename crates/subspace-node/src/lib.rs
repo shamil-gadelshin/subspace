@@ -21,15 +21,15 @@ mod chain_spec_utils;
 mod import_blocks_from_dsn;
 mod secondary_chain;
 
-pub use crate::chain_spec::{ChainSpecExtensions, ConsensusChainSpec};
 pub use crate::import_blocks_from_dsn::ImportBlocksFromDsnCmd;
-pub use crate::secondary_chain::chain_spec::ExecutionChainSpec;
 pub use crate::secondary_chain::cli::SecondaryChainCli;
 use clap::Parser;
 use sc_cli::{RunCmd, SubstrateCli};
 use sc_executor::{NativeExecutionDispatch, RuntimeVersion};
 use sc_service::ChainSpec;
+use sc_subspace_chain_specs::ConsensusChainSpec;
 use sc_telemetry::serde_json;
+use serde_json::Value;
 use std::io::Write;
 use std::{fs, io};
 
@@ -57,7 +57,7 @@ impl NativeExecutionDispatch for ExecutorDispatch {
 }
 
 /// This `purge-chain` command used to remove both primary and secondary chains.
-#[derive(Debug, Parser)]
+#[derive(Debug, Clone, Parser)]
 pub struct PurgeChainCmd {
     /// The base struct of the purge-chain command.
     #[clap(flatten)]
@@ -222,8 +222,6 @@ impl SubstrateCli for Cli {
         let mut chain_spec = match id {
             "gemini-1" => chain_spec::gemini_config()?,
             "gemini-1-compiled" => chain_spec::gemini_config_compiled()?,
-            "testnet" => chain_spec::testnet_config_json()?,
-            "testnet-compiled" => chain_spec::testnet_config_compiled()?,
             "dev" => chain_spec::dev_config()?,
             "" | "local" => chain_spec::local_config()?,
             path => ConsensusChainSpec::from_json_file(std::path::PathBuf::from(path))?,
@@ -232,15 +230,18 @@ impl SubstrateCli for Cli {
         // In case there are bootstrap nodes specified explicitly, ignore those that are in the
         // chain spec
         if !self.run.network_params.bootnodes.is_empty() {
-            let mut chain_spec_value =
-                serde_json::to_value(&chain_spec).map_err(|error| error.to_string())?;
+            let mut chain_spec_value: Value = serde_json::from_str(&chain_spec.as_json(true)?)
+                .map_err(|error| error.to_string())?;
             if let Some(boot_nodes) = chain_spec_value.get_mut("bootNodes") {
                 if let Some(boot_nodes) = boot_nodes.as_array_mut() {
                     boot_nodes.clear();
                 }
             }
-            chain_spec =
-                serde_json::from_value(chain_spec_value).map_err(|error| error.to_string())?;
+            // Such mess because native serialization of the chain spec serializes it twice, see
+            // docs on `sc_subspace_chain_specs::utils::SerializableChainSpec`.
+            chain_spec = serde_json::to_string(&chain_spec_value.to_string())
+                .and_then(|chain_spec_string| serde_json::from_str(&chain_spec_string))
+                .map_err(|error| error.to_string())?;
         }
         Ok(Box::new(chain_spec))
     }

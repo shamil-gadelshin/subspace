@@ -19,6 +19,11 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
+mod feed_processor;
+mod fees;
+mod object_mapping;
+mod signed_extensions;
+
 // Make execution WASM runtime available.
 include!(concat!(env!("OUT_DIR"), "/execution_wasm_bundle.rs"));
 
@@ -26,49 +31,40 @@ include!(concat!(env!("OUT_DIR"), "/execution_wasm_bundle.rs"));
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use codec::{Compact, CompactLen, Decode, Encode};
+use crate::feed_processor::feed_processor;
+pub use crate::feed_processor::FeedProcessorKind;
+use crate::fees::{OnChargeTransaction, TransactionByteFee};
+use crate::object_mapping::extract_block_object_mapping;
+use crate::signed_extensions::{CheckStorageAccess, DisablePallets};
+use codec::{Decode, Encode};
 use core::time::Duration;
-use frame_support::traits::Contains;
-use frame_support::{
-    construct_runtime, parameter_types,
-    traits::{
-        ConstU128, ConstU16, ConstU32, ConstU64, ConstU8, Currency, ExistenceRequirement, Get,
-        Imbalance, WithdrawReasons,
-    },
-    weights::{
-        constants::{RocksDbWeight, WEIGHT_PER_SECOND},
-        ConstantMultiplier, IdentityFee,
-    },
-};
-use frame_system::{
-    limits::{BlockLength, BlockWeights},
-    EnsureNever,
-};
-use pallet_balances::{Call as BalancesCall, NegativeImbalance};
-use pallet_feeds::feed_processor::{FeedMetadata, FeedObjectMapping, FeedProcessor};
-use pallet_grandpa_finality_verifier::chain::Chain;
-use scale_info::TypeInfo;
+use frame_support::traits::{ConstU128, ConstU16, ConstU32, ConstU64, ConstU8, Contains, Get};
+use frame_support::weights::constants::{RocksDbWeight, WEIGHT_PER_SECOND};
+use frame_support::weights::{ConstantMultiplier, IdentityFee};
+use frame_support::{construct_runtime, parameter_types};
+use frame_system::limits::{BlockLength, BlockWeights};
+use frame_system::EnsureNever;
+use pallet_feeds::feed_processor::FeedProcessor;
 use sp_api::{impl_runtime_apis, BlockT, HashT, HeaderT};
+use sp_consensus_subspace::digests::CompatibleDigestItem;
 use sp_consensus_subspace::{
-    digests::CompatibleDigestItem, EquivocationProof, FarmerPublicKey, GlobalRandomnesses, Salts,
-    SolutionRanges,
+    derive_randomness, EquivocationProof, FarmerPublicKey, GlobalRandomnesses, Salts, SignedVote,
+    SolutionRanges, Vote,
 };
-use sp_core::{crypto::KeyTypeId, Hasher, OpaqueMetadata};
+use sp_core::crypto::{ByteArray, KeyTypeId};
+use sp_core::OpaqueMetadata;
 use sp_executor::{FraudProof, OpaqueBundle};
+use sp_runtime::traits::{AccountIdLookup, BlakeTwo256, NumberFor, Zero};
+use sp_runtime::transaction_validity::{TransactionSource, TransactionValidity};
 use sp_runtime::{
-    create_runtime_str, generic,
-    traits::{AccountIdLookup, BlakeTwo256, DispatchInfoOf, NumberFor, PostDispatchInfoOf, Zero},
-    transaction_validity::{
-        InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
-    },
-    ApplyExtrinsicResult, DispatchError, OpaqueExtrinsic, Perbill,
+    create_runtime_str, generic, AccountId32, ApplyExtrinsicResult, OpaqueExtrinsic, Perbill,
 };
-use sp_std::iter::Peekable;
-use sp_std::{borrow::Cow, prelude::*};
+use sp_std::borrow::Cow;
+use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
-use subspace_core_primitives::objects::{BlockObject, BlockObjectMapping};
+use subspace_core_primitives::objects::BlockObjectMapping;
 use subspace_core_primitives::{Randomness, RootBlock, Sha256Hash, PIECE_SIZE};
 use subspace_runtime_primitives::{
     opaque, AccountId, Balance, BlockNumber, Hash, Index, Moment, Signature, CONFIRMATION_DEPTH_K,
@@ -151,13 +147,16 @@ const INITIAL_SOLUTION_RANGE: u64 =
     u64::MAX / (RECORDED_HISTORY_SEGMENT_SIZE * 2 / RECORD_SIZE as u32) as u64 * SLOT_PROBABILITY.0
         / SLOT_PROBABILITY.1;
 
+/// Number of votes expected per block.
+///
+/// This impacts solution range for votes in consensus.
+const EXPECTED_VOTES_PER_BLOCK: u32 = 9;
+
 /// A ratio of `Normal` dispatch class within block, for `BlockWeight` and `BlockLength`.
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 
 /// Maximum block length for non-`Normal` extrinsic is 5 MiB.
 const MAX_BLOCK_LENGTH: u32 = 5 * 1024 * 1024;
-
-const MAX_OBJECT_MAPPING_RECURSION_DEPTH: u16 = 5;
 
 parameter_types! {
     pub const Version: RuntimeVersion = VERSION;
@@ -180,10 +179,10 @@ impl Contains<Call> for CallFilter {
         !matches!(
             c,
             Call::Balances(
-                BalancesCall::transfer { .. }
-                    | BalancesCall::transfer_keep_alive { .. }
-                    | BalancesCall::transfer_all { .. }
-            ) | Call::Executor(_)
+                pallet_balances::Call::transfer { .. }
+                    | pallet_balances::Call::transfer_keep_alive { .. }
+                    | pallet_balances::Call::transfer_all { .. }
+            )
         )
     }
 }
@@ -243,6 +242,7 @@ impl frame_system::Config for Runtime {
 parameter_types! {
     pub const SlotProbability: (u64, u64) = SLOT_PROBABILITY;
     pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
+    pub const ExpectedVotesPerBlock: u32 = EXPECTED_VOTES_PER_BLOCK;
     // Disable solution range adjustment at the start of chain.
     // Root origin must enable later
     pub const ShouldAdjustSolutionRange: bool = false;
@@ -261,6 +261,7 @@ impl pallet_subspace::Config for Runtime {
     type RecordSize = ConstU32<RECORD_SIZE>;
     type MaxPlotSize = ConstU64<MAX_PLOT_SIZE>;
     type RecordedHistorySegmentSize = ConstU32<RECORDED_HISTORY_SEGMENT_SIZE>;
+    type ExpectedVotesPerBlock = ExpectedVotesPerBlock;
     type ShouldAdjustSolutionRange = ShouldAdjustSolutionRange;
     type GlobalRandomnessIntervalTrigger = pallet_subspace::NormalGlobalRandomnessInterval;
     type EraChangeTrigger = pallet_subspace::NormalEraChange;
@@ -312,22 +313,25 @@ impl Get<Balance> for CreditSupply {
 
 pub struct TotalSpacePledged;
 
-impl Get<u64> for TotalSpacePledged {
-    fn get() -> u64 {
-        let piece_size = u64::try_from(PIECE_SIZE)
-            .expect("Piece size is definitely small enough to fit into u64; qed");
-        // Operations reordered to avoid u64 overflow, but essentially are:
+impl Get<u128> for TotalSpacePledged {
+    fn get() -> u128 {
+        let piece_size = u128::try_from(PIECE_SIZE)
+            .expect("Piece size is definitely small enough to fit into u128; qed");
+        // Operations reordered to avoid data loss, but essentially are:
         // u64::MAX * SlotProbability / (solution_range / PIECE_SIZE)
-        u64::MAX / Subspace::solution_ranges().current * piece_size * SlotProbability::get().0
-            / SlotProbability::get().1
+        u128::from(u64::MAX)
+            .saturating_mul(piece_size)
+            .saturating_mul(u128::from(SlotProbability::get().0))
+            / u128::from(Subspace::solution_ranges().current)
+            / u128::from(SlotProbability::get().1)
     }
 }
 
 pub struct BlockchainHistorySize;
 
-impl Get<u64> for BlockchainHistorySize {
-    fn get() -> u64 {
-        Subspace::archived_history_size()
+impl Get<u128> for BlockchainHistorySize {
+    fn get() -> u128 {
+        u128::from(Subspace::archived_history_size())
     }
 }
 
@@ -342,107 +346,6 @@ impl pallet_transaction_fees::Config for Runtime {
     type Currency = Balances;
     type FindBlockRewardAddress = Subspace;
     type WeightInfo = ();
-}
-
-pub struct TransactionByteFee;
-
-impl Get<Balance> for TransactionByteFee {
-    fn get() -> Balance {
-        if cfg!(feature = "do-not-enforce-cost-of-storage") {
-            1
-        } else {
-            TransactionFees::transaction_byte_fee()
-        }
-    }
-}
-
-pub struct LiquidityInfo {
-    storage_fee: Balance,
-    imbalance: NegativeImbalance<Runtime>,
-}
-
-/// Implementation of [`pallet_transaction_payment::OnChargeTransaction`] that charges transaction
-/// fees and distributes storage/compute fees and tip separately.
-pub struct OnChargeTransaction;
-
-impl pallet_transaction_payment::OnChargeTransaction<Runtime> for OnChargeTransaction {
-    type LiquidityInfo = Option<LiquidityInfo>;
-    type Balance = Balance;
-
-    fn withdraw_fee(
-        who: &AccountId,
-        call: &Call,
-        _info: &DispatchInfoOf<Call>,
-        fee: Self::Balance,
-        tip: Self::Balance,
-    ) -> Result<Self::LiquidityInfo, TransactionValidityError> {
-        if fee.is_zero() {
-            return Ok(None);
-        }
-
-        let withdraw_reason = if tip.is_zero() {
-            WithdrawReasons::TRANSACTION_PAYMENT
-        } else {
-            WithdrawReasons::TRANSACTION_PAYMENT | WithdrawReasons::TIP
-        };
-
-        let withdraw_result = <Balances as Currency<AccountId>>::withdraw(
-            who,
-            fee,
-            withdraw_reason,
-            ExistenceRequirement::KeepAlive,
-        );
-        let imbalance = withdraw_result.map_err(|_error| InvalidTransaction::Payment)?;
-
-        // Separate storage fee while we have access to the call data structure to calculate it.
-        let storage_fee = TransactionByteFee::get()
-            * Balance::try_from(call.encoded_size())
-                .expect("Size of the call never exceeds balance units; qed");
-
-        Ok(Some(LiquidityInfo {
-            storage_fee,
-            imbalance,
-        }))
-    }
-
-    fn correct_and_deposit_fee(
-        who: &AccountId,
-        _dispatch_info: &DispatchInfoOf<Call>,
-        _post_info: &PostDispatchInfoOf<Call>,
-        corrected_fee: Self::Balance,
-        tip: Self::Balance,
-        liquidity_info: Self::LiquidityInfo,
-    ) -> Result<(), TransactionValidityError> {
-        if let Some(LiquidityInfo {
-            storage_fee,
-            imbalance,
-        }) = liquidity_info
-        {
-            // Calculate how much refund we should return
-            let refund_amount = imbalance.peek().saturating_sub(corrected_fee);
-            // Refund to the the account that paid the fees. If this fails, the account might have
-            // dropped below the existential balance. In that case we don't refund anything.
-            let refund_imbalance = Balances::deposit_into_existing(who, refund_amount)
-                .unwrap_or_else(|_| <Balances as Currency<AccountId>>::PositiveImbalance::zero());
-            // Merge the imbalance caused by paying the fees and refunding parts of it again.
-            let adjusted_paid = imbalance
-                .offset(refund_imbalance)
-                .same()
-                .map_err(|_| TransactionValidityError::Invalid(InvalidTransaction::Payment))?;
-
-            // Split the tip from the total fee that ended up being paid.
-            let (tip, fee) = adjusted_paid.split(tip);
-            // Split paid storage and compute fees so that they can be distributed separately.
-            let (paid_storage_fee, paid_compute_fee) = fee.split(storage_fee);
-
-            TransactionFees::note_transaction_fees(
-                paid_storage_fee.peek(),
-                paid_compute_fee.peek(),
-                tip.peek(),
-            );
-        }
-        Ok(())
-    }
 }
 
 impl pallet_transaction_payment::Config for Runtime {
@@ -491,106 +394,21 @@ impl pallet_executor::Config for Runtime {
 }
 
 parameter_types! {
-    pub const BlockReward: Balance = SSC;
+    pub const BlockReward: Balance = SSC / (ExpectedVotesPerBlock::get() as Balance + 1);
+    pub const VoteReward: Balance = SSC / (ExpectedVotesPerBlock::get() as Balance + 1);
 }
 
 impl pallet_rewards::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
     type BlockReward = BlockReward;
+    type VoteReward = VoteReward;
     type FindBlockRewardAddress = Subspace;
+    type FindVotingRewardAddresses = Subspace;
     type WeightInfo = ();
 }
 
-/// Polkadot-like chain.
-pub struct PolkadotLike;
-impl Chain for PolkadotLike {
-    type BlockNumber = u32;
-    type Hash = <BlakeTwo256 as Hasher>::Out;
-    type Header = generic::Header<u32, BlakeTwo256>;
-    type Hasher = BlakeTwo256;
-}
-
-/// Type used to represent a FeedId or ChainId
 pub type FeedId = u64;
-pub struct GrandpaValidator<C>(C);
-
-impl<C: Chain> FeedProcessor<FeedId> for GrandpaValidator<C> {
-    fn init(&self, feed_id: FeedId, data: &[u8]) -> sp_runtime::DispatchResult {
-        pallet_grandpa_finality_verifier::initialize::<Runtime, C>(feed_id, data)
-    }
-
-    fn put(&self, feed_id: FeedId, object: &[u8]) -> Result<Option<FeedMetadata>, DispatchError> {
-        Ok(Some(
-            pallet_grandpa_finality_verifier::validate_finalized_block::<Runtime, C>(
-                feed_id, object,
-            )?
-            .encode(),
-        ))
-    }
-
-    fn object_mappings(&self, _feed_id: FeedId, object: &[u8]) -> Vec<FeedObjectMapping> {
-        extract_substrate_object_mapping::<C>(object)
-    }
-
-    fn delete(&self, feed_id: FeedId) -> sp_runtime::DispatchResult {
-        pallet_grandpa_finality_verifier::purge::<Runtime>(feed_id)
-    }
-}
-
-pub struct ParachainImporter<C>(C);
-
-impl<C: Chain> FeedProcessor<FeedId> for ParachainImporter<C> {
-    fn put(&self, _feed_id: FeedId, object: &[u8]) -> Result<Option<FeedMetadata>, DispatchError> {
-        let block = C::decode_block::<Runtime>(object)?;
-        Ok(Some(
-            (block.block.header.hash(), *block.block.header.number()).encode(),
-        ))
-    }
-    fn object_mappings(&self, _feed_id: FeedId, object: &[u8]) -> Vec<FeedObjectMapping> {
-        extract_substrate_object_mapping::<C>(object)
-    }
-}
-
-fn extract_substrate_object_mapping<C: Chain>(object: &[u8]) -> Vec<FeedObjectMapping> {
-    let block = match C::decode_block::<Runtime>(object) {
-        Ok(block) => block,
-        // we just return empty if we failed to decode as this is not called in runtime
-        Err(_) => return vec![],
-    };
-
-    // we send two mappings pointed to the same object
-    // block height and block hash
-    // this would be easier for sync client to crawl through the descendents by block height
-    // if you already have a block hash, you can fetch the same block with it as well
-    vec![
-        FeedObjectMapping::Custom {
-            key: block.block.header.number().encode(),
-            offset: 0,
-        },
-        FeedObjectMapping::Custom {
-            key: block.block.header.hash().as_ref().to_vec(),
-            offset: 0,
-        },
-    ]
-}
-
-/// FeedProcessorId represents the available FeedProcessor impls
-#[derive(Debug, Clone, Copy, Encode, Decode, TypeInfo, Eq, PartialEq)]
-pub enum FeedProcessorKind {
-    /// Content addressable Feed processor,
-    ContentAddressable,
-    /// Polkadot like relay chain Feed processor that validates grandpa justifications and indexes the entire block
-    PolkadotLike,
-    /// Parachain Feed processor that just indexes the entire block
-    ParachainLike,
-}
-
-impl Default for FeedProcessorKind {
-    fn default() -> Self {
-        FeedProcessorKind::ContentAddressable
-    }
-}
 
 parameter_types! {
     // Limit maximum number of feeds per account
@@ -604,13 +422,9 @@ impl pallet_feeds::Config for Runtime {
     type MaxFeeds = MaxFeeds;
 
     fn feed_processor(
-        feed_processor_kind: FeedProcessorKind,
+        feed_processor_kind: Self::FeedProcessorKind,
     ) -> Box<dyn FeedProcessor<Self::FeedId>> {
-        match feed_processor_kind {
-            FeedProcessorKind::PolkadotLike => Box::new(GrandpaValidator(PolkadotLike)),
-            FeedProcessorKind::ContentAddressable => Box::new(()),
-            FeedProcessorKind::ParachainLike => Box::new(ParachainImporter(PolkadotLike)),
-        }
+        feed_processor(feed_processor_kind)
     }
 }
 
@@ -673,6 +487,7 @@ pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
+
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
     frame_system::CheckNonZeroSender<Runtime>,
@@ -683,6 +498,8 @@ pub type SignedExtra = (
     frame_system::CheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
     pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
+    CheckStorageAccess,
+    DisablePallets,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
@@ -702,174 +519,6 @@ fn extract_root_blocks(ext: &UncheckedExtrinsic) -> Option<Vec<RootBlock>> {
         }
         _ => None,
     }
-}
-
-fn extract_feeds_block_object_mapping<I: Iterator<Item = Hash>>(
-    base_offset: u32,
-    objects: &mut Vec<BlockObject>,
-    call: &pallet_feeds::Call<Runtime>,
-    successful_calls: &mut Peekable<I>,
-) {
-    let call_hash = successful_calls.peek();
-    match call_hash {
-        Some(hash) => {
-            if <BlakeTwo256 as HashT>::hash(call.encode().as_slice()) != *hash {
-                return;
-            }
-
-            // remove the hash and fetch the object mapping for this call
-            successful_calls.next();
-        }
-        None => return,
-    }
-
-    call.extract_call_objects()
-        .into_iter()
-        .for_each(|object_map| {
-            objects.push(BlockObject::V0 {
-                hash: object_map.key,
-                offset: base_offset + object_map.offset,
-            })
-        })
-}
-
-fn extract_object_store_block_object_mapping(
-    base_offset: u32,
-    objects: &mut Vec<BlockObject>,
-    call: &pallet_object_store::Call<Runtime>,
-) {
-    if let Some(call_object) = call.extract_call_object() {
-        objects.push(BlockObject::V0 {
-            hash: call_object.hash,
-            offset: base_offset + call_object.offset,
-        });
-    }
-}
-
-fn extract_utility_block_object_mapping<I: Iterator<Item = Hash>>(
-    mut base_offset: u32,
-    objects: &mut Vec<BlockObject>,
-    call: &pallet_utility::Call<Runtime>,
-    mut recursion_depth_left: u16,
-    successful_calls: &mut Peekable<I>,
-) {
-    if recursion_depth_left == 0 {
-        return;
-    }
-
-    recursion_depth_left -= 1;
-
-    // Add enum variant to the base offset.
-    base_offset += 1;
-
-    match call {
-        pallet_utility::Call::batch { calls }
-        | pallet_utility::Call::batch_all { calls }
-        | pallet_utility::Call::force_batch { calls } => {
-            base_offset += Compact::compact_len(&(calls.len() as u32)) as u32;
-
-            for call in calls {
-                extract_call_block_object_mapping(
-                    base_offset,
-                    objects,
-                    call,
-                    recursion_depth_left,
-                    successful_calls,
-                );
-
-                base_offset += call.encoded_size() as u32;
-            }
-        }
-        pallet_utility::Call::as_derivative { index, call } => {
-            base_offset += index.encoded_size() as u32;
-
-            extract_call_block_object_mapping(
-                base_offset,
-                objects,
-                call.as_ref(),
-                recursion_depth_left,
-                successful_calls,
-            );
-        }
-        pallet_utility::Call::dispatch_as { as_origin, call } => {
-            base_offset += as_origin.encoded_size() as u32;
-
-            extract_call_block_object_mapping(
-                base_offset,
-                objects,
-                call.as_ref(),
-                recursion_depth_left,
-                successful_calls,
-            );
-        }
-        pallet_utility::Call::__Ignore(_, _) => {
-            // Ignore.
-        }
-    }
-}
-
-fn extract_call_block_object_mapping<I: Iterator<Item = Hash>>(
-    mut base_offset: u32,
-    objects: &mut Vec<BlockObject>,
-    call: &Call,
-    recursion_depth_left: u16,
-    successful_calls: &mut Peekable<I>,
-) {
-    // Add enum variant to the base offset.
-    base_offset += 1;
-
-    match call {
-        Call::Feeds(call) => {
-            extract_feeds_block_object_mapping(base_offset, objects, call, successful_calls);
-        }
-        Call::ObjectStore(call) => {
-            extract_object_store_block_object_mapping(base_offset, objects, call);
-        }
-        Call::Utility(call) => {
-            extract_utility_block_object_mapping(
-                base_offset,
-                objects,
-                call,
-                recursion_depth_left,
-                successful_calls,
-            );
-        }
-        _ => {}
-    }
-}
-
-fn extract_block_object_mapping(block: Block, successful_calls: Vec<Hash>) -> BlockObjectMapping {
-    let mut block_object_mapping = BlockObjectMapping::default();
-    let mut successful_calls = successful_calls.into_iter().peekable();
-    let mut base_offset =
-        block.header.encoded_size() + Compact::compact_len(&(block.extrinsics.len() as u32));
-    for extrinsic in block.extrinsics {
-        let signature_size = extrinsic
-            .signature
-            .as_ref()
-            .map(|s| s.encoded_size())
-            .unwrap_or_default();
-        // Extrinsic starts with vector length and version byte, followed by optional signature and
-        // `function` encoding.
-        let base_extrinsic_offset = base_offset
-            + Compact::compact_len(
-                &((1 + signature_size + extrinsic.function.encoded_size()) as u32),
-            )
-            + 1
-            + signature_size;
-
-        extract_call_block_object_mapping(
-            base_extrinsic_offset as u32,
-            &mut block_object_mapping.objects,
-            &extrinsic.function,
-            MAX_OBJECT_MAPPING_RECURSION_DEPTH,
-            &mut successful_calls,
-        );
-
-        base_offset += extrinsic.encoded_size();
-    }
-
-    block_object_mapping
 }
 
 fn extract_bundles(extrinsics: Vec<OpaqueExtrinsic>) -> Vec<OpaqueBundle> {
@@ -911,7 +560,37 @@ fn extrinsics_shuffling_seed<Block: BlockT>(header: Block::Header) -> Randomness
 
         let pre_digest = pre_digest.expect("Header must contain one pre-runtime digest; qed");
 
-        BlakeTwo256::hash_of(&pre_digest.solution.signature).into()
+        let seed: &[u8] = b"extrinsics-shuffling-seed";
+        let randomness = derive_randomness(
+            &pre_digest.solution.public_key,
+            pre_digest.solution.tag,
+            &pre_digest.solution.tag_signature,
+        )
+        .expect("Tag signature is verified by the client and must always be valid; qed");
+        let mut data = Vec::with_capacity(seed.len() + randomness.len());
+        data.extend_from_slice(seed);
+        data.extend_from_slice(&randomness);
+
+        BlakeTwo256::hash_of(&data).into()
+    }
+}
+
+struct RewardAddress([u8; 32]);
+
+impl From<FarmerPublicKey> for RewardAddress {
+    fn from(farmer_public_key: FarmerPublicKey) -> Self {
+        Self(
+            farmer_public_key
+                .as_slice()
+                .try_into()
+                .expect("Public key is always of correct size; qed"),
+        )
+    }
+}
+
+impl From<RewardAddress> for AccountId32 {
+    fn from(reward_address: RewardAddress) -> Self {
+        reward_address.0.into()
     }
 }
 
@@ -983,7 +662,7 @@ impl_runtime_apis! {
         }
     }
 
-    impl sp_consensus_subspace::SubspaceApi<Block> for Runtime {
+    impl sp_consensus_subspace::SubspaceApi<Block, FarmerPublicKey> for Runtime {
         fn confirmation_depth_k() -> <<Block as BlockT>::Header as HeaderT>::Number {
             <Self as pallet_subspace::Config>::ConfirmationDepthK::get()
         }
@@ -1026,6 +705,28 @@ impl_runtime_apis! {
             Subspace::submit_equivocation_report(equivocation_proof)
         }
 
+        fn submit_vote_extrinsic(
+            signed_vote: SignedVote<NumberFor<Block>, <Block as BlockT>::Hash, FarmerPublicKey>,
+        ) {
+            let SignedVote { vote, signature } = signed_vote;
+            let Vote::V0 {
+                height,
+                parent_hash,
+                slot,
+                solution,
+            } = vote;
+
+            Subspace::submit_vote(SignedVote {
+                vote: Vote::V0 {
+                    height,
+                    parent_hash,
+                    slot,
+                    solution: solution.into_reward_address_format::<RewardAddress, AccountId32>(),
+                },
+                signature,
+            })
+        }
+
         fn is_in_block_list(farmer_public_key: &FarmerPublicKey) -> bool {
             // TODO: Either check tx pool too for pending equivocations or replace equivocation
             //  mechanism with an alternative one, so that blocking happens faster
@@ -1038,6 +739,10 @@ impl_runtime_apis! {
 
         fn extract_root_blocks(ext: &<Block as BlockT>::Extrinsic) -> Option<Vec<RootBlock>> {
             extract_root_blocks(ext)
+        }
+
+        fn root_plot_public_key() -> Option<FarmerPublicKey> {
+            Subspace::root_plot_public_key()
         }
     }
 

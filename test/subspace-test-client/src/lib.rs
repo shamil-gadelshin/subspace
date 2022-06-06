@@ -23,9 +23,8 @@ pub mod chain_spec;
 use futures::{SinkExt, StreamExt};
 use rand::prelude::*;
 use sc_client_api::BlockBackend;
-use sc_consensus_subspace::{
-    notification::SubspaceNotificationStream, BlockSigningNotification, NewSlotNotification,
-};
+use sc_consensus_subspace::notification::SubspaceNotificationStream;
+use sc_consensus_subspace::{NewSlotNotification, RewardSigningNotification};
 use sp_api::{BlockId, ProvideRuntimeApi};
 use sp_consensus_subspace::{FarmerPublicKey, FarmerSignature, SubspaceApi};
 use sp_core::crypto::UncheckedFrom;
@@ -35,7 +34,9 @@ use subspace_core_primitives::objects::BlockObjectMapping;
 use subspace_core_primitives::{FlatPieces, Piece, Solution, Tag};
 use subspace_runtime_primitives::opaque::Block;
 use subspace_service::{FullClient, NewFull};
-use subspace_solving::{SubspaceCodec, SOLUTION_SIGNING_CONTEXT};
+use subspace_solving::{
+    create_tag, create_tag_signature, derive_local_challenge, SubspaceCodec, REWARD_SIGNING_CONTEXT,
+};
 use zeroize::Zeroizing;
 
 /// Subspace native executor instance.
@@ -64,7 +65,7 @@ pub type Backend = sc_service::TFullBackend<Block>;
 pub fn start_farmer(new_full: &NewFull<Client>) {
     let client = new_full.client.clone();
     let new_slot_notification_stream = new_full.new_slot_notification_stream.clone();
-    let block_signing_notification_stream = new_full.block_signing_notification_stream.clone();
+    let reward_signing_notification_stream = new_full.reward_signing_notification_stream.clone();
     let mut archived_segment_notification_stream =
         new_full.archived_segment_notification_stream.subscribe();
 
@@ -95,25 +96,23 @@ pub fn start_farmer(new_full: &NewFull<Client>) {
         .task_manager
         .spawn_essential_handle()
         .spawn_blocking("subspace-farmer", Some("block-signing"), async move {
-            const SUBSTRATE_SIGNING_CONTEXT: &[u8] = b"substrate";
-
-            let substrate_ctx = schnorrkel::context::signing_context(SUBSTRATE_SIGNING_CONTEXT);
+            let substrate_ctx = schnorrkel::context::signing_context(REWARD_SIGNING_CONTEXT);
             let signing_pair: Zeroizing<schnorrkel::Keypair> = Zeroizing::new(keypair);
 
-            let mut block_signing_notification_stream =
-                block_signing_notification_stream.subscribe();
+            let mut reward_signing_notification_stream =
+                reward_signing_notification_stream.subscribe();
 
-            while let Some(BlockSigningNotification {
-                header_hash,
+            while let Some(RewardSigningNotification {
+                hash: header_hash,
                 mut signature_sender,
                 ..
-            }) = block_signing_notification_stream.next().await
+            }) = reward_signing_notification_stream.next().await
             {
                 let header_hash: [u8; 32] = header_hash.into();
-                let block_signature: schnorrkel::Signature =
-                    signing_pair.sign(substrate_ctx.bytes(&header_hash));
-                let signature: subspace_core_primitives::Signature =
-                    block_signature.to_bytes().into();
+                let signature: subspace_core_primitives::RewardSignature = signing_pair
+                    .sign(substrate_ctx.bytes(&header_hash))
+                    .to_bytes()
+                    .into();
                 signature_sender
                     .send(
                         FarmerSignature::decode(&mut signature.encode().as_ref())
@@ -131,7 +130,7 @@ async fn start_farming<Client>(
     new_slot_notification_stream: SubspaceNotificationStream<NewSlotNotification>,
 ) where
     Client: ProvideRuntimeApi<Block> + BlockBackend<Block> + Send + Sync + 'static,
-    Client::Api: SubspaceApi<Block>,
+    Client::Api: SubspaceApi<Block, FarmerPublicKey>,
 {
     let (archived_pieces_sender, archived_pieces_receiver) = futures::channel::oneshot::channel();
 
@@ -142,8 +141,7 @@ async fn start_farming<Client>(
         }
     });
 
-    let subspace_solving = SubspaceCodec::new(&keypair.public);
-    let ctx = schnorrkel::context::signing_context(SOLUTION_SIGNING_CONTEXT);
+    let subspace_codec = SubspaceCodec::new(keypair.public.as_ref());
     let (piece_index, mut encoding) = archived_pieces_receiver
         .await
         .unwrap()
@@ -153,7 +151,7 @@ async fn start_farming<Client>(
         .choose(&mut rand::thread_rng())
         .map(|(piece_index, piece)| (piece_index as u64, Piece::try_from(piece).unwrap()))
         .unwrap();
-    subspace_solving.encode(&mut encoding, piece_index).unwrap();
+    subspace_codec.encode(&mut encoding, piece_index).unwrap();
 
     let mut new_slot_notification_stream = new_slot_notification_stream.subscribe();
 
@@ -163,19 +161,19 @@ async fn start_farming<Client>(
     }) = new_slot_notification_stream.next().await
     {
         if Into::<u64>::into(new_slot_info.slot) % 2 == 0 {
-            let tag: Tag = subspace_solving::create_tag(&encoding, new_slot_info.salt);
+            let tag: Tag = create_tag(&encoding, new_slot_info.salt);
 
             let _ = solution_sender
                 .send(Solution {
                     public_key: FarmerPublicKey::unchecked_from(keypair.public.to_bytes()),
                     reward_address: FarmerPublicKey::unchecked_from(keypair.public.to_bytes()),
                     piece_index,
-                    encoding,
-                    signature: keypair.sign(ctx.bytes(&tag)).to_bytes().into(),
-                    local_challenge: keypair
-                        .sign(ctx.bytes(&new_slot_info.global_challenge))
-                        .to_bytes()
-                        .into(),
+                    encoding: encoding.clone(),
+                    tag_signature: create_tag_signature(&keypair, tag),
+                    local_challenge: derive_local_challenge(
+                        &keypair,
+                        new_slot_info.global_challenge,
+                    ),
                     tag,
                 })
                 .await;
@@ -186,7 +184,7 @@ async fn start_farming<Client>(
 fn get_archived_pieces<Client>(client: &Arc<Client>) -> Vec<FlatPieces>
 where
     Client: ProvideRuntimeApi<Block> + BlockBackend<Block>,
-    Client::Api: SubspaceApi<Block>,
+    Client::Api: SubspaceApi<Block, FarmerPublicKey>,
 {
     let genesis_block_id = BlockId::Number(sp_runtime::traits::Zero::zero());
     let runtime_api = client.runtime_api();

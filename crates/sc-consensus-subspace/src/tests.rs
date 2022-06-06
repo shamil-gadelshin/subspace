@@ -60,16 +60,20 @@ use sp_inherents::{CreateInherentDataProviders, InherentData};
 use sp_runtime::generic::{BlockId, Digest, DigestItem};
 use sp_runtime::traits::{Block as BlockT, Zero};
 use sp_timestamp::InherentDataProvider as TimestampInherentDataProvider;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::{cell::RefCell, task::Poll, time::Duration};
+use std::task::Poll;
+use std::time::Duration;
 use subspace_archiving::archiver::Archiver;
 use subspace_core_primitives::objects::BlockObjectMapping;
-use subspace_core_primitives::{FlatPieces, LocalChallenge, Piece, Signature, Solution, Tag};
-use subspace_solving::{SubspaceCodec, SOLUTION_SIGNING_CONTEXT};
+use subspace_core_primitives::{FlatPieces, LocalChallenge, Piece, Solution, Tag, TagSignature};
+use subspace_solving::{
+    create_tag, create_tag_signature, derive_local_challenge, SubspaceCodec, REWARD_SIGNING_CONTEXT,
+};
 use substrate_test_runtime::{Block as TestBlock, Hash};
 
 type TestClient = substrate_test_runtime_client::client::Client<
@@ -404,7 +408,9 @@ impl TestNetFactory for SubspaceTestNet {
                     Slot::from_timestamp(*timestamp, SlotDuration::from_millis(6000))
                 }),
                 telemetry: None,
-                signing_context: schnorrkel::context::signing_context(SOLUTION_SIGNING_CONTEXT),
+                reward_signing_context: schnorrkel::context::signing_context(
+                    REWARD_SIGNING_CONTEXT,
+                ),
                 block: PhantomData::default(),
             },
             mutator: MUTATOR.with(|m| m.borrow().clone()),
@@ -565,8 +571,7 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
         let mut new_slot_notification_stream = data.link.new_slot_notification_stream().subscribe();
         let subspace_farmer = async move {
             let keypair = Keypair::generate();
-            let subspace_solving = SubspaceCodec::new(&keypair.public);
-            let ctx = schnorrkel::context::signing_context(SOLUTION_SIGNING_CONTEXT);
+            let subspace_codec = SubspaceCodec::new(keypair.public.as_ref());
             let (piece_index, mut encoding) = archived_pieces_receiver
                 .await
                 .unwrap()
@@ -576,7 +581,7 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
                 .choose(&mut rand::thread_rng())
                 .map(|(piece_index, piece)| (piece_index as u64, Piece::try_from(piece).unwrap()))
                 .unwrap();
-            subspace_solving.encode(&mut encoding, piece_index).unwrap();
+            subspace_codec.encode(&mut encoding, piece_index).unwrap();
 
             while let Some(NewSlotNotification {
                 new_slot_info,
@@ -584,7 +589,7 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
             }) = new_slot_notification_stream.next().await
             {
                 if Into::<u64>::into(new_slot_info.slot) % 3 == (*peer_id) as u64 {
-                    let tag: Tag = subspace_solving::create_tag(&encoding, new_slot_info.salt);
+                    let tag: Tag = create_tag(&encoding, new_slot_info.salt);
 
                     let _ = solution_sender
                         .send(Solution {
@@ -593,12 +598,12 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
                                 keypair.public.to_bytes(),
                             ),
                             piece_index,
-                            encoding,
-                            signature: keypair.sign(ctx.bytes(&tag)).to_bytes().into(),
-                            local_challenge: keypair
-                                .sign(ctx.bytes(&new_slot_info.global_challenge))
-                                .to_bytes()
-                                .into(),
+                            encoding: encoding.clone(),
+                            tag_signature: create_tag_signature(&keypair, tag),
+                            local_challenge: derive_local_challenge(
+                                &keypair,
+                                new_slot_info.global_challenge,
+                            ),
                             tag,
                         })
                         .await;
@@ -667,7 +672,7 @@ fn rejects_missing_seals() {
 fn wrong_consensus_engine_id_rejected() {
     sp_tracing::try_init_simple();
     let keypair = Keypair::generate();
-    let ctx = schnorrkel::context::signing_context(SOLUTION_SIGNING_CONTEXT);
+    let ctx = schnorrkel::context::signing_context(REWARD_SIGNING_CONTEXT);
     let bad_seal = DigestItem::Seal([0; 4], keypair.sign(ctx.bytes(b"")).to_bytes().to_vec());
     assert!(CompatibleDigestItem::as_subspace_pre_digest::<FarmerPublicKey>(&bad_seal).is_none());
     assert!(CompatibleDigestItem::as_subspace_seal(&bad_seal).is_none())
@@ -684,7 +689,7 @@ fn malformed_pre_digest_rejected() {
 fn sig_is_not_pre_digest() {
     sp_tracing::try_init_simple();
     let keypair = Keypair::generate();
-    let ctx = schnorrkel::context::signing_context(SOLUTION_SIGNING_CONTEXT);
+    let ctx = schnorrkel::context::signing_context(REWARD_SIGNING_CONTEXT);
     let bad_seal = DigestItem::subspace_seal(FarmerSignature::unchecked_from(
         keypair.sign(ctx.bytes(b"")).to_bytes(),
     ));
@@ -693,7 +698,9 @@ fn sig_is_not_pre_digest() {
 }
 
 /// Claims the given slot number. always returning a dummy block.
-pub fn dummy_claim_slot(slot: Slot) -> Option<(PreDigest<FarmerPublicKey>, FarmerPublicKey)> {
+pub fn dummy_claim_slot(
+    slot: Slot,
+) -> Option<(PreDigest<FarmerPublicKey, FarmerPublicKey>, FarmerPublicKey)> {
     Some((
         PreDigest {
             solution: Solution {
@@ -701,8 +708,14 @@ pub fn dummy_claim_slot(slot: Slot) -> Option<(PreDigest<FarmerPublicKey>, Farme
                 reward_address: FarmerPublicKey::unchecked_from([0u8; 32]),
                 piece_index: 0,
                 encoding: Piece::default(),
-                signature: Signature::default(),
-                local_challenge: LocalChallenge::default(),
+                tag_signature: TagSignature {
+                    output: [0; 32],
+                    proof: [0; 64],
+                },
+                local_challenge: LocalChallenge {
+                    output: [0; 32],
+                    proof: [0; 64],
+                },
                 tag: Tag::default(),
             },
             slot,
@@ -744,13 +757,11 @@ fn propose_and_import_block<Transaction: Send + 'static>(
     });
 
     let keypair = Keypair::generate();
-    let ctx = schnorrkel::context::signing_context(SOLUTION_SIGNING_CONTEXT);
+    let ctx = schnorrkel::context::signing_context(REWARD_SIGNING_CONTEXT);
 
     let (pre_digest, signature) = {
         let encoding = Piece::default();
         let tag: Tag = [0u8; 8];
-
-        let signature = keypair.sign(ctx.bytes(&tag)).to_bytes();
 
         (
             sp_runtime::generic::Digest {
@@ -761,13 +772,16 @@ fn propose_and_import_block<Transaction: Send + 'static>(
                         reward_address: FarmerPublicKey::unchecked_from(keypair.public.to_bytes()),
                         piece_index: 0,
                         encoding,
-                        signature: signature.into(),
-                        local_challenge: LocalChallenge::default(),
+                        tag_signature: create_tag_signature(&keypair, tag),
+                        local_challenge: LocalChallenge {
+                            output: [0; 32],
+                            proof: [0; 64],
+                        },
                         tag,
                     },
                 })],
             },
-            signature,
+            keypair.sign(ctx.bytes(&[])).to_bytes(),
         )
     };
 

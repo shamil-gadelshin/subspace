@@ -32,10 +32,8 @@ use frame_support::traits::{
     ConstU128, ConstU16, ConstU32, ConstU64, ConstU8, Currency, ExistenceRequirement, Get,
     Imbalance, WithdrawReasons,
 };
-use frame_support::weights::{
-    constants::{RocksDbWeight, WEIGHT_PER_SECOND},
-    ConstantMultiplier, IdentityFee,
-};
+use frame_support::weights::constants::{RocksDbWeight, WEIGHT_PER_SECOND};
+use frame_support::weights::{ConstantMultiplier, IdentityFee};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system::limits::{BlockLength, BlockWeights};
 use frame_system::EnsureNever;
@@ -45,9 +43,11 @@ use pallet_grandpa_finality_verifier::chain::Chain;
 use sp_api::{impl_runtime_apis, BlockT, HashT, HeaderT};
 use sp_consensus_subspace::digests::CompatibleDigestItem;
 use sp_consensus_subspace::{
-    EquivocationProof, FarmerPublicKey, GlobalRandomnesses, Salts, SolutionRanges,
+    derive_randomness, EquivocationProof, FarmerPublicKey, GlobalRandomnesses, Salts, SignedVote,
+    SolutionRanges, Vote,
 };
-use sp_core::{crypto::KeyTypeId, Hasher, OpaqueMetadata};
+use sp_core::crypto::{ByteArray, KeyTypeId};
+use sp_core::{Hasher, OpaqueMetadata};
 use sp_executor::{FraudProof, OpaqueBundle};
 use sp_runtime::traits::{
     AccountIdLookup, BlakeTwo256, DispatchInfoOf, NumberFor, PostDispatchInfoOf, Zero,
@@ -55,8 +55,10 @@ use sp_runtime::traits::{
 use sp_runtime::transaction_validity::{
     InvalidTransaction, TransactionSource, TransactionValidity, TransactionValidityError,
 };
-use sp_runtime::{create_runtime_str, generic, ApplyExtrinsicResult, Perbill};
-use sp_runtime::{DispatchError, OpaqueExtrinsic};
+use sp_runtime::{
+    create_runtime_str, generic, AccountId32, ApplyExtrinsicResult, DispatchError, OpaqueExtrinsic,
+    Perbill,
+};
 use sp_std::borrow::Cow;
 use sp_std::iter::Peekable;
 use sp_std::marker::PhantomData;
@@ -233,6 +235,7 @@ parameter_types! {
     pub const SlotProbability: (u64, u64) = SLOT_PROBABILITY;
     pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
     pub const ShouldAdjustSolutionRange: bool = false;
+    pub const ExpectedVotesPerBlock: u32 = 9;
 }
 
 impl pallet_subspace::Config for Runtime {
@@ -248,6 +251,7 @@ impl pallet_subspace::Config for Runtime {
     type RecordSize = ConstU32<RECORD_SIZE>;
     type MaxPlotSize = ConstU64<MAX_PLOT_SIZE>;
     type RecordedHistorySegmentSize = ConstU32<RECORDED_HISTORY_SEGMENT_SIZE>;
+    type ExpectedVotesPerBlock = ExpectedVotesPerBlock;
     type ShouldAdjustSolutionRange = ShouldAdjustSolutionRange;
     type GlobalRandomnessIntervalTrigger = pallet_subspace::NormalGlobalRandomnessInterval;
     type EraChangeTrigger = pallet_subspace::NormalEraChange;
@@ -299,22 +303,25 @@ impl Get<Balance> for CreditSupply {
 
 pub struct TotalSpacePledged;
 
-impl Get<u64> for TotalSpacePledged {
-    fn get() -> u64 {
-        let piece_size = u64::try_from(PIECE_SIZE)
-            .expect("Piece size is definitely small enough to fit into u64; qed");
-        // Operations reordered to avoid u64 overflow, but essentially are:
+impl Get<u128> for TotalSpacePledged {
+    fn get() -> u128 {
+        let piece_size = u128::try_from(PIECE_SIZE)
+            .expect("Piece size is definitely small enough to fit into u128; qed");
+        // Operations reordered to avoid data loss, but essentially are:
         // u64::MAX * SlotProbability / (solution_range / PIECE_SIZE)
-        u64::MAX / Subspace::solution_ranges().current * piece_size * SlotProbability::get().0
-            / SlotProbability::get().1
+        u128::from(u64::MAX)
+            .saturating_mul(piece_size)
+            .saturating_mul(u128::from(SlotProbability::get().0))
+            / u128::from(Subspace::solution_ranges().current)
+            / u128::from(SlotProbability::get().1)
     }
 }
 
 pub struct BlockchainHistorySize;
 
-impl Get<u64> for BlockchainHistorySize {
-    fn get() -> u64 {
-        Subspace::archived_history_size()
+impl Get<u128> for BlockchainHistorySize {
+    fn get() -> u128 {
+        u128::from(Subspace::archived_history_size())
     }
 }
 
@@ -478,14 +485,17 @@ impl pallet_executor::Config for Runtime {
 }
 
 parameter_types! {
-    pub const BlockReward: Balance = SSC;
+    pub const BlockReward: Balance = SSC / (ExpectedVotesPerBlock::get() as Balance + 1);
+    pub const VoteReward: Balance = SSC / (ExpectedVotesPerBlock::get() as Balance + 1);
 }
 
 impl pallet_rewards::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
     type BlockReward = BlockReward;
+    type VoteReward = VoteReward;
     type FindBlockRewardAddress = Subspace;
+    type FindVotingRewardAddresses = Subspace;
     type WeightInfo = ();
 }
 
@@ -847,7 +857,37 @@ fn extrinsics_shuffling_seed<Block: BlockT>(header: Block::Header) -> Randomness
 
         let pre_digest = pre_digest.expect("Header must contain one pre-runtime digest; qed");
 
-        BlakeTwo256::hash_of(&pre_digest.solution.signature).into()
+        let seed: &[u8] = b"extrinsics-shuffling-seed";
+        let randomness = derive_randomness(
+            &pre_digest.solution.public_key,
+            pre_digest.solution.tag,
+            &pre_digest.solution.tag_signature,
+        )
+        .expect("Tag signature is verified by the client and must always be valid; qed");
+        let mut data = Vec::with_capacity(seed.len() + randomness.len());
+        data.extend_from_slice(seed);
+        data.extend_from_slice(&randomness);
+
+        BlakeTwo256::hash_of(&data).into()
+    }
+}
+
+struct RewardAddress([u8; 32]);
+
+impl From<FarmerPublicKey> for RewardAddress {
+    fn from(farmer_public_key: FarmerPublicKey) -> Self {
+        Self(
+            farmer_public_key
+                .as_slice()
+                .try_into()
+                .expect("Public key is always of correct size; qed"),
+        )
+    }
+}
+
+impl From<RewardAddress> for AccountId32 {
+    fn from(reward_address: RewardAddress) -> Self {
+        reward_address.0.into()
     }
 }
 
@@ -919,7 +959,7 @@ impl_runtime_apis! {
         }
     }
 
-    impl sp_consensus_subspace::SubspaceApi<Block> for Runtime {
+    impl sp_consensus_subspace::SubspaceApi<Block, FarmerPublicKey> for Runtime {
         fn confirmation_depth_k() -> <<Block as BlockT>::Header as HeaderT>::Number {
             <Self as pallet_subspace::Config>::ConfirmationDepthK::get()
         }
@@ -962,6 +1002,28 @@ impl_runtime_apis! {
             Subspace::submit_equivocation_report(equivocation_proof)
         }
 
+        fn submit_vote_extrinsic(
+            signed_vote: SignedVote<NumberFor<Block>, <Block as BlockT>::Hash, FarmerPublicKey>,
+        ) {
+            let SignedVote { vote, signature } = signed_vote;
+            let Vote::V0 {
+                height,
+                parent_hash,
+                slot,
+                solution,
+            } = vote;
+
+            Subspace::submit_vote(SignedVote {
+                vote: Vote::V0 {
+                    height,
+                    parent_hash,
+                    slot,
+                    solution: solution.into_reward_address_format::<RewardAddress, AccountId32>(),
+                },
+                signature,
+            })
+        }
+
         fn is_in_block_list(farmer_public_key: &FarmerPublicKey) -> bool {
             // TODO: Either check tx pool too for pending equivocations or replace equivocation
             //  mechanism with an alternative one, so that blocking happens faster
@@ -974,6 +1036,10 @@ impl_runtime_apis! {
 
         fn extract_root_blocks(ext: &<Block as BlockT>::Extrinsic) -> Option<Vec<RootBlock>> {
             extract_root_blocks(ext)
+        }
+
+        fn root_plot_public_key() -> Option<FarmerPublicKey> {
+            Subspace::root_plot_public_key()
         }
     }
 

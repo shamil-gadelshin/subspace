@@ -69,7 +69,12 @@ pub type BlockNumber = u32;
 /// Slot number in Subspace network.
 pub type SlotNumber = u64;
 
-const PUBLIC_KEY_LENGTH: usize = 32;
+/// Length of public key in bytes.
+pub const PUBLIC_KEY_LENGTH: usize = 32;
+
+const REWARD_SIGNATURE_LENGTH: usize = 64;
+const VRF_OUTPUT_LENGTH: usize = 32;
+const VRF_PROOF_LENGTH: usize = 64;
 
 /// A Ristretto Schnorr public key as bytes produced by `schnorrkel` crate.
 #[derive(
@@ -104,34 +109,26 @@ impl AsRef<[u8]> for PublicKey {
     }
 }
 
-const SIGNATURE_LENGTH: usize = 64;
-
 /// A Ristretto Schnorr signature as bytes produced by `schnorrkel` crate.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct Signature(
-    #[cfg_attr(feature = "std", serde(with = "serde_arrays"))] [u8; SIGNATURE_LENGTH],
+pub struct RewardSignature(
+    #[cfg_attr(feature = "std", serde(with = "serde_arrays"))] [u8; REWARD_SIGNATURE_LENGTH],
 );
 
-impl Default for Signature {
-    fn default() -> Self {
-        Self([0u8; SIGNATURE_LENGTH])
-    }
-}
-
-impl From<[u8; SIGNATURE_LENGTH]> for Signature {
-    fn from(bytes: [u8; SIGNATURE_LENGTH]) -> Self {
+impl From<[u8; REWARD_SIGNATURE_LENGTH]> for RewardSignature {
+    fn from(bytes: [u8; REWARD_SIGNATURE_LENGTH]) -> Self {
         Self(bytes)
     }
 }
 
-impl From<Signature> for [u8; SIGNATURE_LENGTH] {
-    fn from(signature: Signature) -> Self {
+impl From<RewardSignature> for [u8; REWARD_SIGNATURE_LENGTH] {
+    fn from(signature: RewardSignature) -> Self {
         signature.0
     }
 }
 
-impl Deref for Signature {
+impl Deref for RewardSignature {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -139,58 +136,32 @@ impl Deref for Signature {
     }
 }
 
-impl AsRef<[u8]> for Signature {
+impl AsRef<[u8]> for RewardSignature {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
 
-/// A Ristretto Schnorr signature as bytes produced by `schnorrkel` crate.
+/// VRF signature output and proof as produced by `schnorrkel` crate.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct LocalChallenge(
-    #[cfg_attr(feature = "std", serde(with = "serde_arrays"))] [u8; SIGNATURE_LENGTH],
-);
-
-impl Default for LocalChallenge {
-    fn default() -> Self {
-        Self([0u8; SIGNATURE_LENGTH])
-    }
+pub struct TagSignature {
+    /// VRF output bytes.
+    pub output: [u8; VRF_OUTPUT_LENGTH],
+    /// VRF proof bytes.
+    #[cfg_attr(feature = "std", serde(with = "serde_arrays"))]
+    pub proof: [u8; VRF_PROOF_LENGTH],
 }
 
-impl From<[u8; SIGNATURE_LENGTH]> for LocalChallenge {
-    fn from(bytes: [u8; SIGNATURE_LENGTH]) -> Self {
-        Self(bytes)
-    }
-}
-
-impl From<LocalChallenge> for [u8; SIGNATURE_LENGTH] {
-    fn from(signature: LocalChallenge) -> Self {
-        signature.0
-    }
-}
-
-impl Deref for LocalChallenge {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AsRef<[u8]> for LocalChallenge {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl LocalChallenge {
-    /// Derive tags search target from local challenge.
-    pub fn derive_target(&self) -> Tag {
-        crypto::sha256_hash(&self.0)[..TAG_SIZE]
-            .try_into()
-            .expect("Signature is always bigger than tag; qed")
-    }
+/// VRF signature output and proof as produced by `schnorrkel` crate.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+pub struct LocalChallenge {
+    /// VRF output bytes.
+    pub output: [u8; VRF_OUTPUT_LENGTH],
+    /// VRF proof bytes.
+    #[cfg_attr(feature = "std", serde(with = "serde_arrays"))]
+    pub proof: [u8; VRF_PROOF_LENGTH],
 }
 
 /// A piece of archival history in Subspace Network.
@@ -198,24 +169,23 @@ impl LocalChallenge {
 /// Internally piece contains a record and corresponding witness that together with [`RootBlock`] of
 /// the segment this piece belongs to can be used to verify that a piece belongs to the actual
 /// archival history of the blockchain.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Encode, Decode, TypeInfo)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
-pub struct Piece(#[cfg_attr(feature = "std", serde(with = "serde_arrays"))] [u8; PIECE_SIZE]);
+pub struct Piece(Vec<u8>);
 
 impl Default for Piece {
     fn default() -> Self {
-        Self([0u8; PIECE_SIZE])
+        Self(vec![0u8; PIECE_SIZE])
     }
 }
 
 impl From<[u8; PIECE_SIZE]> for Piece {
-    fn from(inner: [u8; PIECE_SIZE]) -> Self {
-        Self(inner)
+    fn from(piece: [u8; PIECE_SIZE]) -> Self {
+        Self(piece.to_vec())
     }
 }
 
-impl From<Piece> for [u8; PIECE_SIZE] {
+impl From<Piece> for Vec<u8> {
     fn from(piece: Piece) -> Self {
         piece.0
     }
@@ -224,10 +194,11 @@ impl From<Piece> for [u8; PIECE_SIZE] {
 impl TryFrom<&[u8]> for Piece {
     type Error = &'static str;
     fn try_from(slice: &[u8]) -> Result<Self, Self::Error> {
-        slice
-            .try_into()
-            .map(Self)
-            .map_err(|_| "Wrong piece size, expected: 4096")
+        if slice.len() != PIECE_SIZE {
+            Err("Wrong piece size, expected: 4096")
+        } else {
+            Ok(Self(slice.to_vec()))
+        }
     }
 }
 
@@ -259,7 +230,6 @@ impl AsMut<[u8]> for Piece {
 /// Flat representation of multiple pieces concatenated for higher efficient for processing.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 pub struct FlatPieces(Vec<u8>);
 
 impl FlatPieces {
@@ -478,38 +448,79 @@ impl PieceIndexHash {
     }
 }
 
+// TODO: Versioned solution enum
 /// Farmer solution for slot challenge.
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, Eq, PartialEq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
-pub struct Solution<AccountId> {
+pub struct Solution<PublicKey, RewardAddress> {
     /// Public key of the farmer that created the solution
-    pub public_key: AccountId,
+    pub public_key: PublicKey,
     /// Address for receiving block reward
-    pub reward_address: AccountId,
+    pub reward_address: RewardAddress,
     /// Index of encoded piece
     pub piece_index: PieceIndex,
     /// Encoding
     pub encoding: Piece,
-    /// Signature of the tag
-    pub signature: Signature,
+    /// VRF signature of the tag
+    pub tag_signature: TagSignature,
     /// Local challenge derived from global challenge using farmer's identity.
     pub local_challenge: LocalChallenge,
     /// Tag (hmac of encoding and salt)
     pub tag: Tag,
 }
 
-impl<AccountId: Clone> Solution<AccountId> {
+impl<PublicKey, RewardAddressA> Solution<PublicKey, RewardAddressA> {
+    /// Transform solution with one reward address type into solution with another compatible
+    /// reward address type.
+    pub fn into_reward_address_format<T, RewardAddressB>(
+        self,
+    ) -> Solution<PublicKey, RewardAddressB>
+    where
+        RewardAddressA: Into<T>,
+        T: Into<RewardAddressB>,
+    {
+        let Solution {
+            public_key,
+            reward_address,
+            piece_index,
+            encoding,
+            tag_signature,
+            local_challenge,
+            tag,
+        } = self;
+        Solution {
+            public_key,
+            reward_address: Into::<T>::into(reward_address).into(),
+            piece_index,
+            encoding,
+            tag_signature,
+            local_challenge,
+            tag,
+        }
+    }
+}
+
+impl<PublicKey, RewardAddress> Solution<PublicKey, RewardAddress>
+where
+    PublicKey: Clone,
+    RewardAddress: Clone,
+{
     /// Dummy solution for the genesis block
-    pub fn genesis_solution(public_key: AccountId) -> Self {
-        let reward_address = public_key.clone();
+    pub fn genesis_solution(public_key: PublicKey, reward_address: RewardAddress) -> Self {
         Self {
             public_key,
             reward_address,
             piece_index: 0,
             encoding: Piece::default(),
-            signature: Signature::default(),
-            local_challenge: LocalChallenge::default(),
+            tag_signature: TagSignature {
+                output: [0; 32],
+                proof: [0; 64],
+            },
+            local_challenge: LocalChallenge {
+                output: [0; 32],
+                proof: [0; 64],
+            },
             tag: Tag::default(),
         }
     }

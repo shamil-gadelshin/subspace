@@ -18,26 +18,23 @@
 
 use crate::chain_spec_utils::{
     chain_spec_properties, get_account_id_from_seed, get_public_key_from_seed,
-    SerializableChainSpec,
 };
 use crate::secondary_chain;
-use crate::secondary_chain::chain_spec::ExecutionChainSpec;
-use sc_chain_spec::ChainSpecExtension;
+use cirrus_runtime::GenesisConfig as ExecutionGenesisConfig;
 use sc_service::ChainType;
+use sc_subspace_chain_specs::{ChainSpecExtensions, ConsensusChainSpec};
 use sc_telemetry::TelemetryEndpoints;
-use serde::{Deserialize, Serialize};
 use sp_core::crypto::Ss58Codec;
 use sp_executor::ExecutorId;
 use subspace_runtime::{
-    BalancesConfig, ExecutorConfig, GenesisConfig, SudoConfig, SystemConfig, VestingConfig,
-    MILLISECS_PER_BLOCK, WASM_BINARY,
+    BalancesConfig, ExecutorConfig, GenesisConfig, SubspaceConfig, SudoConfig, SystemConfig,
+    VestingConfig, MILLISECS_PER_BLOCK, WASM_BINARY,
 };
 use subspace_runtime_primitives::{AccountId, Balance, BlockNumber, SSC};
 
 const POLKADOT_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const SUBSPACE_TELEMETRY_URL: &str = "wss://telemetry.subspace.network/submit/";
-const TESTNET_CHAIN_SPEC: &[u8] = include_bytes!("../res/chain-spec-raw-snapshot-2022-mar-09.json");
-// const TESTNET_BOOTSTRAP_NODE: &str = "/dns/farm-rpc.subspace.network/tcp/30333/p2p/12D3KooWPjMZuSYj35ehced2MTJFf95upwpHKgKUrFRfHwohzJXr";
+const GEMINI_1_CHAIN_SPEC: &[u8] = include_bytes!("../res/chain-spec-raw-gemini-1.json");
 
 /// List of accounts which should receive token grants, amounts are specified in SSC.
 const TOKEN_GRANTS: &[(&str, u128)] = &[
@@ -66,114 +63,18 @@ const TOKEN_GRANTS: &[(&str, u128)] = &[
     ("5FZwEgsvZz1vpeH7UsskmNmTpbfXvAcojjgVfShgbRqgC1nx", 27_800),
 ];
 
-/// The extensions for the [`ConsensusChainSpec`].
-#[derive(Clone, Serialize, Deserialize, ChainSpecExtension)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub struct ChainSpecExtensions {
-    /// Chain spec of execution chain.
-    pub execution_chain_spec: ExecutionChainSpec,
+pub fn gemini_config() -> Result<ConsensusChainSpec<GenesisConfig, ExecutionGenesisConfig>, String>
+{
+    ConsensusChainSpec::from_json_bytes(GEMINI_1_CHAIN_SPEC)
 }
 
-/// The `ChainSpec` parameterized for the consensus runtime.
-pub type ConsensusChainSpec = SerializableChainSpec<GenesisConfig, ChainSpecExtensions>;
-
-pub fn testnet_config_json() -> Result<ConsensusChainSpec, String> {
-    ConsensusChainSpec::from_json_bytes(TESTNET_CHAIN_SPEC)
-}
-pub fn testnet_config_compiled() -> Result<ConsensusChainSpec, String> {
-    Ok(ConsensusChainSpec::from_genesis(
-        // Name
-        "Subspace testnet",
-        // ID
-        "subspace_test",
-        ChainType::Custom("Subspace testnet".to_string()),
-        || {
-            let sudo_account =
-                AccountId::from_ss58check("5CXTmJEusve5ixyJufqHThmy4qUrrm6FyLCR7QfE4bbyMTNC")
-                    .expect("Wrong root account address");
-
-            let mut balances = vec![(sudo_account.clone(), 1_000 * SSC)];
-            let vesting_schedules = TOKEN_GRANTS
-                .iter()
-                .flat_map(|&(account_address, amount)| {
-                    let account_id = AccountId::from_ss58check(account_address)
-                        .expect("Wrong vesting account address");
-                    let amount: Balance = amount * SSC;
-
-                    // TODO: Adjust start block to real value before mainnet launch
-                    let start_block = 100_000_000;
-                    let one_month_in_blocks =
-                        u32::try_from(3600 * 24 * 30 * MILLISECS_PER_BLOCK / 1000)
-                            .expect("One month of blocks always fits in u32; qed");
-
-                    // Add balance so it can be locked
-                    balances.push((account_id.clone(), amount));
-
-                    [
-                        // 1/4 of tokens are released after 1 year.
-                        (
-                            account_id.clone(),
-                            start_block,
-                            one_month_in_blocks * 12,
-                            1,
-                            amount / 4,
-                        ),
-                        // 1/48 of tokens are released every month after that for 3 more years.
-                        (
-                            account_id,
-                            start_block + one_month_in_blocks * 12,
-                            one_month_in_blocks,
-                            36,
-                            amount / 48,
-                        ),
-                    ]
-                })
-                .collect::<Vec<_>>();
-            subspace_genesis_config(
-                WASM_BINARY.expect("Wasm binary must be built for testnet"),
-                sudo_account,
-                balances,
-                vesting_schedules,
-                (
-                    get_account_id_from_seed("Alice"),
-                    get_public_key_from_seed::<ExecutorId>("Alice"),
-                ),
-            )
-        },
-        // Bootnodes
-        vec![
-            // TESTNET_BOOTSTRAP_NODE.parse().expect("Bootstrap node must be correct")
-        ],
-        // Telemetry
-        Some(
-            TelemetryEndpoints::new(vec![
-                (POLKADOT_TELEMETRY_URL.into(), 1),
-                (SUBSPACE_TELEMETRY_URL.into(), 1),
-            ])
-            .map_err(|error| error.to_string())?,
-        ),
-        // Protocol ID
-        Some("subspace-substrate"),
-        None,
-        // Properties
-        Some(chain_spec_properties()),
-        // Extensions
-        ChainSpecExtensions {
-            execution_chain_spec: secondary_chain::chain_spec::local_testnet_config(),
-        },
-    ))
-}
-
-pub fn gemini_config() -> Result<ConsensusChainSpec, String> {
-    todo!("Distribute the gemini ChainSpec once finalized")
-}
-
-pub fn gemini_config_compiled() -> Result<ConsensusChainSpec, String> {
+pub fn gemini_config_compiled(
+) -> Result<ConsensusChainSpec<GenesisConfig, ExecutionGenesisConfig>, String> {
     Ok(ConsensusChainSpec::from_genesis(
         // Name
         "Subspace Gemini 1",
         // ID
-        "subspace_gemini_1",
+        "subspace_gemini_1b",
         ChainType::Custom("Subspace Gemini 1".to_string()),
         || {
             let sudo_account =
@@ -228,6 +129,9 @@ pub fn gemini_config_compiled() -> Result<ConsensusChainSpec, String> {
                     ExecutorId::from_ss58check("5FuuXk1TL8DKQMvg7mcqmP8t9FhxUdzTcYC9aFmebiTLmASx")
                         .expect("Wrong Executor authority address"),
                 ),
+                false,
+                false,
+                false,
             )
         },
         // Bootnodes
@@ -241,7 +145,7 @@ pub fn gemini_config_compiled() -> Result<ConsensusChainSpec, String> {
             .map_err(|error| error.to_string())?,
         ),
         // Protocol ID
-        Some("subspace-gemini-1"),
+        Some("subspace-gemini-1b"),
         None,
         // Properties
         Some(chain_spec_properties()),
@@ -252,7 +156,7 @@ pub fn gemini_config_compiled() -> Result<ConsensusChainSpec, String> {
     ))
 }
 
-pub fn dev_config() -> Result<ConsensusChainSpec, String> {
+pub fn dev_config() -> Result<ConsensusChainSpec<GenesisConfig, ExecutionGenesisConfig>, String> {
     let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
 
     Ok(ConsensusChainSpec::from_genesis(
@@ -278,6 +182,9 @@ pub fn dev_config() -> Result<ConsensusChainSpec, String> {
                     get_account_id_from_seed("Alice"),
                     get_public_key_from_seed::<ExecutorId>("Alice"),
                 ),
+                false,
+                false,
+                true,
             )
         },
         // Bootnodes
@@ -296,7 +203,7 @@ pub fn dev_config() -> Result<ConsensusChainSpec, String> {
     ))
 }
 
-pub fn local_config() -> Result<ConsensusChainSpec, String> {
+pub fn local_config() -> Result<ConsensusChainSpec<GenesisConfig, ExecutionGenesisConfig>, String> {
     let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
 
     Ok(ConsensusChainSpec::from_genesis(
@@ -330,6 +237,9 @@ pub fn local_config() -> Result<ConsensusChainSpec, String> {
                     get_account_id_from_seed("Alice"),
                     get_public_key_from_seed::<ExecutorId>("Alice"),
                 ),
+                false,
+                false,
+                true,
             )
         },
         // Bootnodes
@@ -349,6 +259,7 @@ pub fn local_config() -> Result<ConsensusChainSpec, String> {
 }
 
 /// Configure initial storage state for FRAME modules.
+#[allow(clippy::too_many_arguments)]
 fn subspace_genesis_config(
     wasm_binary: &[u8],
     sudo_account: AccountId,
@@ -356,6 +267,9 @@ fn subspace_genesis_config(
     // who, start, period, period_count, per_period
     vesting: Vec<(AccountId, BlockNumber, BlockNumber, u32, Balance)>,
     executor_authority: (AccountId, ExecutorId),
+    enable_rewards: bool,
+    enable_storage_access: bool,
+    allow_authoring_by_anyone: bool,
 ) -> GenesisConfig {
     GenesisConfig {
         system: SystemConfig {
@@ -367,6 +281,11 @@ fn subspace_genesis_config(
         sudo: SudoConfig {
             // Assign network admin rights.
             key: Some(sudo_account),
+        },
+        subspace: SubspaceConfig {
+            enable_rewards,
+            enable_storage_access,
+            allow_authoring_by_anyone,
         },
         vesting: VestingConfig { vesting },
         executor: ExecutorConfig {

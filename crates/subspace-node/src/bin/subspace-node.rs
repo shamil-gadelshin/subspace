@@ -16,16 +16,37 @@
 
 //! Subspace node implementation.
 
+use cirrus_runtime::GenesisConfig as ExecutionGenesisConfig;
 use frame_benchmarking_cli::BenchmarkCmd;
 use futures::future::TryFutureExt;
 use futures::StreamExt;
-use sc_cli::{ChainSpec, CliConfiguration, SubstrateCli};
+use sc_cli::{ChainSpec, CliConfiguration, Database, DatabaseParams, SubstrateCli};
+use sc_executor::NativeExecutionDispatch;
 use sc_service::PartialComponents;
+use sc_subspace_chain_specs::ExecutionChainSpec;
 use sp_core::crypto::Ss58AddressFormat;
 use std::any::TypeId;
-use subspace_node::{Cli, ExecutionChainSpec, ExecutorDispatch, SecondaryChainCli, Subcommand};
+use subspace_node::{Cli, ExecutorDispatch, SecondaryChainCli, Subcommand};
 use subspace_runtime::{Block, RuntimeApi};
 use subspace_service::SubspaceConfiguration;
+
+/// Secondary executor instance.
+pub struct SecondaryExecutorDispatch;
+
+impl NativeExecutionDispatch for SecondaryExecutorDispatch {
+    #[cfg(feature = "runtime-benchmarks")]
+    type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+    #[cfg(not(feature = "runtime-benchmarks"))]
+    type ExtendHostFunctions = ();
+
+    fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+        cirrus_runtime::api::dispatch(method, data)
+    }
+
+    fn native_version() -> sc_executor::NativeVersion {
+        cirrus_runtime::native_version()
+    }
+}
 
 /// Subspace node error.
 #[derive(thiserror::Error, Debug)]
@@ -73,8 +94,15 @@ fn set_default_ss58_version<C: AsRef<dyn ChainSpec>>(chain_spec: C) {
     }
 }
 
+// TODO: Remove once paritydb is the default option, ref https://github.com/paritytech/substrate/pull/11537
+fn force_use_parity_db(database_params: &mut DatabaseParams) {
+    database_params.database.replace(Database::ParityDb);
+}
+
 fn main() -> Result<(), Error> {
-    let cli = Cli::from_args();
+    let mut cli = Cli::from_args();
+
+    force_use_parity_db(&mut cli.run.import_params.database_params);
 
     match &cli.subcommand {
         Some(Subcommand::Key(cmd)) => cmd.run(&cli)?,
@@ -163,6 +191,9 @@ fn main() -> Result<(), Error> {
             })?;
         }
         Some(Subcommand::PurgeChain(cmd)) => {
+            let mut cmd = cmd.clone();
+            force_use_parity_db(&mut cmd.base.database_params);
+
             // TODO: Remove this after next snapshot, this is a compatibility layer to make sure we
             //  wipe old data from disks of our users
             if cmd.base.shared_params.base_path().is_none() {
@@ -182,17 +213,29 @@ fn main() -> Result<(), Error> {
                 }
             }
 
+            // Delete testnet data folder
+            // TODO: Remove this after next snapshot, this is a compatibility layer to make sure we
+            //  wipe old data from disks of our users
+            if let Some(base_dir) = dirs::data_local_dir() {
+                let _ = std::fs::remove_dir_all(
+                    base_dir
+                        .join("subspace-node")
+                        .join("chains")
+                        .join("subspace_test"),
+                );
+            }
+
             let runner = cli.create_runner(&cmd.base)?;
 
             runner.sync_run(|primary_chain_config| {
                 let maybe_secondary_chain_spec = primary_chain_config
                     .chain_spec
                     .extensions()
-                    .get_any(TypeId::of::<ExecutionChainSpec>())
+                    .get_any(TypeId::of::<ExecutionChainSpec<ExecutionGenesisConfig>>())
                     .downcast_ref()
                     .cloned();
 
-                let secondary_chain_cli = SecondaryChainCli::new(
+                let mut secondary_chain_cli = SecondaryChainCli::new(
                     cmd.base
                         .base_path()?
                         .map(|base_path| base_path.path().to_path_buf()),
@@ -201,6 +244,8 @@ fn main() -> Result<(), Error> {
                     })?,
                     cli.secondary_chain_args.iter(),
                 );
+                force_use_parity_db(&mut secondary_chain_cli.run.import_params.database_params);
+
                 let secondary_chain_config = SubstrateCli::create_configuration(
                     &secondary_chain_cli,
                     &secondary_chain_cli,
@@ -208,8 +253,7 @@ fn main() -> Result<(), Error> {
                 )
                 .map_err(|error| {
                     sc_service::Error::Other(format!(
-                        "Failed to create secondary chain configuration: {}",
-                        error
+                        "Failed to create secondary chain configuration: {error:?}"
                     ))
                 })?;
 
@@ -299,7 +343,7 @@ fn main() -> Result<(), Error> {
                 let maybe_secondary_chain_spec = primary_chain_config
                     .chain_spec
                     .extensions()
-                    .get_any(TypeId::of::<ExecutionChainSpec>())
+                    .get_any(TypeId::of::<ExecutionChainSpec<ExecutionGenesisConfig>>())
                     .downcast_ref()
                     .cloned();
 
@@ -322,8 +366,7 @@ fn main() -> Result<(), Error> {
                     )
                     .map_err(|error| {
                         sc_service::Error::Other(format!(
-                            "Failed to build a full subspace node: {}",
-                            error
+                            "Failed to build a full subspace node: {error:?}"
                         ))
                     })?
                 };
@@ -336,7 +379,7 @@ fn main() -> Result<(), Error> {
                     );
                     let _enter = span.enter();
 
-                    let secondary_chain_cli = SecondaryChainCli::new(
+                    let mut secondary_chain_cli = SecondaryChainCli::new(
                         cli.run
                             .base_path()?
                             .map(|base_path| base_path.path().to_path_buf()),
@@ -345,6 +388,8 @@ fn main() -> Result<(), Error> {
                         })?,
                         cli.secondary_chain_args.iter(),
                     );
+                    force_use_parity_db(&mut secondary_chain_cli.run.import_params.database_params);
+
                     let secondary_chain_config = SubstrateCli::create_configuration(
                         &secondary_chain_cli,
                         &secondary_chain_cli,
@@ -352,12 +397,19 @@ fn main() -> Result<(), Error> {
                     )
                     .map_err(|error| {
                         sc_service::Error::Other(format!(
-                            "Failed to create secondary chain configuration: {}",
-                            error
+                            "Failed to create secondary chain configuration: {error:?}"
                         ))
                     })?;
 
-                    let secondary_chain_node_fut = cirrus_node::service::new_full(
+                    let secondary_chain_node_fut = cirrus_node::service::new_full::<
+                        _,
+                        _,
+                        _,
+                        _,
+                        _,
+                        cirrus_runtime::RuntimeApi,
+                        SecondaryExecutorDispatch,
+                    >(
                         secondary_chain_config,
                         primary_chain_node.client.clone(),
                         primary_chain_node.network.clone(),
@@ -365,7 +417,9 @@ fn main() -> Result<(), Error> {
                         primary_chain_node
                             .imported_block_notification_stream
                             .subscribe()
-                            .then(|(block_number, _)| async move { block_number }),
+                            .then(|imported_block_notification| async move {
+                                imported_block_notification.block_number
+                            }),
                         primary_chain_node
                             .new_slot_notification_stream
                             .subscribe()

@@ -16,7 +16,6 @@
 // GRANDPA verification is mostly taken from Parity's bridges https://github.com/paritytech/parity-bridges-common/tree/master/primitives/header-chain
 use codec::{Decode, Encode};
 use finality_grandpa::voter_set::VoterSet;
-use frame_support::RuntimeDebug;
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -24,11 +23,10 @@ use sp_finality_grandpa::{
     AuthorityId, AuthorityList, AuthoritySignature, ConsensusLog, SetId, GRANDPA_ENGINE_ID,
 };
 use sp_runtime::traits::Header as HeaderT;
-use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    prelude::*,
-    vec::Vec,
-};
+use sp_std::collections::btree_map::BTreeMap;
+use sp_std::collections::btree_set::BTreeSet;
+use sp_std::prelude::*;
+use sp_std::vec::Vec;
 
 /// A GRANDPA Justification is a proof that a given header was finalized
 /// at a certain height and with a certain set of authorities.
@@ -47,7 +45,7 @@ pub struct GrandpaJustification<Header: HeaderT> {
 }
 
 /// A GRANDPA Authority List and ID.
-#[derive(Default, Encode, Decode, RuntimeDebug, PartialEq, Clone, TypeInfo)]
+#[derive(Debug, Default, Encode, Decode, PartialEq, Clone, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct AuthoritySet {
     /// List of GRANDPA authorities for the current round.
@@ -57,7 +55,7 @@ pub struct AuthoritySet {
 }
 
 /// Votes ancestries with useful methods.
-#[derive(RuntimeDebug)]
+#[derive(Debug)]
 struct AncestryChain<Header: HeaderT> {
     /// Header hash => parent header hash mapping.
     parents: BTreeMap<Header::Hash, Header::Hash>,
@@ -110,7 +108,7 @@ impl<Header: HeaderT> AncestryChain<Header> {
 }
 
 /// Justification verification error.
-#[derive(RuntimeDebug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Error {
     /// Justification is finalizing unexpected header.
     InvalidJustificationTarget,

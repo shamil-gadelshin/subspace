@@ -14,14 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::ExecutionChainSpec;
+use cirrus_runtime::GenesisConfig as ExecutionGenesisConfig;
 use clap::Parser;
 use sc_cli::{
     ChainSpec, CliConfiguration, DefaultConfigurationValues, ImportParams, KeystoreParams,
     NetworkParams, Result, RunCmd, RuntimeVersion, SharedParams, SubstrateCli,
 };
-use sc_service::{config::PrometheusConfig, BasePath};
-use std::{net::SocketAddr, path::PathBuf};
+use sc_service::config::PrometheusConfig;
+use sc_service::BasePath;
+use sc_subspace_chain_specs::ExecutionChainSpec;
+use serde_json::Value;
+use std::net::SocketAddr;
+use std::path::PathBuf;
 
 /// Sub-commands supported by the executor.
 #[derive(Debug, clap::Subcommand)]
@@ -45,7 +49,7 @@ pub struct SecondaryChainCli {
     pub base_path: Option<PathBuf>,
 
     /// Specification of the secondary chain derived from primary chain spec.
-    pub chain_spec: ExecutionChainSpec,
+    pub chain_spec: ExecutionChainSpec<ExecutionGenesisConfig>,
 }
 
 impl SecondaryChainCli {
@@ -54,7 +58,7 @@ impl SecondaryChainCli {
     /// If no explicit base path for the secondary chain, the default value will be `primary_base_path/executor`.
     pub fn new<'a>(
         base_path: Option<PathBuf>,
-        chain_spec: ExecutionChainSpec,
+        chain_spec: ExecutionChainSpec<ExecutionGenesisConfig>,
         secondary_chain_args: impl Iterator<Item = &'a String>,
     ) -> Self {
         Self {
@@ -102,15 +106,18 @@ impl SubstrateCli for SecondaryChainCli {
         // In case there are bootstrap nodes specified explicitly, ignore those that are in the
         // chain spec
         if !self.run.network_params.bootnodes.is_empty() {
-            let mut chain_spec_value =
-                serde_json::to_value(&chain_spec).map_err(|error| error.to_string())?;
+            let mut chain_spec_value: Value = serde_json::from_str(&chain_spec.as_json(true)?)
+                .map_err(|error| error.to_string())?;
             if let Some(boot_nodes) = chain_spec_value.get_mut("bootNodes") {
                 if let Some(boot_nodes) = boot_nodes.as_array_mut() {
                     boot_nodes.clear();
                 }
             }
-            chain_spec =
-                serde_json::from_value(chain_spec_value).map_err(|error| error.to_string())?;
+            // Such mess because native serialization of the chain spec serializes it twice, see
+            // docs on `sc_subspace_chain_specs::utils::SerializableChainSpec`.
+            chain_spec = serde_json::to_string(&chain_spec_value.to_string())
+                .and_then(|chain_spec_string| serde_json::from_str(&chain_spec_string))
+                .map_err(|error| error.to_string())?;
         }
 
         Ok(Box::new(chain_spec))

@@ -1,21 +1,29 @@
 use anyhow::Error;
 use parity_scale_codec::{Decode, Encode};
-use schnorrkel::{context::SigningContext, Keypair, PublicKey, SecretKey, Signature};
-use sp_core::sr25519::Pair;
+use schnorrkel::context::SigningContext;
+use schnorrkel::{ExpansionMode, Keypair, PublicKey, SecretKey, Signature};
 use std::fs;
 use std::path::Path;
-use subspace_solving::SOLUTION_SIGNING_CONTEXT;
+use subspace_core_primitives::{LocalChallenge, Sha256Hash, Tag, TagSignature};
+use subspace_solving::{
+    create_tag_signature, derive_local_challenge_and_target, REWARD_SIGNING_CONTEXT,
+};
+use substrate_bip39::mini_secret_from_entropy;
 use tracing::debug;
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::Zeroizing;
 
-/// Signing context hardcoded in Substrate implementation and used for signing blocks.
-const SUBSTRATE_SIGNING_CONTEXT: &[u8] = b"substrate";
 /// Entropy used for identity generation.
 const ENTROPY_LENGTH: usize = 32;
 
 #[derive(Debug, Encode, Decode)]
 struct IdentityFileContents {
     entropy: Vec<u8>,
+}
+
+fn keypair_from_entropy(entropy: &[u8]) -> Keypair {
+    mini_secret_from_entropy(entropy, "")
+        .expect("32 bytes can always build a key; qed")
+        .expand_to_keypair(ExpansionMode::Ed25519)
 }
 
 /// `Identity` struct is an abstraction of public & secret key related operations.
@@ -26,7 +34,6 @@ struct IdentityFileContents {
 pub struct Identity {
     keypair: Zeroizing<Keypair>,
     entropy: Zeroizing<Vec<u8>>,
-    farmer_solution_ctx: SigningContext,
     substrate_ctx: SigningContext,
 }
 
@@ -49,14 +56,10 @@ impl Identity {
             let IdentityFileContents { entropy } =
                 IdentityFileContents::decode(&mut bytes.as_ref())?;
 
-            let (pair, mut seed) = Pair::from_entropy(&entropy, None);
-            seed.zeroize();
-
             Ok(Some(Self {
-                keypair: Zeroizing::new(pair.into()),
+                keypair: Zeroizing::new(keypair_from_entropy(&entropy)),
                 entropy: Zeroizing::new(entropy),
-                farmer_solution_ctx: schnorrkel::context::signing_context(SOLUTION_SIGNING_CONTEXT),
-                substrate_ctx: schnorrkel::context::signing_context(SUBSTRATE_SIGNING_CONTEXT),
+                substrate_ctx: schnorrkel::context::signing_context(REWARD_SIGNING_CONTEXT),
             }))
         } else {
             debug!("Existing keypair not found");
@@ -74,14 +77,11 @@ impl Identity {
         fs::write(identity_file, identity_file_contents.encode())?;
 
         let IdentityFileContents { entropy } = identity_file_contents;
-        let (pair, mut seed) = Pair::from_entropy(&entropy, None);
-        seed.zeroize();
 
         Ok(Self {
-            keypair: Zeroizing::new(pair.into()),
+            keypair: Zeroizing::new(keypair_from_entropy(&entropy)),
             entropy: Zeroizing::new(entropy),
-            farmer_solution_ctx: schnorrkel::context::signing_context(SOLUTION_SIGNING_CONTEXT),
-            substrate_ctx: schnorrkel::context::signing_context(SUBSTRATE_SIGNING_CONTEXT),
+            substrate_ctx: schnorrkel::context::signing_context(REWARD_SIGNING_CONTEXT),
         })
     }
 
@@ -100,14 +100,11 @@ impl Identity {
         fs::write(identity_file, identity_file_contents.encode())?;
 
         let IdentityFileContents { entropy } = identity_file_contents;
-        let (pair, mut seed) = Pair::from_entropy(&entropy, None);
-        seed.zeroize();
 
         Ok(Self {
-            keypair: Zeroizing::new(pair.into()),
+            keypair: Zeroizing::new(keypair_from_entropy(&entropy)),
             entropy: Zeroizing::new(entropy),
-            farmer_solution_ctx: schnorrkel::context::signing_context(SOLUTION_SIGNING_CONTEXT),
-            substrate_ctx: schnorrkel::context::signing_context(SUBSTRATE_SIGNING_CONTEXT),
+            substrate_ctx: schnorrkel::context::signing_context(REWARD_SIGNING_CONTEXT),
         })
     }
 
@@ -126,13 +123,19 @@ impl Identity {
         &self.entropy
     }
 
-    /// Sign farmer solution.
-    pub fn sign_farmer_solution(&self, data: &[u8]) -> Signature {
-        self.keypair.sign(self.farmer_solution_ctx.bytes(data))
+    pub fn create_tag_signature(&self, tag: Tag) -> TagSignature {
+        create_tag_signature(&self.keypair, tag)
     }
 
-    /// Sign substrate block.
-    pub fn sign_block_header_hash(&self, header_hash: &[u8]) -> Signature {
+    pub fn derive_local_challenge_and_target(
+        &self,
+        global_challenge: Sha256Hash,
+    ) -> (LocalChallenge, Tag) {
+        derive_local_challenge_and_target(&self.keypair, global_challenge)
+    }
+
+    /// Sign reward hash.
+    pub fn sign_reward_hash(&self, header_hash: &[u8]) -> Signature {
         self.keypair.sign(self.substrate_ctx.bytes(header_hash))
     }
 }

@@ -2,6 +2,16 @@
 
 **‼️ NOTE: This is a living document reflecting current state of the codebase, make sure to open this page from the [release you want to install](https://github.com/subspace/subspace/releases) and not directly ‼️**
 
+# Update from earlier versions of Gemini 1b
+
+There were some issues in initial Gemini 1b release `gemini-1b-2022-june-02` fixed by later releases.
+
+If you see any of these errors:
+> Node is running on non-canonical fork, full node and farmer reset is required
+> Attempt to switch to a different fork beyond archiving depth, can't do it...
+
+That means your node is affected, and you need to follow "Switching to a new snapshot" section below to reset your node and farmer.
+
 # 👨‍🌾 Getting Started Farming
 
 This is the documentation/guideline on how to run the farmer. You may also refer to the [help](#help) section for various commands.
@@ -24,6 +34,14 @@ Before running anything you need to have a wallet where you'll receive testnet c
 Install [Polkadot.js extension](https://polkadot.js.org/extension/) into your browser and create a new account there.
 The address of your account will be necessary at the last step.
 
+## Required ports
+Currently, TCP port `30333` needs to be exposed for node to work properly.
+
+If you have a server with no firewall, there is nothing to be done, but otherwise make sure to open TCP port `30333` for incoming connections.
+
+On the desktop side if you have a router in front of your computer, you'll need to forward TCP port `30333` to the machine on which your node is running (how this is done varied from router to router, but there is always a feature like this, ask [on the forum](https://forum.subspace.network/) if you have questions).
+If you're connected directly without any router, then again nothing needs to be done in such case.
+
 ## 🖼️ Windows Instructions
 
 1. Download the executables for your operating system from the [Releases](https://github.com/subspace/subspace/releases) tab.
@@ -37,7 +55,7 @@ The address of your account will be necessary at the last step.
 # Copy all of the lines below, they are all part of the same command
 .\NODE_FILE_NAME.exe `
 --chain gemini-1 `
---execution native `
+--execution wasm `
 --pruning 1024 `
 --keep-blocks 1024 `
 --validator `
@@ -68,7 +86,7 @@ The address of your account will be necessary at the last step.
 6. After running this command, Windows may ask you for permissions related to firewall, select `allow` in this case.
 7. We will then open another terminal, change to the downloads directory, then start the farmer node with the following command:
 ```PowerShell
-# Replace `FARMER_FILE_NAME.exe` with the name of the node file you downloaded from releases
+# Replace `FARMER_FILE_NAME.exe` with the name of the farmer file you downloaded from releases
 # Replace `WALLET_ADDRESS` below with your account address from Polkadot.js wallet
 # Replace `PLOT_SIZE` with plot size in gigabytes or terabytes, for instance 100G or 2T (but leave at least 10G of disk space for node)
 .\FARMER_FILE_NAME.exe farm --reward-address WALLET_ADDRESS --plot-size PLOT_SIZE
@@ -117,7 +135,7 @@ The address of your account will be necessary at the last step.
 ```
 7. We will then open another terminal, change to the downloads directory, then start the farmer node with the following command:
 ```bash
-# Replace `FARMER_FILE_NAME` with the name of the node file you downloaded from releases
+# Replace `FARMER_FILE_NAME` with the name of the farmer file you downloaded from releases
 # Replace `WALLET_ADDRESS` below with your account address from Polkadot.js wallet
 # Replace `PLOT_SIZE` with plot size in gigabytes or terabytes, for instance 100G or 2T (but leave at least 10G of disk space for node)
 ./FARMER_FILE_NAME farm --reward-address WALLET_ADDRESS --plot-size PLOT_SIZE
@@ -170,7 +188,7 @@ After this, simply repeat the step you prompted for (step 4 or 6). This time, cl
 ```
 7. We will then open another terminal, change to the downloads directory, then start the farmer node with the following command:
 ```bash
-# Replace `FARMER_FILE_NAME` with the name of the node file you downloaded from releases
+# Replace `FARMER_FILE_NAME` with the name of the farmer file you downloaded from releases
 # Replace `WALLET_ADDRESS` below with your account address from Polkadot.js wallet
 # Replace `PLOT_SIZE` with plot size in gigabytes or terabytes, for instance 100G or 2T (but leave at least 10G of disk space for node)
 ./FARMER_FILE_NAME farm --reward-address WALLET_ADDRESS --plot-size PLOT_SIZE
@@ -185,6 +203,7 @@ version: "3.7"
 services:
   node:
     # Replace `snapshot-DATE` with latest release (like `snapshot-2022-apr-29`)
+    # For running on Aarch64 add `-aarch64` after `DATE`
     image: ghcr.io/subspace/node:snapshot-DATE
     volumes:
 # Instead of specifying volume (which will store data in `/var/lib/docker`), you can
@@ -221,7 +240,8 @@ services:
     depends_on:
       node:
         condition: service_healthy
-# Replace `snapshot-DATE` with latest release (like `snapshot-2022-apr-29`)
+    # Replace `snapshot-DATE` with latest release (like `snapshot-2022-apr-29`)
+    # For running on Aarch64 add `-aarch64` after `DATE`
     image: ghcr.io/subspace/farmer:snapshot-DATE
 # Un-comment following 2 lines to unlock farmer's RPC
 #    ports:

@@ -39,6 +39,7 @@ features = [
     "kad",
     "noise",
     "ping",
+    "sr25519",
     "tcp-tokio",
     "websocket",
     "yamux",

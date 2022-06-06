@@ -2,6 +2,7 @@ FROM ubuntu:22.04
 
 ARG RUSTC_VERSION=nightly-2022-05-16
 ARG PROFILE=production
+ARG RUSTFLAGS
 # Workaround for https://github.com/rust-lang/cargo/issues/10583
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 # Incremental compilation here isn't helpful
@@ -28,6 +29,7 @@ COPY rust-toolchain.toml /code/rust-toolchain.toml
 
 COPY crates /code/crates
 COPY cumulus /code/cumulus
+COPY orml /code/orml
 COPY substrate /code/substrate
 COPY test /code/test
 
@@ -35,11 +37,11 @@ COPY test /code/test
 
 # TODO: Re-enable cost of storage in future
 RUN \
-    /root/.cargo/bin/cargo build --profile $PRODUCTION \
+    /root/.cargo/bin/cargo build --profile $PROFILE \
         --package subspace-runtime \
         --features=subspace-runtime/do-not-enforce-cost-of-storage && \
     mv \
-      target/$PRODUCTION/wbuild/subspace-runtime/subspace_runtime.compact.compressed.wasm \
+      target/*/wbuild/subspace-runtime/subspace_runtime.compact.compressed.wasm \
       subspace_runtime.compact.compressed.wasm && \
     rm -rf target
 
