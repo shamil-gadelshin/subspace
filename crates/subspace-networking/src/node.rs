@@ -374,14 +374,15 @@ mod test {
 
     #[tokio::test]
     async fn get_pieces_by_range_protocol_smoke() {
-        let expected_piece = Piece::default();
+        let piece = Piece::default();
 
+        let expected_piece = piece.clone();
         let config_1 = Config {
             listen_on: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()],
             allow_non_globals_in_dht: true,
             pieces_by_range_request_handler: Arc::new(move |_| {
                 Some(PiecesByRangeResponse {
-                    pieces: vec![expected_piece.clone()],
+                    pieces: vec![(&piece).clone()],
                     next_piece_hash_index: None,
                 })
             }),
@@ -420,7 +421,7 @@ mod test {
 
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        let hashed_peer_id = PieceIndexHash(crypto::sha256_hash(node_1.id().to_bytes()));
+        let hashed_peer_id = PieceIndexHash(crypto::sha256_hash(&node_1.id().to_bytes()));
 
         let mut stream = node_2
             .get_pieces_by_range(hashed_peer_id.clone(), hashed_peer_id.clone())

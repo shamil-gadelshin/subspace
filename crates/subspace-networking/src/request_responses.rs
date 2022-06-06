@@ -34,32 +34,27 @@
 //! - If provided, a ["requests processing"](ProtocolConfig::inbound_queue) channel
 //! is used to handle incoming requests.
 
-use futures::{
-    channel::{mpsc, oneshot},
-    prelude::*,
+use futures::channel::{mpsc, oneshot};
+use futures::prelude::*;
+use libp2p::core::connection::{ConnectionId, ListenerId};
+use libp2p::core::{ConnectedPoint, Multiaddr, PeerId};
+use libp2p::request_response::handler::RequestResponseHandler;
+use libp2p::request_response::{
+    ProtocolSupport, RequestResponse, RequestResponseCodec, RequestResponseConfig,
+    RequestResponseEvent, RequestResponseMessage, ResponseChannel,
 };
-use libp2p::{
-    core::{
-        connection::{ConnectionId, ListenerId},
-        ConnectedPoint, Multiaddr, PeerId,
-    },
-    request_response::{
-        handler::RequestResponseHandler, ProtocolSupport, RequestResponse, RequestResponseCodec,
-        RequestResponseConfig, RequestResponseEvent, RequestResponseMessage, ResponseChannel,
-    },
-    swarm::{
-        handler::multi::MultiHandler, ConnectionHandler, IntoConnectionHandler, NetworkBehaviour,
-        NetworkBehaviourAction, PollParameters,
-    },
+use libp2p::swarm::handler::multi::MultiHandler;
+use libp2p::swarm::{
+    ConnectionHandler, IntoConnectionHandler, NetworkBehaviour, NetworkBehaviourAction,
+    PollParameters,
 };
-use std::{
-    borrow::Cow,
-    collections::{hash_map::Entry, HashMap},
-    io, iter,
-    pin::Pin,
-    task::{Context, Poll},
-    time::{Duration, Instant},
-};
+use std::borrow::Cow;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
+use std::{io, iter};
 
 pub use libp2p::request_response::{InboundFailure, OutboundFailure, RequestId};
 use tracing::{debug, error, warn};
@@ -1035,22 +1030,16 @@ impl RequestResponseCodec for GenericCodec {
 mod tests {
     use super::*;
 
-    use futures::{
-        channel::{mpsc, oneshot},
-        executor::LocalPool,
-        task::Spawn,
-    };
-    use libp2p::{
-        core::{
-            transport::{MemoryTransport, Transport},
-            upgrade,
-        },
-        identity::Keypair,
-        noise,
-        swarm::{Swarm, SwarmEvent},
-        Multiaddr,
-    };
-    use std::{iter, time::Duration};
+    use futures::channel::{mpsc, oneshot};
+    use futures::executor::LocalPool;
+    use futures::task::Spawn;
+    use libp2p::core::transport::{MemoryTransport, Transport};
+    use libp2p::core::upgrade;
+    use libp2p::identity::Keypair;
+    use libp2p::swarm::{Swarm, SwarmEvent};
+    use libp2p::{noise, Multiaddr};
+    use std::iter;
+    use std::time::Duration;
 
     fn build_swarm(
         list: impl Iterator<Item = ProtocolConfig>,
