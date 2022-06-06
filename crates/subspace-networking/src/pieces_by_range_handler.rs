@@ -23,7 +23,8 @@
 //! [`PiecesByRangeRequestHandler`](PiecesByRangeRequestHandler).
 
 use crate::request_responses::{IncomingRequest, OutgoingResponse, ProtocolConfig};
-use futures::{channel::mpsc, prelude::*};
+use futures::channel::mpsc;
+use futures::prelude::*;
 use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -193,14 +194,12 @@ pub fn protocol_name() -> String {
 #[cfg(test)]
 mod test {
     use crate::{Config, PiecesByRangeRequest, PiecesByRangeResponse};
-    use futures::channel::mpsc;
-    use futures::channel::oneshot;
+    use futures::channel::{mpsc, oneshot};
     use futures::StreamExt;
     use libp2p::multiaddr::Protocol;
     use std::sync::Arc;
     use std::time::Duration;
-    use subspace_core_primitives::Piece;
-    use subspace_core_primitives::PieceIndexHash;
+    use subspace_core_primitives::{Piece, PieceIndexHash};
 
     #[tokio::test]
     async fn pieces_by_range_protocol_smoke() {
