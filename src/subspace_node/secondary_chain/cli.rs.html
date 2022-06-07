@@ -249,6 +249,13 @@
 <span id="242">242</span>
 <span id="243">243</span>
 <span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (C) 2021 Subspace Labs, Inc.</span>
 <span class="comment">// SPDX-License-Identifier: GPL-3.0-or-later</span>
 
@@ -265,14 +272,18 @@
 <span class="comment">// You should have received a copy of the GNU General Public License</span>
 <span class="comment">// along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.</span>
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::ExecutionChainSpec</span>;
+<span class="kw">use</span> <span class="ident">cirrus_runtime::GenesisConfig</span> <span class="kw">as</span> <span class="ident">ExecutionGenesisConfig</span>;
 <span class="kw">use</span> <span class="ident">clap::Parser</span>;
 <span class="kw">use</span> <span class="ident">sc_cli</span>::{
     <span class="ident">ChainSpec</span>, <span class="ident">CliConfiguration</span>, <span class="ident">DefaultConfigurationValues</span>, <span class="ident">ImportParams</span>, <span class="ident">KeystoreParams</span>,
     <span class="ident">NetworkParams</span>, <span class="prelude-ty">Result</span>, <span class="ident">RunCmd</span>, <span class="ident">RuntimeVersion</span>, <span class="ident">SharedParams</span>, <span class="ident">SubstrateCli</span>,
 };
-<span class="kw">use</span> <span class="ident">sc_service</span>::{<span class="ident">config::PrometheusConfig</span>, <span class="ident">BasePath</span>};
-<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">net::SocketAddr</span>, <span class="ident">path::PathBuf</span>};
+<span class="kw">use</span> <span class="ident">sc_service::config::PrometheusConfig</span>;
+<span class="kw">use</span> <span class="ident">sc_service::BasePath</span>;
+<span class="kw">use</span> <span class="ident">sc_subspace_chain_specs::ExecutionChainSpec</span>;
+<span class="kw">use</span> <span class="ident">serde_json::Value</span>;
+<span class="kw">use</span> <span class="ident">std::net::SocketAddr</span>;
+<span class="kw">use</span> <span class="ident">std::path::PathBuf</span>;
 
 <span class="doccomment">/// Sub-commands supported by the executor.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">clap::Subcommand</span>)]</span>
@@ -296,7 +307,7 @@
     <span class="kw">pub</span> <span class="ident">base_path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span>,
 
     <span class="doccomment">/// Specification of the secondary chain derived from primary chain spec.</span>
-    <span class="kw">pub</span> <span class="ident">chain_spec</span>: <span class="ident">ExecutionChainSpec</span>,
+    <span class="kw">pub</span> <span class="ident">chain_spec</span>: <span class="ident">ExecutionChainSpec</span><span class="op">&lt;</span><span class="ident">ExecutionGenesisConfig</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">SecondaryChainCli</span> {
@@ -305,7 +316,7 @@
     <span class="doccomment">/// If no explicit base path for the secondary chain, the default value will be `primary_base_path/executor`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
         <span class="ident">base_path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span>,
-        <span class="ident">chain_spec</span>: <span class="ident">ExecutionChainSpec</span>,
+        <span class="ident">chain_spec</span>: <span class="ident">ExecutionChainSpec</span><span class="op">&lt;</span><span class="ident">ExecutionGenesisConfig</span><span class="op">&gt;</span>,
         <span class="ident">secondary_chain_args</span>: <span class="kw">impl</span> <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">String</span><span class="op">&gt;</span>,
     ) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
@@ -353,15 +364,18 @@
         <span class="comment">// In case there are bootstrap nodes specified explicitly, ignore those that are in the</span>
         <span class="comment">// chain spec</span>
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">run</span>.<span class="ident">network_params</span>.<span class="ident">bootnodes</span>.<span class="ident">is_empty</span>() {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chain_spec_value</span> <span class="op">=</span>
-                <span class="ident">serde_json::to_value</span>(<span class="kw-2">&amp;</span><span class="ident">chain_spec</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> <span class="ident">error</span>.<span class="ident">to_string</span>())<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chain_spec_value</span>: <span class="ident">Value</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(<span class="kw-2">&amp;</span><span class="ident">chain_spec</span>.<span class="ident">as_json</span>(<span class="bool-val">true</span>)<span class="question-mark">?</span>)
+                .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> <span class="ident">error</span>.<span class="ident">to_string</span>())<span class="question-mark">?</span>;
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">boot_nodes</span>) <span class="op">=</span> <span class="ident">chain_spec_value</span>.<span class="ident">get_mut</span>(<span class="string">&quot;bootNodes&quot;</span>) {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">boot_nodes</span>) <span class="op">=</span> <span class="ident">boot_nodes</span>.<span class="ident">as_array_mut</span>() {
                     <span class="ident">boot_nodes</span>.<span class="ident">clear</span>();
                 }
             }
-            <span class="ident">chain_spec</span> <span class="op">=</span>
-                <span class="ident">serde_json::from_value</span>(<span class="ident">chain_spec_value</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> <span class="ident">error</span>.<span class="ident">to_string</span>())<span class="question-mark">?</span>;
+            <span class="comment">// Such mess because native serialization of the chain spec serializes it twice, see</span>
+            <span class="comment">// docs on `sc_subspace_chain_specs::utils::SerializableChainSpec`.</span>
+            <span class="ident">chain_spec</span> <span class="op">=</span> <span class="ident">serde_json::to_string</span>(<span class="kw-2">&amp;</span><span class="ident">chain_spec_value</span>.<span class="ident">to_string</span>())
+                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">chain_spec_string</span><span class="op">|</span> <span class="ident">serde_json::from_str</span>(<span class="kw-2">&amp;</span><span class="ident">chain_spec_string</span>))
+                .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">error</span><span class="op">|</span> <span class="ident">error</span>.<span class="ident">to_string</span>())<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(<span class="ident">Box::new</span>(<span class="ident">chain_spec</span>))
