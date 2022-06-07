@@ -13,7 +13,7 @@ use libp2p::gossipsub::error::SubscriptionError;
 use libp2p::gossipsub::Sha256Topic;
 use libp2p::{Multiaddr, PeerId};
 use parity_scale_codec::Decode;
-use std::ops::{Add, Deref, DerefMut, Div};
+use std::ops::{Deref, DerefMut, Div};
 use std::pin::Pin;
 use std::sync::Arc;
 use subspace_core_primitives::{Piece, PieceIndexHash};
@@ -246,7 +246,7 @@ impl Node {
         let f = U256::from_big_endian(&from.0);
         let t = U256::from_big_endian(&to.0);
         // min + (max - min) / 2
-        let middle = ((f.max(t) - f.min(t)).div(2)).add(f.min(t));
+        let middle = f.div(2) + t.div(2);
         let mut buf: [u8; 32] = [0; 32]; // 32 of hash + 32 of preimage
         middle.to_big_endian(&mut buf);
 
@@ -263,8 +263,7 @@ impl Node {
 
         let peers = result_receiver
             .await
-            .map_err(|_| GetPiecesByRangeError::NodeRunnerDropped)?
-            .ok_or(GetPiecesByRangeError::NoClosestPiecesFound)?;
+            .map_err(|_| GetPiecesByRangeError::NodeRunnerDropped)?;
 
         trace!("Kademlia 'GetClosestPeers' returned {} peers", peers.len());
 
