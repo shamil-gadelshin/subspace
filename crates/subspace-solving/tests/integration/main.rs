@@ -1,4 +1,4 @@
-use subspace_solving::PieceDistance;
+use subspace_core_primitives::PieceDistance;
 
 mod codec;
 
