@@ -12,9 +12,9 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Weak};
 use subspace_core_primitives::{
-    FlatPieces, Piece, PieceIndex, PieceIndexHash, PublicKey, PIECE_SIZE,
+    FlatPieces, Piece, PieceDistance, PieceIndex, PieceIndexHash, PublicKey, PIECE_SIZE,
 };
-use subspace_solving::{PieceDistance, SubspaceCodec};
+use subspace_solving::SubspaceCodec;
 use thiserror::Error;
 use tracing::{error, info};
 

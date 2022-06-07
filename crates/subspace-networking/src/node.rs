@@ -16,17 +16,9 @@ use parity_scale_codec::Decode;
 use std::ops::{Deref, DerefMut, Div};
 use std::pin::Pin;
 use std::sync::Arc;
-use subspace_core_primitives::{Piece, PieceIndexHash};
+use subspace_core_primitives::{Piece, PieceIndexHash, U256};
 use thiserror::Error;
 use tracing::{debug, error, trace, warn};
-use uint::construct_uint;
-
-// TODO: Use a similar structure from the common crates.
-// Clean allowed clippy warnings for the module on deletion.
-// U256 with 256 bits consisting of 4 x 64-bit words
-construct_uint! {
-    pub struct U256(4);
-}
 
 /// Topic subscription, will unsubscribe when last instance is dropped for a particular topic.
 #[derive(Debug)]
