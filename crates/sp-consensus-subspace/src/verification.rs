@@ -25,10 +25,12 @@ use sp_api::HeaderT;
 use sp_consensus_slots::Slot;
 use sp_runtime::DigestItem;
 use subspace_archiving::archiver;
-use subspace_core_primitives::{PieceIndex, Randomness, Salt, Sha256Hash, Solution, Tag};
+use subspace_core_primitives::{
+    PieceDistance, PieceIndex, Randomness, Salt, Sha256Hash, Solution, Tag,
+};
 use subspace_solving::{
     derive_global_challenge, derive_target, is_tag_valid, verify_local_challenge,
-    verify_tag_signature, PieceDistance, SubspaceCodec,
+    verify_tag_signature, SubspaceCodec,
 };
 
 /// Errors encountered by the Subspace authorship task.
