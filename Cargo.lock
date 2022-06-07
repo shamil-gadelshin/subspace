@@ -8012,6 +8012,7 @@ dependencies = [
  "serde",
  "serde_arrays",
  "sha2 0.10.2",
+ "uint",
 ]
 
 [[package]]
@@ -8098,7 +8099,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.2.25",
- "uint",
  "unsigned-varint",
 ]
 
@@ -8274,7 +8274,6 @@ dependencies = [
  "subspace-core-primitives",
  "thiserror",
  "tracing",
- "uint",
 ]
 
 [[package]]
