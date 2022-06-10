@@ -40,4 +40,5 @@ std = [
     "scale-info/std",
     "serde",
     "sha2/std",
+    "uint/std"
 ]

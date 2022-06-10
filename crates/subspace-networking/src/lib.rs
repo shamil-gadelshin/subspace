@@ -27,6 +27,9 @@ mod request_responses;
 mod shared;
 mod utils;
 
+#[cfg(test)]
+mod tests;
+
 pub use crate::node::{Node, TopicSubscription};
 pub use crate::node_runner::NodeRunner;
 pub use create::{create, Config, CreationError};
