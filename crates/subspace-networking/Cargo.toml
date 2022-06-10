@@ -42,7 +42,8 @@ features = [
     "tcp-tokio",
     "websocket",
     "yamux",
-    "request-response"
+    "request-response",
+    "identity-hashing-for-peer-id"
 ]
 
 [dev-dependencies]
