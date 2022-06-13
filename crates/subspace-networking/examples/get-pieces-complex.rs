@@ -103,12 +103,12 @@ async fn main() {
     let peer_id_public_key: [u8; 32] = multihash.digest()[0..32].try_into().unwrap();
 
     let from = {
-        let mut buf = peer_id_public_key.clone();
+        let mut buf = peer_id_public_key;
         buf[16] = 0;
         PieceIndexHash(buf)
     };
     let to = {
-        let mut buf = peer_id_public_key.clone();
+        let mut buf = peer_id_public_key;
         buf[16] = 50;
         PieceIndexHash(buf)
     };

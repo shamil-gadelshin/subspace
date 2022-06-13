@@ -138,7 +138,7 @@ async fn get_pieces_by_range_smoke() {
     let hashed_peer_id = PieceIndexHash(crypto::sha256_hash(&node_1.id().to_bytes()));
 
     let mut stream = node_2
-        .get_pieces_by_range(hashed_peer_id.clone(), hashed_peer_id.clone())
+        .get_pieces_by_range(hashed_peer_id, hashed_peer_id)
         .await
         .unwrap();
 

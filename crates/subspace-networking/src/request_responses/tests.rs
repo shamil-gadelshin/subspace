@@ -110,11 +110,10 @@ fn basic_request_response_works() {
         .spawn_obj({
             async move {
                 loop {
-                    match swarm.select_next_some().await {
-                        SwarmEvent::Behaviour(Event::InboundRequest { result, .. }) => {
-                            result.unwrap();
-                        }
-                        _ => {}
+                    if let SwarmEvent::Behaviour(Event::InboundRequest { result, .. }) =
+                        swarm.select_next_some().await
+                    {
+                        result.unwrap();
                     }
                 }
             }
@@ -211,12 +210,11 @@ fn max_response_size_exceeded() {
         .spawn_obj({
             async move {
                 loop {
-                    match swarm.select_next_some().await {
-                        SwarmEvent::Behaviour(Event::InboundRequest { result, .. }) => {
-                            assert!(result.is_ok());
-                            break;
-                        }
-                        _ => {}
+                    if let SwarmEvent::Behaviour(Event::InboundRequest { result, .. }) =
+                        swarm.select_next_some().await
+                    {
+                        assert!(result.is_ok());
+                        break;
                     }
                 }
             }
@@ -332,11 +330,10 @@ fn request_id_collision() {
         .spawn_obj(
             async move {
                 loop {
-                    match swarm_2.select_next_some().await {
-                        SwarmEvent::Behaviour(Event::InboundRequest { result, .. }) => {
-                            result.unwrap();
-                        }
-                        _ => {}
+                    if let SwarmEvent::Behaviour(Event::InboundRequest { result, .. }) =
+                        swarm_2.select_next_some().await
+                    {
+                        result.unwrap();
                     }
                 }
             }
