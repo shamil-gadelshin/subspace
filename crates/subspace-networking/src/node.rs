@@ -283,7 +283,7 @@ impl Node {
             .first()
             .ok_or(GetPiecesByRangeError::NoClosestPiecesFound)?;
 
-        trace!("Peer found {:?}, range: {:?} - {:?} ", peer_id, from, to);
+        trace!(%peer_id, "Peer found. Range: {:?} - {:?} ", from, to);
 
         // prepare stream channel
         let (mut tx, rx) = mpsc::channel::<PiecesToPlot>(PIECES_CHANNEL_BUFFER_SIZE);

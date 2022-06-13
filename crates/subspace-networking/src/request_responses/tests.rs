@@ -1,4 +1,8 @@
-use crate::request_responses::*;
+use crate::request_responses::{
+    Event, IfDisconnected, IncomingRequest, OutboundFailure, OutgoingResponse, ProtocolConfig,
+    RequestFailure, RequestResponseHandlerRunner, RequestResponseInstanceConfig,
+    RequestResponsesBehaviour,
+};
 use async_trait::async_trait;
 use futures::channel::{mpsc, oneshot};
 use futures::executor::LocalPool;
