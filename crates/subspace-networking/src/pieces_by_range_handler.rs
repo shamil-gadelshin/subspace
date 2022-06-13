@@ -20,7 +20,10 @@
 //! `crate::request_responses::RequestResponsesBehaviour` with
 //! [`PiecesByRangeRequestHandler`](PiecesByRangeRequestHandler).
 
-use crate::request_responses::{IncomingRequest, OutgoingResponse, ProtocolConfig};
+use crate::request_responses::{
+    IncomingRequest, OutgoingResponse, ProtocolConfig, RequestResponseHandlerRunner,
+};
+use async_trait::async_trait;
 use futures::channel::mpsc;
 use futures::prelude::*;
 use libp2p::PeerId;
@@ -85,8 +88,25 @@ impl PiecesByRangeRequestHandler {
         )
     }
 
+    // Invokes external piece-by-range protocol handler.
+    fn handle_request(
+        &mut self,
+        peer: PeerId,
+        payload: Vec<u8>,
+    ) -> Result<Vec<u8>, PieceByRangeHandleRequestError> {
+        trace!(%peer, "Handling request...");
+        let request = PiecesByRangeRequest::decode(&mut payload.as_slice())
+            .map_err(|_| PieceByRangeHandleRequestError::InvalidRequestFormat)?;
+        let response = (self.request_handler)(&request);
+
+        // Return the result with treating None as an empty(default) response.
+        Ok(response.unwrap_or_default().encode())
+    }
+}
+#[async_trait]
+impl RequestResponseHandlerRunner for PiecesByRangeRequestHandler {
     /// Run [`RequestResponseHandler`].
-    pub async fn run(mut self) {
+    async fn run(&mut self) {
         while let Some(request) = self.request_receiver.next().await {
             let IncomingRequest {
                 peer,
@@ -129,21 +149,6 @@ impl PiecesByRangeRequestHandler {
                 }
             }
         }
-    }
-
-    // Invokes external piece-by-range protocol handler.
-    fn handle_request(
-        &mut self,
-        peer: PeerId,
-        payload: Vec<u8>,
-    ) -> Result<Vec<u8>, PieceByRangeHandleRequestError> {
-        trace!(%peer, "Handling request...");
-        let request = PiecesByRangeRequest::decode(&mut payload.as_slice())
-            .map_err(|_| PieceByRangeHandleRequestError::InvalidRequestFormat)?;
-        let response = (self.request_handler)(&request);
-
-        // Return the result with treating None as an empty(default) response.
-        Ok(response.unwrap_or_default().encode())
     }
 }
 

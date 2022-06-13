@@ -1,4 +1,5 @@
 use crate::request_responses::*;
+use async_trait::async_trait;
 use futures::channel::{mpsc, oneshot};
 use futures::executor::LocalPool;
 use futures::task::Spawn;
@@ -10,6 +11,13 @@ use libp2p::swarm::{Swarm, SwarmEvent};
 use libp2p::{noise, Multiaddr};
 use std::iter;
 use std::time::Duration;
+
+struct MockRunner;
+
+#[async_trait]
+impl RequestResponseHandlerRunner for MockRunner {
+    async fn run(&mut self) {}
+}
 
 fn build_swarm(
     list: impl Iterator<Item = ProtocolConfig>,
@@ -26,7 +34,14 @@ fn build_swarm(
         .multiplex(libp2p::yamux::YamuxConfig::default())
         .boxed();
 
-    let behaviour = RequestResponsesBehaviour::new(list).unwrap();
+    let configs = list
+        .into_iter()
+        .map(|config| {
+            let handler = Box::new(MockRunner);
+            RequestResponseInstanceConfig { config, handler }
+        })
+        .collect::<Vec<_>>();
+    let behaviour = RequestResponsesBehaviour::new(configs).unwrap();
 
     let mut swarm = Swarm::new(transport, behaviour, keypair.public().to_peer_id());
     let listen_addr: Multiaddr = format!("/memory/{}", rand::random::<u64>())
