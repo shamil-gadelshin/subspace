@@ -35,7 +35,8 @@ features = [
     "dns-tokio",
     "gossipsub",
     "identify",
-    "identity-hashing-for-peer-id",
+    # TODO: disable this feature until the hardfork
+    # "identity-hashing-for-peer-id",
     "kad",
     "noise",
     "ping",
