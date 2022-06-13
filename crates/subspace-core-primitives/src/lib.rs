@@ -533,7 +533,7 @@ pub fn bidirectional_distance<T: num_traits::WrappingSub + Ord>(a: &T, b: &T) ->
     diff.min(diff2)
 }
 
-pub use construct_uint::{PieceDistance, U256};
+pub use construct_uint::U256;
 
 #[allow(clippy::assign_op_pattern, clippy::ptr_offset_with_cast)]
 mod construct_uint {
@@ -546,12 +546,9 @@ mod construct_uint {
         pub struct U256(4);
     }
 
-    /// Distance to piece index hash from farmer identity
-    pub type PieceDistance = U256;
-
     impl U256 {
         /// Calculates the distance metric between piece index hash and farmer address.
-        pub fn distance(PieceIndexHash(piece): &PieceIndexHash, address: &[u8]) -> PieceDistance {
+        pub fn distance(PieceIndexHash(piece): &PieceIndexHash, address: &[u8]) -> U256 {
             let piece = Self::from_big_endian(piece);
             let address = Self::from_big_endian(address);
             bidirectional_distance(&piece, &address)

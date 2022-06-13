@@ -1,7 +1,7 @@
-use crate::plot::Plot;
+use crate::plot::{PieceDistance, Plot};
 use rand::prelude::*;
 use std::sync::Arc;
-use subspace_core_primitives::{FlatPieces, Piece, PieceDistance, PIECE_SIZE};
+use subspace_core_primitives::{FlatPieces, Piece, PIECE_SIZE};
 use tempfile::TempDir;
 
 fn init() {
