@@ -34,6 +34,9 @@
 
 //! Original file commit: https://github.com/paritytech/substrate/commit/c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b
 
+#[cfg(test)]
+mod tests;
+
 use async_trait::async_trait;
 use futures::channel::{mpsc, oneshot};
 use futures::prelude::*;
