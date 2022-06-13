@@ -38,8 +38,8 @@ mod pallet {
     use frame_system::pallet_prelude::*;
     use sp_core::H256;
     use sp_executor::{
-        BundleEquivocationProof, ExecutionReceipt, ExecutorId, FraudProof, InvalidTransactionProof,
-        SignedExecutionReceipt, SignedOpaqueBundle,
+        BundleEquivocationProof, ExecutionReceipt, ExecutorId, FraudProof, InvalidTransactionCode,
+        InvalidTransactionProof, SignedExecutionReceipt, SignedOpaqueBundle,
     };
     use sp_runtime::traits::{
         CheckEqual, CheckedSub, MaybeDisplay, MaybeMallocSizeOf, One, SimpleBitOps,
@@ -389,30 +389,9 @@ mod pallet {
             .priority(TransactionPriority::MAX)
             .and_provides(tag)
             .longevity(TransactionLongevity::MAX)
-            // We need this extrinsic to be propagted to the farmer nodes.
+            // We need this extrinsic to be propagated to the farmer nodes.
             .propagate(true)
             .build()
-    }
-
-    #[repr(u8)]
-    pub enum InvalidTransactionCode {
-        BundleEquivicationProof = 101,
-        TrasactionProof = 102,
-        ExecutionReceipt = 103,
-        Bundle = 104,
-        FraudProof = 105,
-    }
-
-    impl From<InvalidTransactionCode> for InvalidTransaction {
-        fn from(invalid_code: InvalidTransactionCode) -> Self {
-            InvalidTransaction::Custom(invalid_code as u8)
-        }
-    }
-
-    impl From<InvalidTransactionCode> for TransactionValidity {
-        fn from(invalid_code: InvalidTransactionCode) -> Self {
-            InvalidTransaction::Custom(invalid_code as u8).into()
-        }
     }
 
     #[pallet::validate_unsigned]
@@ -643,11 +622,6 @@ impl<T: Config> Pallet<T> {
         );
 
         // TODO: prevent the spamming of fraud proof transaction.
-        // TODO: verify the fraud proof on the client side.
-        // if !sp_executor::fraud_proof_ext::fraud_proof::verify(fraud_proof) {
-        // log::error!(target: "runtime::subspace::executor", "Invalid fraud proof: {:?}", fraud_proof);
-        // return InvalidTransaction::Custom(INVALID_FRAUD_PROOF).into();
-        // }
 
         Ok(())
     }

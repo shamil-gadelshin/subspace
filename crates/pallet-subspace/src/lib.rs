@@ -46,7 +46,8 @@ use sp_consensus_subspace::verification::{
     PieceCheckParams, VerificationError, VerifySolutionParams,
 };
 use sp_consensus_subspace::{
-    derive_randomness, verification, EquivocationProof, FarmerPublicKey, SignedVote, Vote,
+    derive_randomness, verification, EquivocationProof, FarmerPublicKey, FarmerSignature,
+    SignedVote, Vote,
 };
 use sp_runtime::generic::DigestItem;
 use sp_runtime::traits::{
@@ -151,7 +152,7 @@ mod pallet {
     use frame_system::pallet_prelude::*;
     use sp_consensus_slots::Slot;
     use sp_consensus_subspace::inherents::{InherentError, InherentType, INHERENT_IDENTIFIER};
-    use sp_consensus_subspace::{EquivocationProof, FarmerPublicKey, SignedVote};
+    use sp_consensus_subspace::{EquivocationProof, FarmerPublicKey, FarmerSignature, SignedVote};
     use sp_runtime::traits::One;
     use sp_std::collections::btree_map::BTreeMap;
     use sp_std::prelude::*;
@@ -430,13 +431,16 @@ mod pallet {
 
     /// Voters in the parent block (set at the end of the block with current values).
     #[pallet::storage]
-    pub(super) type ParentBlockVoters<T: Config> =
-        StorageValue<_, BTreeMap<(FarmerPublicKey, Slot), T::AccountId>, ValueQuery>;
+    pub(super) type ParentBlockVoters<T: Config> = StorageValue<
+        _,
+        BTreeMap<(FarmerPublicKey, Slot), (T::AccountId, FarmerSignature)>,
+        ValueQuery,
+    >;
 
     /// Temporary value (cleared at block finalization) with voters in the current block thus far.
     #[pallet::storage]
     pub(super) type CurrentBlockVoters<T: Config> =
-        StorageValue<_, BTreeMap<(FarmerPublicKey, Slot), T::AccountId>>;
+        StorageValue<_, BTreeMap<(FarmerPublicKey, Slot), (T::AccountId, FarmerSignature)>>;
 
     /// Temporary value (cleared at block finalization) which contains current block PoR randomness.
     #[pallet::storage]
@@ -857,7 +861,10 @@ impl<T: Config> Pallet<T> {
                 ));
             }
         }
-        CurrentBlockVoters::<T>::put(BTreeMap::<(FarmerPublicKey, Slot), T::AccountId>::default());
+        CurrentBlockVoters::<T>::put(BTreeMap::<
+            (FarmerPublicKey, Slot),
+            (T::AccountId, FarmerSignature),
+        >::default());
 
         // If global randomness was updated in previous block, set it as current.
         if let Some(next_randomness) = GlobalRandomnesses::<T>::get().next {
@@ -1166,7 +1173,8 @@ impl<T: Config> Pallet<T> {
         ValidTransaction::with_tag_prefix("SubspaceRootBlock")
             // We assign the maximum priority for any root block.
             .priority(TransactionPriority::MAX)
-            // Should be included immediately into the upcoming block with no exceptions.
+            // Should be included immediately into the current block (this is an inherent
+            // extrinsic) with no exceptions.
             .longevity(0)
             // We don't propagate this. This can never be included on a remote node.
             .propagate(false)
@@ -1186,7 +1194,8 @@ impl<T: Config> Pallet<T> {
             // We assign the maximum priority for any vote.
             .priority(TransactionPriority::MAX)
             // Should be included in the next block or block after that, but not later
-            .longevity(1)
+            .longevity(2)
+            .and_provides(&signed_vote.signature)
             .build()
     }
 
@@ -1275,6 +1284,7 @@ where
     BadRewardSignature(SignatureError),
     UnknownRecordsRoot,
     InvalidSolution(VerificationError<Header>),
+    DuplicateVote,
     Equivocated(SubspaceEquivocationOffence<FarmerPublicKey>),
 }
 
@@ -1294,6 +1304,7 @@ where
             CheckVoteError::BadRewardSignature(_) => InvalidTransaction::BadProof,
             CheckVoteError::UnknownRecordsRoot => InvalidTransaction::Call,
             CheckVoteError::InvalidSolution(_) => InvalidTransaction::Call,
+            CheckVoteError::DuplicateVote => InvalidTransaction::Call,
             CheckVoteError::Equivocated(_) => InvalidTransaction::BadSigner,
         })
     }
@@ -1466,16 +1477,37 @@ fn check_vote<T: Config>(
     // * current block
     // * parent block vote
     // * current block vote
-    if ParentBlockAuthorInfo::<T>::get().as_ref() == Some(&key)
+    let mut is_equivocating = ParentBlockAuthorInfo::<T>::get().as_ref() == Some(&key)
         || CurrentBlockAuthorInfo::<T>::get()
             .map(|(public_key, slot, _reward_address)| (public_key, slot))
             .as_ref()
-            == Some(&key)
-        || ParentBlockVoters::<T>::get().contains_key(&key)
-        || CurrentBlockVoters::<T>::get()
-            .unwrap_or_default()
-            .contains_key(&key)
-    {
+            == Some(&key);
+
+    if !is_equivocating {
+        if let Some((_reward_address, signature)) = ParentBlockVoters::<T>::get().get(&key) {
+            if signature != &signed_vote.signature {
+                is_equivocating = true;
+            } else {
+                // The same vote should never be included more than once
+                return Err(CheckVoteError::DuplicateVote);
+            }
+        }
+    }
+
+    if !is_equivocating {
+        if let Some((_reward_address, signature)) =
+            CurrentBlockVoters::<T>::get().unwrap_or_default().get(&key)
+        {
+            if signature != &signed_vote.signature {
+                is_equivocating = true;
+            } else {
+                // The same vote should never be included more than once
+                return Err(CheckVoteError::DuplicateVote);
+            }
+        }
+    }
+
+    if is_equivocating {
         // Revoke reward if assigned in current block.
         CurrentBlockVoters::<T>::mutate(|current_reward_receivers| {
             if let Some(current_reward_receivers) = current_reward_receivers {
@@ -1497,7 +1529,13 @@ fn check_vote<T: Config>(
             current_reward_receivers
                 .as_mut()
                 .expect("Always set during block initialization")
-                .insert(key, solution.reward_address.clone());
+                .insert(
+                    key,
+                    (
+                        solution.reward_address.clone(),
+                        signed_vote.signature.clone(),
+                    ),
+                );
         });
     }
 
@@ -1596,6 +1634,7 @@ impl<T: Config> subspace_runtime_primitives::FindVotingRewardAddresses<T::Accoun
                 return CurrentBlockVoters::<T>::get()
                     .unwrap_or_else(ParentBlockVoters::<T>::get)
                     .into_values()
+                    .map(|(reward_address, _signature)| reward_address)
                     .collect();
             }
         }

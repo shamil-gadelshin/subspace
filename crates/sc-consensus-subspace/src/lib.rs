@@ -641,6 +641,7 @@ pub struct SubspaceVerifier<Block: BlockT, Client, SelectChain, SN> {
     slot_now: SN,
     telemetry: Option<TelemetryHandle>,
     reward_signing_context: SigningContext,
+    is_authoring_blocks: bool,
     block: PhantomData<Block>,
 }
 
@@ -682,21 +683,28 @@ where
             equivocation_proof.second_header.hash(),
         );
 
-        // get the best block on which we will build and send the equivocation report.
-        let best_id = self
-            .select_chain
-            .best_chain()
-            .await
-            .map(|h| BlockId::Hash(h.hash()))
-            .map_err(|e| Error::Client(e.into()))?;
+        if self.is_authoring_blocks {
+            // get the best block on which we will build and send the equivocation report.
+            let best_id = self
+                .select_chain
+                .best_chain()
+                .await
+                .map(|h| BlockId::Hash(h.hash()))
+                .map_err(|e| Error::Client(e.into()))?;
 
-        // submit equivocation report at best block.
-        self.client
-            .runtime_api()
-            .submit_report_equivocation_extrinsic(&best_id, equivocation_proof)
-            .map_err(Error::RuntimeApi)?;
+            // submit equivocation report at best block.
+            self.client
+                .runtime_api()
+                .submit_report_equivocation_extrinsic(&best_id, equivocation_proof)
+                .map_err(Error::RuntimeApi)?;
 
-        info!(target: "subspace", "Submitted equivocation report for author {:?}", author);
+            info!(target: "subspace", "Submitted equivocation report for author {:?}", author);
+        } else {
+            info!(
+                target: "subspace",
+                "Not submitting equivocation report because node is not authoring blocks"
+            );
+        }
 
         Ok(())
     }
@@ -801,6 +809,21 @@ where
             let salt = find_salt_descriptor(&block.header)?
                 .ok_or(Error::<Block::Header>::MissingSalt(hash))?
                 .salt;
+
+            // TODO: Hack for Gemini 1b launch. Solution range should have been updated already.
+            if *block.header.number() >= 33_672_u32.into()
+                && self.client.info().genesis_hash.as_ref() == GEMINI_1B_GENESIS_HASH
+                && solution_range == 12_009_599_006_321_322_u64
+            {
+                debug!(
+                    target: "subspace",
+                    "Ignoring block from non-canonical fork"
+                );
+                return Err(Error::<Block::Header>::InvalidSolutionRange(
+                    block.post_hash.unwrap_or_default(),
+                )
+                .into());
+            }
 
             // We add one to the current slot to allow for some small drift.
             // FIXME https://github.com/paritytech/substrate/issues/1019 in the future, alter this
@@ -1362,6 +1385,7 @@ pub fn import_queue<Block: BlockT, Client, SelectChain, Inner, SN>(
     spawner: &impl sp_core::traits::SpawnEssentialNamed,
     registry: Option<&Registry>,
     telemetry: Option<TelemetryHandle>,
+    is_authoring_blocks: bool,
 ) -> ClientResult<DefaultImportQueue<Block, Client>>
 where
     Inner: BlockImport<Block, Error = ConsensusError, Transaction = TransactionFor<Client, Block>>
@@ -1385,6 +1409,7 @@ where
         telemetry,
         client,
         reward_signing_context: schnorrkel::context::signing_context(REWARD_SIGNING_CONTEXT),
+        is_authoring_blocks,
         block: PhantomData::default(),
     };
 
