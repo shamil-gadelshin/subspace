@@ -68,7 +68,6 @@ impl NodeRunner {
             query_id_receivers: HashMap::default(),
             next_subscription_id: 0,
             topic_subscription_senders: HashMap::default(),
-            //     pieces_by_range_handler,
         }
     }
 
