@@ -1,7 +1,7 @@
 [package]
 name = "subspace-networking"
 version = "0.1.0"
-authors = ["Subspace Labs <https://subspace.network>"]
+authors = ["Nazar Mokrynskyi <nazar@mokrynskyi.com>", "Shamil Gadelshin <shamilgadelshin@gmail.com>"]
 description = "Networking functionality of Subspace Network, primarily used for DSN (Distributed Storage Network)"
 edition = "2021"
 license = "Apache-2.0"
@@ -21,7 +21,6 @@ hex = "0.4.3"
 nohash-hasher = "0.2.0"
 parity-scale-codec = "3.1.2"
 parking_lot = "0.12.0"
-serde = "1.0.137"
 subspace-core-primitives = { version = "0.1.0", path = "../subspace-core-primitives" }
 thiserror = "1.0.31"
 tokio = { version = "1.18.2", features = ["macros", "parking_lot", "rt-multi-thread", "time"] }
