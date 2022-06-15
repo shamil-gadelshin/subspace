@@ -20,6 +20,9 @@
 #![warn(rust_2018_idioms, missing_docs)]
 #![cfg_attr(feature = "std", warn(missing_debug_implementations))]
 
+#[cfg(test)]
+mod tests;
+
 pub mod crypto;
 pub mod objects;
 
@@ -27,6 +30,7 @@ extern crate alloc;
 
 use alloc::vec;
 use alloc::vec::Vec;
+pub use construct_uint::U256;
 use core::convert::AsRef;
 use core::ops::{Deref, DerefMut};
 use parity_scale_codec::{Decode, Encode};
@@ -532,8 +536,6 @@ pub fn bidirectional_distance<T: num_traits::WrappingSub + Ord>(a: &T, b: &T) ->
     // Find smaller diff between 2 directions.
     diff.min(diff2)
 }
-
-pub use construct_uint::U256;
 
 #[allow(clippy::assign_op_pattern, clippy::ptr_offset_with_cast)]
 mod construct_uint {
