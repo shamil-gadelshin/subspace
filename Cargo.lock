@@ -8100,6 +8100,7 @@ dependencies = [
  "env_logger",
  "event-listener-primitives",
  "futures 0.3.21",
+ "generic-array 0.14.5",
  "hex",
  "libp2p",
  "nohash-hasher",
@@ -8111,6 +8112,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.2.25",
+ "typenum",
  "unsigned-varint",
 ]
 
@@ -9085,7 +9087,7 @@ checksum = "4ee73e6e4924fe940354b8d4d98cad5231175d615cd855b758adc658c0aac6a0"
 dependencies = [
  "cfg-if",
  "digest 0.10.3",
- "rand 0.4.6",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
