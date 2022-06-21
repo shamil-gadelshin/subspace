@@ -26,7 +26,7 @@ pub use subspace_core_primitives::BlockNumber;
 use subspace_core_primitives::{PIECE_SIZE, SHA256_HASH_SIZE};
 
 // TODO: Proper value here
-pub const CONFIRMATION_DEPTH_K: BlockNumber = 100;
+pub const CONFIRMATION_DEPTH_K: BlockNumber = 5;
 /// 128 data records and 128 parity records (as a result of erasure coding) together form a perfect
 /// Merkle Tree and will result in witness size of `log2(MERKLE_NUM_LEAVES) * SHA256_HASH_SIZE`.
 ///

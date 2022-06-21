@@ -16,12 +16,14 @@
 
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
+mod dsn_archiver;
 mod pool;
 pub mod rpc;
 
 pub use crate::pool::FullPool;
 use cirrus_primitives::Hash as SecondaryHash;
 use derive_more::{Deref, DerefMut, Into};
+use dsn_archiver::start_subspace_dsn_archiver;
 use frame_system_rpc_runtime_api::AccountNonceApi;
 use jsonrpsee::RpcModule;
 use pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi;
@@ -57,6 +59,8 @@ use std::sync::Arc;
 use subspace_fraud_proof::VerifyFraudProof;
 use subspace_runtime_primitives::opaque::Block;
 use subspace_runtime_primitives::{AccountId, Balance, Hash, Index as Nonce};
+pub use subspace_networking::Config as DsnNetworkingConfig; //TODO
+pub use subspace_networking::libp2p::Multiaddr;
 
 /// Error type for Subspace service.
 #[derive(thiserror::Error, Debug)]
@@ -113,6 +117,9 @@ pub struct SubspaceConfiguration {
     /// Whether slot notifications need to be present even if node is not responsible for block
     /// authoring.
     pub force_new_slot_notifications: bool,
+
+    //TODO:
+    pub node_config: Option<subspace_networking::Config>,
 }
 
 impl From<Configuration> for SubspaceConfiguration {
@@ -120,6 +127,7 @@ impl From<Configuration> for SubspaceConfiguration {
         Self {
             base,
             force_new_slot_notifications: false,
+            node_config: None, // TODO
         }
     }
 }
@@ -261,30 +269,6 @@ where
         config.role.is_authority(),
     );
 
-    use sp_core::traits::SpawnEssentialNamed; //TODO
-    use futures::StreamExt;
-    let spawner = task_manager.spawn_essential_handle();
-    spawner.spawn_essential_blocking(
-        "subspace-archiver-DSN",
-        None,
-        Box::pin({
-            let mut archived_segment_notification_stream =
-                subspace_link.archived_segment_notification_stream().subscribe();
-
-                async move {
-                    while let Some(ArchivedSegmentNotification {
-                        archived_segment,
-                        ..
-                    }) = archived_segment_notification_stream.next().await
-                    {
-                        //println!("ArchivedSegmentNotification: {:?}", archived_segment);
-                        println!("ArchivedSegmentNotification received");
-                    }
-                }
-
-        })
-    );
-
     let slot_duration = subspace_link.config().slot_duration();
     let import_queue = sc_consensus_subspace::import_queue(
         block_import.clone(),
@@ -391,6 +375,15 @@ where
         transaction_pool,
         other: (block_import, subspace_link, mut telemetry),
     } = new_partial::<RuntimeApi, ExecutorDispatch>(&config)?;
+
+    if let Some(node_config) = config.node_config.clone() {
+        println!("here");
+        start_subspace_dsn_archiver(
+            &subspace_link,
+            node_config,
+            &task_manager.spawn_essential_handle(),
+        );
+    }
 
     let (network, system_rpc_tx, network_starter) =
         sc_service::build_network(sc_service::BuildNetworkParams {
