@@ -261,6 +261,30 @@ where
         config.role.is_authority(),
     );
 
+    use sp_core::traits::SpawnEssentialNamed; //TODO
+    use futures::StreamExt;
+    let spawner = task_manager.spawn_essential_handle();
+    spawner.spawn_essential_blocking(
+        "subspace-archiver-DSN",
+        None,
+        Box::pin({
+            let mut archived_segment_notification_stream =
+                subspace_link.archived_segment_notification_stream().subscribe();
+
+                async move {
+                    while let Some(ArchivedSegmentNotification {
+                        archived_segment,
+                        ..
+                    }) = archived_segment_notification_stream.next().await
+                    {
+                        //println!("ArchivedSegmentNotification: {:?}", archived_segment);
+                        println!("ArchivedSegmentNotification received");
+                    }
+                }
+
+        })
+    );
+
     let slot_duration = subspace_link.config().slot_duration();
     let import_queue = sc_consensus_subspace::import_queue(
         block_import.clone(),
