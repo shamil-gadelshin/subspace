@@ -366,10 +366,13 @@ fn main() -> Result<(), Error> {
                         .as_ref()
                         .map(|base_path| base_path.config_dir("subspace_gemini_1b"));
 
+                    use std::str::FromStr; //TODO
                     let primary_chain_config = SubspaceConfiguration {
                         base: primary_chain_config,
                         // Secondary node needs slots notifications for bundle production.
                         force_new_slot_notifications: !cli.secondary_chain_args.is_empty(),
+                        node_config: Some(subspace_service::DsnNetworkingConfig{listen_on: vec![subspace_service::Multiaddr::from_str("/ip4/127.0.0.1/tcp/50000").unwrap()],
+                            ..subspace_service::DsnNetworkingConfig::with_generated_keypair()}), //TODO
                     };
 
                     let primary_chain_node = subspace_service::new_full::<

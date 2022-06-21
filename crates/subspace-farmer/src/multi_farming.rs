@@ -13,7 +13,7 @@ use subspace_networking::libp2p::identity::sr25519;
 use subspace_networking::libp2p::multiaddr::Protocol;
 use subspace_networking::libp2p::Multiaddr;
 use subspace_networking::multimess::MultihashCode;
-use subspace_networking::{Config, PiecesToPlot};
+use subspace_networking::{libp2p, Config, PiecesToPlot};
 use subspace_solving::SubspaceCodec;
 use tracing::info;
 
@@ -179,6 +179,28 @@ impl MultiFarming {
             })
             .await?;
 
+            //TODO: enable DSN-sync ?
+            //TODO:
+            let sub_node = node.clone();
+            tokio::spawn({
+                async move {
+                    use libp2p::gossipsub::Sha256Topic;  //TODO
+                    let topic = Sha256Topic::new("PUB-SUB-ARCHIVING");
+                    let mut subscription = sub_node
+                        .subscribe(topic)
+                        .await
+                        .expect("Archiving pub-sub failed");
+
+                    println!("Subscribed !!!");
+         //           sub_node.
+
+                    println!("Waiting for subs...");
+                    while let Some(message) = subscription.next().await {
+                        println!("Got message: {}", String::from_utf8_lossy(&message));
+                    }
+                }
+            });
+
             node.on_new_listener(Arc::new({
                 let node_id = node.id();
 
@@ -204,6 +226,7 @@ impl MultiFarming {
                 farmings.push(farming);
             }
         }
+
 
         let farmer_metadata = farming_client
             .farmer_metadata()
