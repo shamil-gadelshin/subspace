@@ -118,8 +118,8 @@ pub struct SubspaceConfiguration {
     /// authoring.
     pub force_new_slot_notifications: bool,
 
-    //TODO:
-    pub node_config: Option<subspace_networking::Config>,
+    /// DSN node configuration (optional). 'None' disables the DSN.
+    pub dsn_node_config: Option<subspace_networking::Config>,
 }
 
 impl From<Configuration> for SubspaceConfiguration {
@@ -127,7 +127,7 @@ impl From<Configuration> for SubspaceConfiguration {
         Self {
             base,
             force_new_slot_notifications: false,
-            node_config: None, // TODO
+            dsn_node_config: None,
         }
     }
 }
@@ -376,7 +376,7 @@ where
         other: (block_import, subspace_link, mut telemetry),
     } = new_partial::<RuntimeApi, ExecutorDispatch>(&config)?;
 
-    if let Some(node_config) = config.node_config.clone() {
+    if let Some(node_config) = config.dsn_node_config.clone() {
         println!("here");
         start_subspace_dsn_archiver(
             &subspace_link,

@@ -43,10 +43,6 @@ pub fn start_subspace_dsn_archiver<Block>(
                     trace!("ArchivedSegmentNotification received");
                     let data = archived_segment.encode().to_vec();
 
-                    // if let Err(err) = node.publish(PUB_SUB_ARCHIVING_TOPIC.clone(), data.to_vec()).await{
-                    //     println!("DSN publish error: {:?}", err);
-                    // }//TODO: expect("publish failed");
-
                     match node.publish(PUB_SUB_ARCHIVING_TOPIC.clone(), data).await {
                         Ok(_) => {
                             trace!("Archived segment published.");

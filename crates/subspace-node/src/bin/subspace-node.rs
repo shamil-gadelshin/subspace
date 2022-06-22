@@ -371,7 +371,7 @@ fn main() -> Result<(), Error> {
                         base: primary_chain_config,
                         // Secondary node needs slots notifications for bundle production.
                         force_new_slot_notifications: !cli.secondary_chain_args.is_empty(),
-                        node_config: Some(subspace_service::DsnNetworkingConfig {
+                        dsn_node_config: Some(subspace_service::DsnNetworkingConfig {
                             listen_on: vec![subspace_service::Multiaddr::from_str(
                                 "/ip4/127.0.0.1/tcp/50000",
                             )
