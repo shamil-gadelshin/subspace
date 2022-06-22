@@ -184,10 +184,7 @@ impl MultiFarming {
             let sub_node = node.clone();
             tokio::spawn({
                 async move {
-                    use subspace_core_primitives::PieceIndexHash;
-
-                   // sub_node.get_pieces_by_range(PieceIndexHash(Default::default()), PieceIndexHash(Default::default()), ).await.unwrap();
-                    use libp2p::gossipsub::Sha256Topic;
+                    use libp2p::gossipsub::Sha256Topic;  //TODO
                     let topic = Sha256Topic::new("PUB-SUB-ARCHIVING");
                     let mut subscription = sub_node
                         .subscribe(topic)

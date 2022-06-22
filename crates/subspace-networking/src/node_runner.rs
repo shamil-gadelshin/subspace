@@ -152,7 +152,7 @@ impl NodeRunner {
                     .fetch_sub(1, Ordering::SeqCst);
             }
             other => {
-                println!("Other swarm event: {:?}", other);
+                trace!("Other swarm event: {:?}", other);
             }
         }
     }
@@ -167,12 +167,12 @@ impl NodeRunner {
                 info.listen_addrs.truncate(30);
             }
 
-            let behaviour = &mut self.swarm.behaviour_mut();
+            let kademlia = &mut self.swarm.behaviour_mut().kademlia;
 
             if info
                 .protocols
                 .iter()
-                .any(|protocol| protocol.as_bytes() == behaviour.kademlia.protocol_name())
+                .any(|protocol| protocol.as_bytes() == kademlia.protocol_name())
             {
                 for address in info.listen_addrs {
                     if !self.allow_non_globals_in_dht && !utils::is_global_address_or_dns(&address)
@@ -189,16 +189,15 @@ impl NodeRunner {
                         "Adding self-reported address {} from {} to Kademlia DHT {}.",
                         address,
                         peer_id,
-                        String::from_utf8_lossy(behaviour.kademlia.protocol_name()),
+                        String::from_utf8_lossy(kademlia.protocol_name()),
                     );
-                    behaviour.kademlia.add_address(&peer_id, address);
-    //                behaviour.gossipsub.add_explicit_peer(&peer_id); //TODO
+                    kademlia.add_address(&peer_id, address);
                 }
             } else {
                 trace!(
                     "{} doesn't support our Kademlia DHT protocol {}",
                     peer_id,
-                    String::from_utf8_lossy(behaviour.kademlia.protocol_name())
+                    String::from_utf8_lossy(kademlia.protocol_name())
                 );
             }
         }
