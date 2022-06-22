@@ -57,10 +57,10 @@ use sp_session::SessionKeys;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::sync::Arc;
 use subspace_fraud_proof::VerifyFraudProof;
+pub use subspace_networking::libp2p::Multiaddr;
+pub use subspace_networking::Config as DsnNetworkingConfig; //TODO
 use subspace_runtime_primitives::opaque::Block;
 use subspace_runtime_primitives::{AccountId, Balance, Hash, Index as Nonce};
-pub use subspace_networking::Config as DsnNetworkingConfig; //TODO
-pub use subspace_networking::libp2p::Multiaddr;
 
 /// Error type for Subspace service.
 #[derive(thiserror::Error, Debug)]

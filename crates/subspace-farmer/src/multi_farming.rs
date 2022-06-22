@@ -13,9 +13,9 @@ use subspace_networking::libp2p::identity::sr25519;
 use subspace_networking::libp2p::multiaddr::Protocol;
 use subspace_networking::libp2p::Multiaddr;
 use subspace_networking::multimess::MultihashCode;
-use subspace_networking::{libp2p, Config, PiecesToPlot};
+use subspace_networking::{Config, PiecesToPlot};
 use subspace_solving::SubspaceCodec;
-use tracing::info;
+use tracing::{error, info};
 
 // TODO: tie `plots`, `commitments`, `farmings`, ``networking_node_runners` together as they always
 // will have the same length.
@@ -180,23 +180,24 @@ impl MultiFarming {
             .await?;
 
             //TODO: enable DSN-sync ?
-            //TODO:
-            let sub_node = node.clone();
             tokio::spawn({
+                let node = node.clone();
                 async move {
-                    use libp2p::gossipsub::Sha256Topic;  //TODO
-                    let topic = Sha256Topic::new("PUB-SUB-ARCHIVING");
-                    let mut subscription = sub_node
-                        .subscribe(topic)
+                    match node
+                        .subscribe(subspace_networking::PUB_SUB_ARCHIVING_TOPIC.clone())
                         .await
-                        .expect("Archiving pub-sub failed");
+                    {
+                        Ok(mut subscription) => {
+                            info!("Subscribed to pubsub archiving.");
 
-                    println!("Subscribed !!!");
-         //           sub_node.
-
-                    println!("Waiting for subs...");
-                    while let Some(message) = subscription.next().await {
-                        println!("Got message: {}", String::from_utf8_lossy(&message));
+                            while let Some(message) = subscription.next().await {
+                                println!("Got message: {}", String::from_utf8_lossy(&message));
+                                //TODO
+                            }
+                        }
+                        Err(err) => {
+                            error!("Pubsub archiving subscription failed: {:?}", err);
+                        }
                     }
                 }
             });
@@ -226,7 +227,6 @@ impl MultiFarming {
                 farmings.push(farming);
             }
         }
-
 
         let farmer_metadata = farming_client
             .farmer_metadata()
