@@ -35,7 +35,6 @@ pub(crate) struct BehaviorConfig {
     pub(crate) pieces_by_range_request_handler: Box<dyn RequestResponseHandlerRunner + Send>,
 
     pub relay_config: RelayConfiguration, //TODO
-
 }
 
 #[derive(NetworkBehaviour)]

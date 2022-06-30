@@ -71,10 +71,6 @@ impl NodeRunner {
         }
     }
 
-    pub fn swarm(&mut self) -> &mut Swarm<Behavior>{
-        &mut self.swarm
-    }
-
     pub async fn run(mut self) {
         // We'll make the first query right away and continue at the interval.
         let mut random_query_timeout = Box::pin(tokio::time::sleep(Duration::from_secs(0)).fuse());

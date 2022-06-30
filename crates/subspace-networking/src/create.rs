@@ -7,6 +7,7 @@ use crate::pieces_by_range_handler::{
 };
 use crate::shared::Shared;
 use futures::channel::mpsc;
+use futures::{AsyncRead, AsyncWrite};
 use libp2p::core::muxing::StreamMuxerBox;
 use libp2p::core::transport::{Boxed, MemoryTransport, OrTransport};
 use libp2p::dns::TokioDnsConfig;
@@ -23,10 +24,10 @@ use libp2p::tcp::TokioTcpConfig;
 use libp2p::websocket::WsConfig;
 use libp2p::yamux::{WindowUpdateMode, YamuxConfig};
 use libp2p::{core, identity, noise, Multiaddr, PeerId, Transport, TransportError};
+use once_cell::sync::Lazy;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, io};
-use futures::{AsyncRead, AsyncWrite};
 use subspace_core_primitives::crypto;
 use thiserror::Error;
 use tracing::info;
@@ -34,13 +35,16 @@ use tracing::info;
 const KADEMLIA_PROTOCOL: &[u8] = b"/subspace/kad/0.1.0";
 const GOSSIPSUB_PROTOCOL: &str = "/subspace/gossipsub/0.1.0";
 
+pub static DEFAULT_RELAY_SERVER_ADDRESS: Lazy<Multiaddr> =
+    Lazy::new(|| Multiaddr::empty().with(Protocol::Memory(1_000_000_000)));
 
 //TODO:
-#[derive(Clone)]
-pub enum RelayConfiguration{
+#[derive(Clone, Debug)]
+pub enum RelayConfiguration {
     Server(Multiaddr),
-    Client(Multiaddr),
-    NoRelay
+    ClientAcceptor(Multiaddr),
+    ClientInitiator,
+    NoRelay,
 }
 
 impl Default for RelayConfiguration {
@@ -49,9 +53,12 @@ impl Default for RelayConfiguration {
     }
 }
 
-impl RelayConfiguration{
+impl RelayConfiguration {
     pub fn is_client_enabled(&self) -> bool {
-        matches!(self, RelayConfiguration::Client(..))
+        matches!(
+            self,
+            RelayConfiguration::ClientAcceptor(..) | RelayConfiguration::ClientInitiator
+        )
     }
 
     pub fn is_server_enabled(&self) -> bool {
@@ -188,6 +195,7 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
 
     let local_peer_id = keypair.public().to_peer_id();
 
+    let relay_config_for_swarm = relay_config.clone();
     // libp2p uses blocking API, hence we need to create a blocking task.
     let create_swarm_fut = tokio::task::spawn_blocking(move || {
         // Remove `/p2p/QmFoo` from the end of multiaddr and store separately in a tuple
@@ -222,7 +230,7 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
                 value_getter,
                 pieces_by_range_protocol_config,
                 pieces_by_range_request_handler: Box::new(pieces_by_range_request_handler),
-                relay_config: relay_config.clone()
+                relay_config: relay_config_for_swarm.clone(),
             },
             rc, //TODO
         );
@@ -251,8 +259,14 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
             }
         }
 
+        // Setup circuit for the accepting relay client.
+        if let RelayConfiguration::ClientAcceptor(addr) = relay_config_for_swarm.clone() {
+            swarm.listen_on(addr.with(Protocol::P2pCircuit))?;
+        }
+
         // Setup external address for relay server.
-        if let RelayConfiguration::Server(addr) = relay_config{
+        if let RelayConfiguration::Server(addr) = relay_config_for_swarm {
+            swarm.listen_on(addr.clone())?;
             swarm.add_external_address(addr, AddressScore::Infinite);
         }
 
@@ -265,7 +279,7 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
 
     let shared = Arc::new(Shared::new(local_peer_id, command_sender));
 
-    let node = Node::new(Arc::clone(&shared));
+    let node = Node::new(Arc::clone(&shared), relay_config);
     let node_runner = NodeRunner::new(
         allow_non_globals_in_dht,
         command_receiver,
@@ -303,11 +317,13 @@ async fn build_transport(
 
         let transport = OrTransport::new(relay_transport, transport);
 
-        let upgraded_transport = upgrade_transport(transport.boxed(), keypair, *timeout, yamux_config);
+        let upgraded_transport =
+            upgrade_transport(transport.boxed(), keypair, *timeout, yamux_config);
 
         (upgraded_transport, Some(relay_client))
     } else {
-        let upgraded_transport = upgrade_transport(transport.boxed(), keypair, *timeout, yamux_config);
+        let upgraded_transport =
+            upgrade_transport(transport.boxed(), keypair, *timeout, yamux_config);
 
         (upgraded_transport, None)
     }
@@ -315,12 +331,12 @@ async fn build_transport(
 
 fn upgrade_transport<StreamSink>(
     transport: Boxed<StreamSink>,
-     keypair: &identity::Keypair,
-     timeout: Duration,
-     yamux_config: &YamuxConfig,
+    keypair: &identity::Keypair,
+    timeout: Duration,
+    yamux_config: &YamuxConfig,
 ) -> Boxed<(PeerId, StreamMuxerBox)>
-    where
-        StreamSink: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+where
+    StreamSink: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
     let noise_keys = noise::Keypair::<noise::X25519Spec>::new()
         .into_authentic(keypair)
