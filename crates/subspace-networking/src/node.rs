@@ -1,5 +1,6 @@
 use crate::pieces_by_range_handler::{PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot};
 use crate::shared::{Command, CreatedSubscription, Shared};
+use crate::RelayConfiguration;
 use bytes::Bytes;
 use event_listener_primitives::HandlerId;
 use futures::channel::{mpsc, oneshot};
@@ -7,6 +8,7 @@ use futures::SinkExt;
 use libp2p::core::multihash::{Code, Multihash};
 use libp2p::gossipsub::error::SubscriptionError;
 use libp2p::gossipsub::Sha256Topic;
+use libp2p::multiaddr::Protocol;
 use libp2p::multihash::MultihashDigest;
 use libp2p::{Multiaddr, PeerId};
 use parity_scale_codec::Decode;
@@ -114,20 +116,42 @@ pub enum SendPiecesByRangeRequestError {
     IncorrectResponseFormat,
 }
 
+#[derive(Debug, Error)]
+pub enum RelayConfigurationError {
+    /// Client configuration error: expected server parent configuration.
+    #[error("cannot configure relay client, parent configuration should be server")]
+    ExpectedServerConfiguration,
+}
+
 /// Implementation of a network node on Subspace Network.
 #[derive(Debug, Clone)]
 pub struct Node {
     shared: Arc<Shared>,
+    relay_config: RelayConfiguration,
 }
 
 impl Node {
-    pub(crate) fn new(shared: Arc<Shared>) -> Self {
-        Self { shared }
+    pub(crate) fn new(shared: Arc<Shared>, relay_config: RelayConfiguration) -> Self {
+        Self {
+            shared,
+            relay_config,
+        }
     }
 
     /// Node's own local ID.
     pub fn id(&self) -> PeerId {
         self.shared.id
+    }
+
+    // TODO
+    pub fn configure_relay_client(&self) -> Result<RelayConfiguration, RelayConfigurationError> {
+        if let RelayConfiguration::Server(server_addr) = self.relay_config.clone() {
+            Ok(RelayConfiguration::ClientAcceptor(
+                server_addr.with(Protocol::P2p(self.id().into())),
+            ))
+        } else {
+            Err(RelayConfigurationError::ExpectedServerConfiguration)
+        }
     }
 
     pub async fn get_value(&self, key: Multihash) -> Result<Option<Vec<u8>>, GetValueError> {
