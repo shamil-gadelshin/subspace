@@ -15,8 +15,11 @@ async fn main() {
 
     // NODE 1 - Relay
     let node_1_addr: Multiaddr = "/ip4/127.0.0.1/tcp/50000".parse().unwrap();
+    let node_1_addr2: Multiaddr = "/memory/10".parse().unwrap();
     let config_1 = Config {
-        listen_on: vec![node_1_addr.clone()],
+        listen_on: vec![
+            node_1_addr.clone(),
+            node_1_addr2.clone()],
         allow_non_globals_in_dht: true,
         relay_server_enabled: true,
         relay_client_enabled: false,
@@ -25,7 +28,8 @@ async fn main() {
 
     let (node_1, mut node_runner_1) = subspace_networking::create(config_1).await.unwrap();
 
-    node_runner_1.swarm().add_external_address(node_1_addr, AddressScore::Infinite);
+//    node_runner_1.swarm().add_external_address(node_1_addr, AddressScore::Infinite);
+    node_runner_1.swarm().add_external_address(node_1_addr2, AddressScore::Infinite);
 
     println!("Node 1 (relay) ID is {}", node_1.id());
 
@@ -52,7 +56,10 @@ async fn main() {
         //     .with(Protocol::P2p(node_1.id().into()))],
         listen_on: vec![
             //            "/ip4/0.0.0.0/tcp/0".parse().unwrap(),
-            format!("/ip4/127.0.0.1/tcp/50000/p2p/{}/p2p-circuit", node_1.id(),)
+            // format!("/ip4/127.0.0.1/tcp/50000/p2p/{}/p2p-circuit", node_1.id(),)
+            //     .parse()
+            //     .unwrap(),
+            format!("/memory/10/p2p/{}/p2p-circuit", node_1.id(),)
                 .parse()
                 .unwrap(),
         ],
@@ -100,8 +107,6 @@ async fn main() {
             // node_1_address.clone()
             //     .with(Protocol::P2p(node_1.id().into())),
 
-
-
             format!(
               "/ip4/127.0.0.1/tcp/50000/p2p/{}/p2p-circuit/p2p/{}",
               node_1.id(),
@@ -109,9 +114,17 @@ async fn main() {
           )
           .try_into()
           .unwrap(),
+          //   format!(
+          //     "/memory/10/p2p/{}/p2p-circuit/p2p/{}",
+          //     node_1.id(),
+          //     node_2.id()
+          // )
+          // .try_into()
+          // .unwrap(),
         ],
         listen_on: vec![
-                      "/ip4/0.0.0.0/tcp/0".parse().unwrap(),
+ //                     "/ip4/0.0.0.0/tcp/0".parse().unwrap(),
+         //             "/memory/200".parse().unwrap(),
             // format!("/ip4/127.0.0.1/tcp/50000/p2p/{}/p2p-circuit", node_1.id(),)
             //     .parse()
             //     .unwrap(),

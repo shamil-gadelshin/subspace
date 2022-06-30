@@ -8,7 +8,7 @@ use crate::pieces_by_range_handler::{
 use crate::shared::Shared;
 use futures::channel::mpsc;
 use libp2p::core::muxing::StreamMuxerBox;
-use libp2p::core::transport::{Boxed, OrTransport};
+use libp2p::core::transport::{Boxed, MemoryTransport, OrTransport};
 use libp2p::dns::TokioDnsConfig;
 use libp2p::gossipsub::{
     GossipsubConfig, GossipsubConfigBuilder, GossipsubMessage, MessageId, ValidationMode,
@@ -26,6 +26,7 @@ use libp2p::{core, identity, noise, Multiaddr, PeerId, Transport, TransportError
 use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, io};
+use futures::{AsyncRead, AsyncWrite};
 use subspace_core_primitives::crypto;
 use thiserror::Error;
 use tracing::info;
@@ -258,6 +259,7 @@ async fn build_transport(
         timeout,
         yamux_config,
         relay_client_enabled,
+  //      relay_server_enabled,
         ..
     }: &Config,
 ) -> (Boxed<(PeerId, StreamMuxerBox)>, Option<RelayClient>) {
@@ -265,38 +267,51 @@ async fn build_transport(
         let dns_tcp = TokioDnsConfig::system(TokioTcpConfig::new().nodelay(true)).unwrap(); // TODO: ?;
         let ws =
             WsConfig::new(TokioDnsConfig::system(TokioTcpConfig::new().nodelay(true)).unwrap()); // TODO: ?);
-        dns_tcp.or_transport(ws)
+        let transport = dns_tcp.or_transport(ws);
+
+        // if *relay_server_enabled{
+        //     transport.or_transport(MemoryTransport::default())
+        // } else {
+        //     transport
+        // }
+
+        MemoryTransport::default().or_transport(transport)
     };
 
-    let noise_keys = noise::Keypair::<noise::X25519Spec>::new()
-        .into_authentic(keypair)
-        .expect("Signing libp2p-noise static DH keypair failed.");
-
-    let (upgraded_transport, relay_client) = if *relay_client_enabled {
+    if *relay_client_enabled {
         let (relay_transport, relay_client) = RelayClient::new_transport_and_behaviour(
             keypair.public().to_peer_id(), //TODO
         );
 
         let transport = OrTransport::new(relay_transport, transport);
 
-        let upgraded_transport = transport
-            .upgrade(core::upgrade::Version::V1Lazy) // TODO: macro
-            .authenticate(NoiseConfig::xx(noise_keys).into_authenticated())
-            .multiplex(yamux_config.clone())
-            .timeout(*timeout)
-            .boxed();
+        let upgraded_transport = upgrade_transport(transport.boxed(), keypair, *timeout, yamux_config);
 
         (upgraded_transport, Some(relay_client))
     } else {
-        let upgraded_transport = transport
-            .upgrade(core::upgrade::Version::V1Lazy)
-            .authenticate(NoiseConfig::xx(noise_keys).into_authenticated())
-            .multiplex(yamux_config.clone())
-            .timeout(*timeout)
-            .boxed();
+        let upgraded_transport = upgrade_transport(transport.boxed(), keypair, *timeout, yamux_config);
 
         (upgraded_transport, None)
-    };
+    }
+}
 
-    (upgraded_transport, relay_client)
+fn upgrade_transport<StreamSink>(
+    transport: Boxed<StreamSink>,
+     keypair: &identity::Keypair,
+     timeout: Duration,
+     yamux_config: &YamuxConfig,
+) -> Boxed<(PeerId, StreamMuxerBox)>
+    where
+        StreamSink: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
+    let noise_keys = noise::Keypair::<noise::X25519Spec>::new()
+        .into_authentic(keypair)
+        .expect("Signing libp2p-noise static DH keypair failed.");
+
+    transport
+        .upgrade(core::upgrade::Version::V1Lazy)
+        .authenticate(NoiseConfig::xx(noise_keys).into_authenticated())
+        .multiplex(yamux_config.clone())
+        .timeout(timeout)
+        .boxed()
 }
