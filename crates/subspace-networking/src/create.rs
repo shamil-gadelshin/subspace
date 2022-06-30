@@ -18,7 +18,7 @@ use libp2p::kad::{KademliaBucketInserts, KademliaConfig, KademliaStoreInserts};
 use libp2p::multiaddr::Protocol;
 use libp2p::noise::NoiseConfig;
 use libp2p::relay::v2::client::Client as RelayClient;
-use libp2p::swarm::SwarmBuilder;
+use libp2p::swarm::{AddressScore, SwarmBuilder};
 use libp2p::tcp::TokioTcpConfig;
 use libp2p::websocket::WsConfig;
 use libp2p::yamux::{WindowUpdateMode, YamuxConfig};
@@ -33,6 +33,31 @@ use tracing::info;
 
 const KADEMLIA_PROTOCOL: &[u8] = b"/subspace/kad/0.1.0";
 const GOSSIPSUB_PROTOCOL: &str = "/subspace/gossipsub/0.1.0";
+
+
+//TODO:
+#[derive(Clone)]
+pub enum RelayConfiguration{
+    Server(Multiaddr),
+    Client(Multiaddr),
+    NoRelay
+}
+
+impl Default for RelayConfiguration {
+    fn default() -> Self {
+        Self::NoRelay
+    }
+}
+
+impl RelayConfiguration{
+    pub fn is_client_enabled(&self) -> bool {
+        matches!(self, RelayConfiguration::Client(..))
+    }
+
+    pub fn is_server_enabled(&self) -> bool {
+        matches!(self, RelayConfiguration::Server(..))
+    }
+}
 
 /// [`Node`] configuration.
 #[derive(Clone)]
@@ -65,9 +90,7 @@ pub struct Config {
     /// Defines a handler for the pieces-by-range protocol.
     pub pieces_by_range_request_handler: ExternalPiecesByRangeRequestHandler,
     // TODO: comment
-    pub relay_client_enabled: bool,
-    // TODO: comment
-    pub relay_server_enabled: bool,
+    pub relay_config: RelayConfiguration,
 }
 
 impl fmt::Debug for Config {
@@ -124,8 +147,7 @@ impl Config {
             allow_non_globals_in_dht: false,
             initial_random_query_interval: Duration::from_secs(1),
             pieces_by_range_request_handler: Arc::new(|_| None),
-            relay_client_enabled: false,
-            relay_server_enabled: false,
+            relay_config: Default::default(),
         }
     }
 }
@@ -160,8 +182,7 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
         allow_non_globals_in_dht,
         initial_random_query_interval,
         pieces_by_range_request_handler,
-        relay_client_enabled,
-        relay_server_enabled,
+        relay_config,
         ..
     } = config;
 
@@ -201,10 +222,9 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
                 value_getter,
                 pieces_by_range_protocol_config,
                 pieces_by_range_request_handler: Box::new(pieces_by_range_request_handler),
-                relay_client: relay_client_enabled,
-                relay_server: relay_server_enabled, //TODO
+                relay_config: relay_config.clone()
             },
-            rc,
+            rc, //TODO
         );
 
         let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id)
@@ -229,6 +249,11 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
                     swarm.listen_on(addr)?;
                 }
             }
+        }
+
+        // Setup external address for relay server.
+        if let RelayConfiguration::Server(addr) = relay_config{
+            swarm.add_external_address(addr, AddressScore::Infinite);
         }
 
         Ok::<_, CreationError>(swarm)
@@ -258,8 +283,7 @@ async fn build_transport(
         keypair,
         timeout,
         yamux_config,
-        relay_client_enabled,
-  //      relay_server_enabled,
+        relay_config,
         ..
     }: &Config,
 ) -> (Boxed<(PeerId, StreamMuxerBox)>, Option<RelayClient>) {
@@ -269,16 +293,10 @@ async fn build_transport(
             WsConfig::new(TokioDnsConfig::system(TokioTcpConfig::new().nodelay(true)).unwrap()); // TODO: ?);
         let transport = dns_tcp.or_transport(ws);
 
-        // if *relay_server_enabled{
-        //     transport.or_transport(MemoryTransport::default())
-        // } else {
-        //     transport
-        // }
-
         MemoryTransport::default().or_transport(transport)
     };
 
-    if *relay_client_enabled {
+    if relay_config.is_client_enabled() {
         let (relay_transport, relay_client) = RelayClient::new_transport_and_behaviour(
             keypair.public().to_peer_id(), //TODO
         );

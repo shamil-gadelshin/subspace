@@ -1,6 +1,6 @@
 pub(crate) mod custom_record_store;
 
-use crate::create::ValueGetter;
+use crate::create::{RelayConfiguration, ValueGetter};
 use crate::request_responses::{
     Event as RequestResponseEvent, ProtocolConfig as RequestResponseConfig,
     RequestResponseHandlerRunner, RequestResponseInstanceConfig, RequestResponsesBehaviour,
@@ -34,10 +34,8 @@ pub(crate) struct BehaviorConfig {
     /// The pieces-by-range request handler.
     pub(crate) pieces_by_range_request_handler: Box<dyn RequestResponseHandlerRunner + Send>,
 
-    /// Relay server enabled.
-    pub relay_server: bool, //TODO
-    /// Relay client enabled.
-    pub relay_client: bool,
+    pub relay_config: RelayConfiguration, //TODO
+
 }
 
 #[derive(NetworkBehaviour)]
@@ -77,7 +75,7 @@ impl Behavior {
         )
         .expect("Correct configuration");
 
-        let relay = if config.relay_server {
+        let relay = if config.relay_config.is_server_enabled() {
             //TODO
             Some(Relay::new(config.peer_id, Default::default()))
         } else {
@@ -85,7 +83,7 @@ impl Behavior {
         }
         .into();
 
-        let relay_client = if config.relay_client {
+        let relay_client = if config.relay_config.is_client_enabled() {
             //TODO
             let relay_client =
                 relay_client.expect("missing relay client even though it was enabled");

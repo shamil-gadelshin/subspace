@@ -5,7 +5,7 @@ use futures::StreamExt;
 use std::sync::Arc;
 use std::time::Duration;
 use subspace_core_primitives::{FlatPieces, Piece, PieceIndexHash};
-use subspace_networking::{Config, PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot};
+use subspace_networking::{Config, PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot, RelayConfiguration};
 use libp2p::Multiaddr;
 use libp2p::swarm::AddressScore;
 
@@ -21,15 +21,14 @@ async fn main() {
             node_1_addr.clone(),
             node_1_addr2.clone()],
         allow_non_globals_in_dht: true,
-        relay_server_enabled: true,
-        relay_client_enabled: false,
+        relay_config: RelayConfiguration::Server(node_1_addr2.clone()), //TODO
         ..Config::with_generated_keypair()
     };
 
     let (node_1, mut node_runner_1) = subspace_networking::create(config_1).await.unwrap();
 
 //    node_runner_1.swarm().add_external_address(node_1_addr, AddressScore::Infinite);
-    node_runner_1.swarm().add_external_address(node_1_addr2, AddressScore::Infinite);
+//    node_runner_1.swarm().add_external_address(node_1_addr2.clone(), AddressScore::Infinite);
 
     println!("Node 1 (relay) ID is {}", node_1.id());
 
@@ -79,8 +78,7 @@ async fn main() {
                 next_piece_index_hash: None,
             })
         }),
-        relay_server_enabled: false,
-        relay_client_enabled: true,
+        relay_config: RelayConfiguration::Client(node_1_addr2.clone()), //TODO
         ..Config::with_generated_keypair()
     };
     let (node_2, node_runner_2) = subspace_networking::create(config_2).await.unwrap();
@@ -130,8 +128,7 @@ async fn main() {
             //     .unwrap(),
         ],
         allow_non_globals_in_dht: true,
-        relay_server_enabled: false,
-        relay_client_enabled: true,
+        relay_config: RelayConfiguration::Client(node_1_addr2.clone()), //TODO
         ..Config::with_generated_keypair()
     };
 
