@@ -7,6 +7,8 @@ use crate::pieces_by_range_handler::{
 };
 use crate::shared::Shared;
 use futures::channel::mpsc;
+use libp2p::core::muxing::StreamMuxerBox;
+use libp2p::core::transport::{Boxed, OrTransport};
 use libp2p::dns::TokioDnsConfig;
 use libp2p::gossipsub::{
     GossipsubConfig, GossipsubConfigBuilder, GossipsubMessage, MessageId, ValidationMode,
@@ -15,6 +17,7 @@ use libp2p::identify::IdentifyConfig;
 use libp2p::kad::{KademliaBucketInserts, KademliaConfig, KademliaStoreInserts};
 use libp2p::multiaddr::Protocol;
 use libp2p::noise::NoiseConfig;
+use libp2p::relay::v2::client::Client as RelayClient;
 use libp2p::swarm::SwarmBuilder;
 use libp2p::tcp::TokioTcpConfig;
 use libp2p::websocket::WsConfig;
@@ -60,6 +63,10 @@ pub struct Config {
     pub initial_random_query_interval: Duration,
     /// Defines a handler for the pieces-by-range protocol.
     pub pieces_by_range_request_handler: ExternalPiecesByRangeRequestHandler,
+    // TODO: comment
+    pub relay_client_enabled: bool,
+    // TODO: comment
+    pub relay_server_enabled: bool,
 }
 
 impl fmt::Debug for Config {
@@ -116,6 +123,8 @@ impl Config {
             allow_non_globals_in_dht: false,
             initial_random_query_interval: Duration::from_secs(1),
             pieces_by_range_request_handler: Arc::new(|_| None),
+            relay_client_enabled: false,
+            relay_server_enabled: false,
         }
     }
 }
@@ -135,47 +144,30 @@ pub enum CreationError {
 }
 
 /// Create a new network node and node runner instances.
-pub async fn create(
-    Config {
+pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError> {
+    let (transport, rc) = build_transport(&config).await;
+
+    let Config {
         keypair,
         listen_on,
         listen_on_fallback_to_random_port,
-        timeout,
         identify,
         kademlia,
         bootstrap_nodes,
         gossipsub,
         value_getter,
-        yamux_config,
         allow_non_globals_in_dht,
         initial_random_query_interval,
         pieces_by_range_request_handler,
-    }: Config,
-) -> Result<(Node, NodeRunner), CreationError> {
+        relay_client_enabled,
+        relay_server_enabled,
+        ..
+    } = config;
+
     let local_peer_id = keypair.public().to_peer_id();
 
     // libp2p uses blocking API, hence we need to create a blocking task.
     let create_swarm_fut = tokio::task::spawn_blocking(move || {
-        let transport = {
-            let transport = {
-                let dns_tcp = TokioDnsConfig::system(TokioTcpConfig::new().nodelay(true))?;
-                let ws =
-                    WsConfig::new(TokioDnsConfig::system(TokioTcpConfig::new().nodelay(true))?);
-                dns_tcp.or_transport(ws)
-            };
-
-            let noise_keys = noise::Keypair::<noise::X25519Spec>::new()
-                .into_authentic(&keypair)
-                .expect("Signing libp2p-noise static DH keypair failed.");
-
-            transport
-                .upgrade(core::upgrade::Version::V1Lazy)
-                .authenticate(NoiseConfig::xx(noise_keys).into_authenticated())
-                .multiplex(yamux_config)
-                .timeout(timeout)
-                .boxed()
-        };
-
         // Remove `/p2p/QmFoo` from the end of multiaddr and store separately in a tuple
         let bootstrap_nodes = bootstrap_nodes
             .into_iter()
@@ -198,16 +190,21 @@ pub async fn create(
         let (pieces_by_range_request_handler, pieces_by_range_protocol_config) =
             PiecesByRangeRequestHandler::new(pieces_by_range_request_handler);
 
-        let behaviour = Behavior::new(BehaviorConfig {
-            peer_id: local_peer_id,
-            bootstrap_nodes,
-            identify,
-            kademlia,
-            gossipsub,
-            value_getter,
-            pieces_by_range_protocol_config,
-            pieces_by_range_request_handler: Box::new(pieces_by_range_request_handler),
-        });
+        let behaviour = Behavior::new(
+            BehaviorConfig {
+                peer_id: local_peer_id,
+                bootstrap_nodes,
+                identify,
+                kademlia,
+                gossipsub,
+                value_getter,
+                pieces_by_range_protocol_config,
+                pieces_by_range_request_handler: Box::new(pieces_by_range_request_handler),
+                relay_client: relay_client_enabled,
+                relay_server: relay_server_enabled, //TODO
+            },
+            rc,
+        );
 
         let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id)
             .executor(Box::new(|fut| {
@@ -252,4 +249,54 @@ pub async fn create(
     );
 
     Ok((node, node_runner))
+}
+
+/// Builds the transport stack that LibP2P will communicate over.
+async fn build_transport(
+    Config {
+        keypair,
+        timeout,
+        yamux_config,
+        relay_client_enabled,
+        ..
+    }: &Config,
+) -> (Boxed<(PeerId, StreamMuxerBox)>, Option<RelayClient>) {
+    let transport = {
+        let dns_tcp = TokioDnsConfig::system(TokioTcpConfig::new().nodelay(true)).unwrap(); // TODO: ?;
+        let ws =
+            WsConfig::new(TokioDnsConfig::system(TokioTcpConfig::new().nodelay(true)).unwrap()); // TODO: ?);
+        dns_tcp.or_transport(ws)
+    };
+
+    let noise_keys = noise::Keypair::<noise::X25519Spec>::new()
+        .into_authentic(keypair)
+        .expect("Signing libp2p-noise static DH keypair failed.");
+
+    let (upgraded_transport, relay_client) = if *relay_client_enabled {
+        let (relay_transport, relay_client) = RelayClient::new_transport_and_behaviour(
+            keypair.public().to_peer_id(), //TODO
+        );
+
+        let transport = OrTransport::new(relay_transport, transport);
+
+        let upgraded_transport = transport
+            .upgrade(core::upgrade::Version::V1Lazy) // TODO: macro
+            .authenticate(NoiseConfig::xx(noise_keys).into_authenticated())
+            .multiplex(yamux_config.clone())
+            .timeout(*timeout)
+            .boxed();
+
+        (upgraded_transport, Some(relay_client))
+    } else {
+        let upgraded_transport = transport
+            .upgrade(core::upgrade::Version::V1Lazy)
+            .authenticate(NoiseConfig::xx(noise_keys).into_authenticated())
+            .multiplex(yamux_config.clone())
+            .timeout(*timeout)
+            .boxed();
+
+        (upgraded_transport, None)
+    };
+
+    (upgraded_transport, relay_client)
 }

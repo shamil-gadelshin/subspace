@@ -12,7 +12,7 @@ pub type ValueGetter = Arc<dyn (Fn(&Multihash) -> Option<Vec<u8>>) + Send + Sync
 /// Hacky replacement for Kademlia's record store that doesn't store anything and instead proxies
 /// gets to externally provided implementation.
 #[derive(Clone)]
-pub(crate) struct CustomRecordStore {
+pub struct CustomRecordStore {
     value_getter: ValueGetter,
 }
 

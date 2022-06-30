@@ -71,6 +71,10 @@ impl NodeRunner {
         }
     }
 
+    pub fn swarm(&mut self) -> &mut Swarm<Behavior>{
+        &mut self.swarm
+    }
+
     pub async fn run(mut self) {
         // We'll make the first query right away and continue at the interval.
         let mut random_query_timeout = Box::pin(tokio::time::sleep(Duration::from_secs(0)).fuse());
@@ -125,6 +129,12 @@ impl NodeRunner {
             }
             SwarmEvent::Behaviour(Event::RequestResponse(event)) => {
                 self.handle_request_response_event(event).await;
+            }
+            SwarmEvent::Behaviour(Event::Relay(event)) => {
+                println!("Relay event: {:?}", event); //TODO
+            }
+            SwarmEvent::Behaviour(Event::RelayClient(event)) => {
+                println!("Relay Client event: {:?}", event); //TODO
             }
             SwarmEvent::NewListenAddr { address, .. } => {
                 self.shared.listeners.lock().push(address.clone());
