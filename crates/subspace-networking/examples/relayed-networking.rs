@@ -3,7 +3,7 @@ use futures::StreamExt;
 use libp2p::gossipsub::Sha256Topic;
 use libp2p::Multiaddr;
 use std::time::Duration;
-use subspace_networking::{Config, RelayConfiguration, DEFAULT_RELAY_SERVER_ADDRESS};
+use subspace_networking::{Config, RelayConfiguration};
 
 const TOPIC: &str = "Foo";
 
@@ -16,7 +16,7 @@ async fn main() {
     let config_1 = Config {
         listen_on: vec![node_1_addr.clone()],
         allow_non_globals_in_dht: true,
-        relay_config: RelayConfiguration::Server(DEFAULT_RELAY_SERVER_ADDRESS.clone()),
+        relay_config: RelayConfiguration::default_server_configuration(),
         ..Config::with_generated_keypair()
     };
 

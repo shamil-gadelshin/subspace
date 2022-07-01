@@ -74,13 +74,11 @@ impl Behavior {
         )
         .expect("Correct configuration");
 
-        let relay = if config.relay_config.is_server_enabled() {
-            //TODO
-            Some(Relay::new(config.peer_id, Default::default()))
-        } else {
-            None
-        }
-        .into();
+        let relay = config
+            .relay_config
+            .server_relay_settings()
+            .map(|settings| Relay::new(config.peer_id, settings.to_relay_config()))
+            .into();
 
         let relay_client = if config.relay_config.is_client_enabled() {
             //TODO

@@ -17,7 +17,7 @@ async fn main() {
     let config_1 = Config {
         listen_on: vec![node_1_addr.clone()],
         allow_non_globals_in_dht: true,
-        relay_config: RelayConfiguration::Server(custom_relay_address.clone()),
+        relay_config: RelayConfiguration::Server(custom_relay_address.clone(), Default::default()),
         ..Config::with_generated_keypair()
     };
 

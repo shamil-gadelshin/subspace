@@ -145,7 +145,7 @@ impl Node {
 
     // TODO
     pub fn configure_relay_client(&self) -> Result<RelayConfiguration, RelayConfigurationError> {
-        if let RelayConfiguration::Server(server_addr) = self.relay_config.clone() {
+        if let RelayConfiguration::Server(server_addr, _) = self.relay_config.clone() {
             Ok(RelayConfiguration::ClientAcceptor(
                 server_addr.with(Protocol::P2p(self.id().into())),
             ))

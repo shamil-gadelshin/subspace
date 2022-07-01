@@ -19,12 +19,14 @@ use libp2p::kad::{KademliaBucketInserts, KademliaConfig, KademliaStoreInserts};
 use libp2p::multiaddr::Protocol;
 use libp2p::noise::NoiseConfig;
 use libp2p::relay::v2::client::Client as RelayClient;
+use libp2p::relay::v2::relay::{rate_limiter, Config as RelayConfig};
 use libp2p::swarm::{AddressScore, SwarmBuilder};
 use libp2p::tcp::TokioTcpConfig;
 use libp2p::websocket::WsConfig;
 use libp2p::yamux::{WindowUpdateMode, YamuxConfig};
 use libp2p::{core, identity, noise, Multiaddr, PeerId, Transport, TransportError};
 use once_cell::sync::Lazy;
+use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, io};
@@ -38,10 +40,91 @@ const GOSSIPSUB_PROTOCOL: &str = "/subspace/gossipsub/0.1.0";
 pub static DEFAULT_RELAY_SERVER_ADDRESS: Lazy<Multiaddr> =
     Lazy::new(|| Multiaddr::empty().with(Protocol::Memory(1_000_000_000)));
 
+#[derive(Clone, Debug)]
+pub struct RelayLimitSettings {
+    pub max_reservations: usize,
+    pub max_reservations_per_peer: usize,
+    pub reservation_duration: Duration,
+    pub reservation_rate_limit_per_peer: rate_limiter::GenericRateLimiterConfig,
+    pub reservation_rate_limit_per_ip: rate_limiter::GenericRateLimiterConfig,
+
+    pub max_circuits: usize,
+    pub max_circuits_per_peer: usize,
+    pub max_circuit_duration: Duration,
+    pub max_circuit_bytes: u64,
+    pub circuit_src_rate_limit_per_peer: rate_limiter::GenericRateLimiterConfig,
+    pub circuit_src_rate_limit_per_ip: rate_limiter::GenericRateLimiterConfig,
+}
+
+impl Default for RelayLimitSettings {
+    fn default() -> Self {
+        let default_relay_config = RelayConfig::default();
+
+        Self {
+            max_reservations: default_relay_config.max_reservations,
+            max_reservations_per_peer: default_relay_config.max_circuits_per_peer,
+            reservation_duration: default_relay_config.reservation_duration,
+            max_circuits: default_relay_config.max_circuits,
+            max_circuits_per_peer: default_relay_config.max_circuits_per_peer,
+            max_circuit_duration: default_relay_config.max_circuit_duration,
+            max_circuit_bytes: default_relay_config.max_circuit_bytes,
+
+            // Copied from the  RelayConfig::default() implementation:
+            // For each peer ID one reservation every 2 minutes with up to 30 reservations per hour.
+            reservation_rate_limit_per_peer: rate_limiter::GenericRateLimiterConfig {
+                limit: NonZeroU32::new(30).expect("30 > 0"),
+                interval: Duration::from_secs(60 * 2),
+            },
+            // For each IP address one reservation every minute with up to 60 reservations per hour.
+            reservation_rate_limit_per_ip: rate_limiter::GenericRateLimiterConfig {
+                limit: NonZeroU32::new(60).expect("60 > 0"),
+                interval: Duration::from_secs(60),
+            },
+            // For each source peer ID one circuit every 2 minute with up to 30 circuits per hour.
+            circuit_src_rate_limit_per_peer: rate_limiter::GenericRateLimiterConfig {
+                limit: NonZeroU32::new(30).expect("30 > 0"),
+                interval: Duration::from_secs(60 * 2),
+            },
+            // For each source IP address one circuit every minute with up to 60 circuits per hour.
+            circuit_src_rate_limit_per_ip: rate_limiter::GenericRateLimiterConfig {
+                limit: NonZeroU32::new(60).expect("60 > 0"),
+                interval: Duration::from_secs(60),
+            },
+        }
+    }
+}
+
+impl RelayLimitSettings {
+    pub fn to_relay_config(self) -> RelayConfig {
+        let reservation_rate_limiters = vec![
+            rate_limiter::new_per_peer(self.reservation_rate_limit_per_peer),
+            rate_limiter::new_per_ip(self.circuit_src_rate_limit_per_ip),
+        ];
+
+        let circuit_src_rate_limiters = vec![
+            rate_limiter::new_per_peer(self.circuit_src_rate_limit_per_peer),
+            rate_limiter::new_per_ip(self.circuit_src_rate_limit_per_ip),
+        ];
+
+        RelayConfig {
+            max_reservations: self.max_reservations,
+            max_reservations_per_peer: self.max_circuits_per_peer,
+            reservation_duration: self.reservation_duration,
+            reservation_rate_limiters,
+
+            max_circuits: self.max_circuits,
+            max_circuits_per_peer: self.max_circuits_per_peer,
+            max_circuit_duration: self.max_circuit_duration,
+            max_circuit_bytes: self.max_circuit_bytes,
+            circuit_src_rate_limiters,
+        }
+    }
+}
+
 //TODO:
 #[derive(Clone, Debug)]
 pub enum RelayConfiguration {
-    Server(Multiaddr),
+    Server(Multiaddr, RelayLimitSettings),
     ClientAcceptor(Multiaddr),
     ClientInitiator,
     NoRelay,
@@ -54,15 +137,32 @@ impl Default for RelayConfiguration {
 }
 
 impl RelayConfiguration {
+    pub fn default_server_configuration() -> Self {
+        Self::Server(DEFAULT_RELAY_SERVER_ADDRESS.clone(), Default::default())
+    }
+
     pub fn is_client_enabled(&self) -> bool {
         matches!(
             self,
-            RelayConfiguration::ClientAcceptor(..) | RelayConfiguration::ClientInitiator
+            RelayConfiguration::ClientInitiator | RelayConfiguration::ClientAcceptor(..)
         )
     }
 
     pub fn is_server_enabled(&self) -> bool {
         matches!(self, RelayConfiguration::Server(..))
+    }
+
+    pub fn server_relay_settings(&self) -> Option<RelayLimitSettings> {
+        if let RelayConfiguration::Server(_, settings) = self {
+            return Some(settings.clone());
+        }
+
+        None
+    }
+
+    // TODO: do we need it?
+    pub fn is_relay_enabled(&self) -> bool {
+        self.is_server_enabled() || self.is_client_enabled()
     }
 }
 
@@ -175,7 +275,7 @@ pub enum CreationError {
 
 /// Create a new network node and node runner instances.
 pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError> {
-    let (transport, rc) = build_transport(&config).await;
+    let (transport, relay_client) = build_transport(&config).await;
 
     let Config {
         keypair,
@@ -232,7 +332,7 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
                 pieces_by_range_request_handler: Box::new(pieces_by_range_request_handler),
                 relay_config: relay_config_for_swarm.clone(),
             },
-            rc, //TODO
+            relay_client,
         );
 
         let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id)
@@ -265,7 +365,7 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
         }
 
         // Setup external address for relay server.
-        if let RelayConfiguration::Server(addr) = relay_config_for_swarm {
+        if let RelayConfiguration::Server(addr, _) = relay_config_for_swarm {
             swarm.listen_on(addr.clone())?;
             swarm.add_external_address(addr, AddressScore::Infinite);
         }
@@ -306,6 +406,13 @@ async fn build_transport(
         let ws =
             WsConfig::new(TokioDnsConfig::system(TokioTcpConfig::new().nodelay(true)).unwrap()); // TODO: ?);
         let transport = dns_tcp.or_transport(ws);
+
+        //TODO
+        // if relay_config.is_relay_enabled() {
+        //     MemoryTransport::default().or_transport(transport)
+        // } else {
+        //     transport
+        // }
 
         MemoryTransport::default().or_transport(transport)
     };

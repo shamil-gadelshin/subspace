@@ -127,10 +127,10 @@ impl NodeRunner {
                 self.handle_request_response_event(event).await;
             }
             SwarmEvent::Behaviour(Event::Relay(event)) => {
-                trace!("Relay event: {:?}", event);
+                println!("Relay event: {:?}", event);
             }
             SwarmEvent::Behaviour(Event::RelayClient(event)) => {
-                trace!("Relay Client event: {:?}", event);
+                println!("Relay Client event: {:?}", event);
             }
             SwarmEvent::NewListenAddr { address, .. } => {
                 self.shared.listeners.lock().push(address.clone());
