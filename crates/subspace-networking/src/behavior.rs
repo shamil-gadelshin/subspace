@@ -1,4 +1,5 @@
 pub(crate) mod custom_record_store;
+pub(crate) mod persistent_parameters;
 
 use crate::create::{RelayConfiguration, ValueGetter};
 use crate::request_responses::{

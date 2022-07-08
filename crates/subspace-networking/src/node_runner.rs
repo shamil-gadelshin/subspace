@@ -1,3 +1,4 @@
+use crate::behavior::persistent_parameters::{NetworkingDataManager, NetworkingParametersManager};
 use crate::behavior::{Behavior, Event};
 use crate::pieces_by_range_handler::{self};
 use crate::request_responses::{Event as RequestResponseEvent, IfDisconnected};
@@ -7,6 +8,7 @@ use bytes::Bytes;
 use futures::channel::{mpsc, oneshot};
 use futures::future::Fuse;
 use futures::{FutureExt, StreamExt};
+use libp2p::core::ConnectedPoint;
 use libp2p::gossipsub::{GossipsubEvent, TopicHash};
 use libp2p::identify::IdentifyEvent;
 use libp2p::kad::{
@@ -53,6 +55,8 @@ pub struct NodeRunner {
     /// present for the same physical subscription).
     topic_subscription_senders: HashMap<TopicHash, IntMap<usize, mpsc::UnboundedSender<Bytes>>>,
     random_query_timeout: Pin<Box<Fuse<Sleep>>>,
+
+    networking_parameters_manager: NetworkingDataManager, //TODO:
 }
 
 impl NodeRunner {
@@ -62,6 +66,7 @@ impl NodeRunner {
         swarm: Swarm<Behavior>,
         shared: Arc<Shared>,
         initial_random_query_interval: Duration,
+        networking_parameters_manager: NetworkingDataManager,
     ) -> Self {
         Self {
             allow_non_globals_in_dht,
@@ -74,6 +79,7 @@ impl NodeRunner {
             topic_subscription_senders: HashMap::default(),
             // We'll make the first query right away and continue at the interval.
             random_query_timeout: Box::pin(tokio::time::sleep(Duration::from_secs(0)).fuse()),
+            networking_parameters_manager,
         }
     }
 
@@ -142,12 +148,19 @@ impl NodeRunner {
             SwarmEvent::ConnectionEstablished {
                 peer_id,
                 num_established,
+                endpoint,
                 ..
             } => {
                 debug!("Connection established with peer {peer_id} [{num_established} from peer]");
                 self.shared
                     .connected_peers_count
                     .fetch_add(1, Ordering::SeqCst);
+
+                if let ConnectedPoint::Dialer { address, .. } = endpoint {
+                    self.networking_parameters_manager
+                        .add_known_peer(peer_id, vec![address])
+                        .await;
+                }
             }
             SwarmEvent::ConnectionClosed {
                 peer_id,

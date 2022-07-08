@@ -1,4 +1,5 @@
 pub use crate::behavior::custom_record_store::ValueGetter;
+use crate::behavior::persistent_parameters::NetworkingDataManager;
 use crate::behavior::{Behavior, BehaviorConfig};
 use crate::node::Node;
 use crate::node_runner::NodeRunner;
@@ -277,6 +278,8 @@ pub async fn create(
         .unwrap_or((None, None));
 
     let transport = build_transport(keypair, timeout, yamux_config, relay_transport).await?;
+    let networking_parameters_manager = NetworkingDataManager::new();
+    let cached_bootstrap_addresses = networking_parameters_manager.initial_bootstrap_addresses();
 
     let relay_config_for_swarm = relay_config.clone();
     // libp2p uses blocking API, hence we need to create a blocking task.
@@ -298,7 +301,10 @@ pub async fn create(
 
                 Ok((peer_id, multiaddr))
             })
+            .chain(cached_bootstrap_addresses.into_iter().map(Ok))
             .collect::<Result<_, CreationError>>()?;
+
+        println!("Total bootstrap nodes: {:?}", bootstrap_nodes);
 
         let (pieces_by_range_request_handler, pieces_by_range_protocol_config) =
             PiecesByRangeRequestHandler::new(pieces_by_range_request_handler);
@@ -370,6 +376,7 @@ pub async fn create(
         swarm,
         shared,
         initial_random_query_interval,
+        networking_parameters_manager,
     );
 
     Ok((node, node_runner))
