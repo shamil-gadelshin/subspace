@@ -27,6 +27,9 @@ mod request_responses;
 mod shared;
 mod utils;
 
+pub use crate::behavior::persistent_parameters::{
+    JsonNetworkingPersistence, NetworkPersistenceStub,
+};
 pub use crate::node::{GetPiecesByRangeError, Node, SubscribeError, TopicSubscription};
 pub use crate::node_runner::NodeRunner;
 pub use create::{create, Config, CreationError, RelayConfiguration, RelayLimitSettings};

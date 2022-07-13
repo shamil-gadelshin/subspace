@@ -7,19 +7,20 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::marker::PhantomData;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
+use tracing::trace;
+
+//TODO
+const PEER_CACHE_SIZE: usize = 100;
+
+//TODO
+pub type NetworkingParameterPersistenceHandler =
+    Arc<dyn PersistentNetworkingParametersManager + Send + Sync + 'static>;
 
 //TODO:
-//pub type ValueGetter = Arc<dyn (Fn(&Multihash) -> Option<Vec<u8>>) + Send + Sync + 'static>;
-#[derive(Default, Debug, Serialize, Deserialize)]
-pub struct NetworkingParameters {
-    pub known_peers: HashMap<PeerId, HashSet<Multiaddr>>,
-}
-
-//TODO:
-//pub type ValueGetter = Arc<dyn (Fn(&Multihash) -> Option<Vec<u8>>) + Send + Sync + 'static>;
 #[derive(Debug)]
 pub struct NetworkingParametersCache {
     pub known_peers: LruCache<PeerId, HashSet<Multiaddr>>,
@@ -38,6 +39,11 @@ impl Clone for NetworkingParametersCache {
 }
 
 impl NetworkingParametersCache {
+    fn new(cache_cap: usize) -> Self {
+        Self {
+            known_peers: LruCache::new(cache_cap),
+        }
+    }
     fn add_known_peer(&mut self, peer_id: PeerId, addr_set: HashSet<Multiaddr>) {
         if let Some(addresses) = self.known_peers.get_mut(&peer_id) {
             *addresses = addresses.union(&addr_set).cloned().collect()
@@ -56,48 +62,18 @@ impl NetworkingParametersCache {
     }
 }
 
-//TODO: change to impl methods to avoid duplication
-impl From<NetworkingParametersCache> for NetworkingParameters {
-    fn from(cache: NetworkingParametersCache) -> Self {
-        Self {
-            known_peers: cache
-                .known_peers
-                .iter()
-                .map(|(peer_id, addresses)| (*peer_id, addresses.clone()))
-                .collect(),
-        }
-    }
-}
-
-//TODO: change to impl methods to avoid duplication
-impl From<NetworkingParameters> for NetworkingParametersCache {
-    fn from(params: NetworkingParameters) -> Self {
-        let mut known_peers = LruCache::<PeerId, HashSet<Multiaddr>>::new(1000); // TODO
-
-        for (peer_id, addresses) in params.known_peers.iter() {
-            known_peers.push(*peer_id, addresses.clone());
-        }
-
-        Self {
-            known_peers, //TODO: iter?
-        }
-    }
-}
-
 #[async_trait]
 pub trait NetworkingParametersManager {
     async fn add_known_peer(&mut self, peer_id: PeerId, addresses: Vec<Multiaddr>);
 }
 
-// TODO: Result?, save-load params?
-pub trait PersistentNetworkingParametersManager {
-    fn load(path: &String) -> NetworkingParameters;
-    fn save(path: &String, params: &NetworkingParameters);
+// TODO:  save-load params?
+pub trait PersistentNetworkingParametersManager: Send {
+    fn load(&self) -> anyhow::Result<NetworkingParametersCache>;
+    fn save(&self, params: &NetworkingParametersCache) -> anyhow::Result<()>;
 }
 
-pub struct NetworkingDataManager<
-    P: PersistentNetworkingParametersManager = JsonNetworkingPersistence
-> {
+pub struct NetworkingDataManager<P: PersistentNetworkingParametersManager> {
     stop_handle: JoinHandle<()>,
     tx: UnboundedSender<(PeerId, HashSet<Multiaddr>)>, //TODO
     initial_bootstrap_addresses: Vec<(PeerId, Multiaddr)>,
@@ -110,16 +86,19 @@ impl<P: PersistentNetworkingParametersManager> Drop for NetworkingDataManager<P>
     }
 }
 
-impl<P: PersistentNetworkingParametersManager> NetworkingDataManager<P> {
-    pub fn new(networking_data_path: Option<String>) -> NetworkingDataManager<P> {
+impl<P: PersistentNetworkingParametersManager + Clone + Send + 'static> NetworkingDataManager<P> {
+    pub fn new(
+        network_parameters_persistence_handler: NetworkingParameterPersistenceHandler,
+    ) -> NetworkingDataManager<P> {
         let (tx, mut rx) = mpsc::unbounded();
 
-        let networking_params = networking_data_path.as_ref().map(|ref path| P::load(path)).unwrap_or_default();
+        let networking_params = network_parameters_persistence_handler
+            .load()
+            .unwrap_or(NetworkingParametersCache::new(PEER_CACHE_SIZE));
         let initial_cache: NetworkingParametersCache = networking_params.into();
 
         const INITIAL_BOOTSTRAP_ADDRESS_NUMBER: usize = 100; //TODO
         let delay_duration = Duration::from_secs(5); //TODO
-
         let initial_bootstrap_addresses =
             initial_cache.get_known_peer_addresses(INITIAL_BOOTSTRAP_ADDRESS_NUMBER);
 
@@ -129,9 +108,12 @@ impl<P: PersistentNetworkingParametersManager> NetworkingDataManager<P> {
             loop {
                 select! {
                     _ = delay => {
-                        if let Some(ref path) = networking_data_path.clone(){
-                            P::save(path, &params_cache.clone().into());
+                        if let Err(err) = network_parameters_persistence_handler.save(
+                            &params_cache.clone().into()
+                        ) {
+                            trace!(error=%err, "Error on saving network parameters");
                         }
+
                         // restart the delay future
                         delay = sleep(delay_duration).boxed().fuse();
                     },
@@ -173,29 +155,81 @@ impl<P: PersistentNetworkingParametersManager + Send> NetworkingParametersManage
     }
 }
 
-//TODO: empty saver, result errors, parameters?
-pub struct JsonNetworkingPersistence;
-impl PersistentNetworkingParametersManager for JsonNetworkingPersistence {
-    fn load(path: &String) -> NetworkingParameters {
-        let data = fs::read(path).expect("Unable to read file"); //TODO
+// Helper struct for JsonNetworkingPersistence
+#[derive(Default, Debug, Serialize, Deserialize)]
+struct JsonNetworkingParameters {
+    pub known_peers: HashMap<PeerId, HashSet<Multiaddr>>,
+}
 
-        let result =
+impl From<&NetworkingParametersCache> for JsonNetworkingParameters {
+    fn from(cache: &NetworkingParametersCache) -> Self {
+        Self {
+            known_peers: cache
+                .known_peers
+                .iter()
+                .map(|(peer_id, addresses)| (*peer_id, addresses.clone()))
+                .collect(),
+        }
+    }
+}
+
+impl From<JsonNetworkingParameters> for NetworkingParametersCache {
+    fn from(params: JsonNetworkingParameters) -> Self {
+        let mut known_peers = LruCache::<PeerId, HashSet<Multiaddr>>::new(PEER_CACHE_SIZE);
+
+        for (peer_id, addresses) in params.known_peers.iter() {
+            known_peers.push(*peer_id, addresses.clone());
+        }
+
+        Self {
+            known_peers, //TODO: iter?
+        }
+    }
+}
+
+//TODO: empty saver, result errors, parameters?
+#[derive(Clone)]
+pub struct JsonNetworkingPersistence {
+    pub path: String, //TODO private
+}
+
+impl PersistentNetworkingParametersManager for JsonNetworkingPersistence {
+    fn load(&self) -> anyhow::Result<NetworkingParametersCache> {
+        let data = fs::read(&self.path)?; //.expect("Unable to read file"); //TODO
+
+        let result: JsonNetworkingParameters =
             serde_json::from_slice(&data).expect("Cannot serialize networking parameters to JSON"); //TODO
 
         println!("Networking parameters loaded");
 
-        result
+        Ok(result.into())
     }
 
-    fn save(path: &String, params: &NetworkingParameters) {
-        //TODO
-        //let addresses = params.known_peers.iter().map(|(_, addr)|addr).cloned().flatten().collect();
-
-        //let params = NetworkingParameters{bootstrap_nodes: addresses};
+    fn save(&self, params: &NetworkingParametersCache) -> anyhow::Result<()> {
+        let params: JsonNetworkingParameters = params.into();
         let data =
             serde_json::to_string(&params).expect("Cannot serialize networking parameters to JSON"); //TODO
 
-        fs::write(path, data).expect("Unable to write file"); //TODO
+        fs::write(&self.path, data).expect("Unable to write file"); //TODO
         println!("Networking parameters saved");
+
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct NetworkPersistenceStub;
+
+impl PersistentNetworkingParametersManager for NetworkPersistenceStub {
+    fn load(&self) -> anyhow::Result<NetworkingParametersCache> {
+        trace!("Default network parameters used");
+
+        Ok(NetworkingParametersCache::new(PEER_CACHE_SIZE))
+    }
+
+    fn save(&self, _: &NetworkingParametersCache) -> anyhow::Result<()> {
+        trace!("Network parameters saving skipped.");
+
+        Ok(())
     }
 }

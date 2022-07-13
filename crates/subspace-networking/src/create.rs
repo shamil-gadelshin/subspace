@@ -1,5 +1,7 @@
 pub use crate::behavior::custom_record_store::ValueGetter;
-use crate::behavior::persistent_parameters::NetworkingDataManager;
+use crate::behavior::persistent_parameters::{
+    NetworkPersistenceStub, NetworkingDataManager, NetworkingParameterPersistenceHandler,
+};
 use crate::behavior::{Behavior, BehaviorConfig};
 use crate::node::Node;
 use crate::node_runner::NodeRunner;
@@ -170,6 +172,9 @@ pub struct Config {
     pub pieces_by_range_request_handler: ExternalPiecesByRangeRequestHandler,
     /// Defines relay mode and limit settings.
     pub relay_config: RelayConfiguration,
+
+    //TODO
+    pub network_parameters_persistence_handler: NetworkingParameterPersistenceHandler,
 }
 
 impl fmt::Debug for Config {
@@ -227,6 +232,7 @@ impl Config {
             initial_random_query_interval: Duration::from_secs(1),
             pieces_by_range_request_handler: Arc::new(|_| None),
             relay_config: Default::default(),
+            network_parameters_persistence_handler: Arc::new(NetworkPersistenceStub),
         }
     }
 }
@@ -262,6 +268,7 @@ pub async fn create(
         initial_random_query_interval,
         pieces_by_range_request_handler,
         relay_config,
+        network_parameters_persistence_handler,
     }: Config,
 ) -> Result<(Node, NodeRunner), CreationError> {
     let local_peer_id = keypair.public().to_peer_id();
@@ -278,7 +285,8 @@ pub async fn create(
         .unwrap_or((None, None));
 
     let transport = build_transport(keypair, timeout, yamux_config, relay_transport).await?;
-    let networking_parameters_manager = NetworkingDataManager::new(None); //TODO
+    let networking_parameters_manager =
+        NetworkingDataManager::new(network_parameters_persistence_handler); //TODO
     let cached_bootstrap_addresses = networking_parameters_manager.initial_bootstrap_addresses();
 
     let relay_config_for_swarm = relay_config.clone();

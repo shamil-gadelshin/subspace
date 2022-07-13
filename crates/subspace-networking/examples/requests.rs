@@ -5,7 +5,9 @@ use libp2p::multiaddr::Protocol;
 use std::sync::Arc;
 use std::time::Duration;
 use subspace_core_primitives::{FlatPieces, Piece, PieceIndexHash};
-use subspace_networking::{Config, PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot};
+use subspace_networking::{
+    Config, JsonNetworkingPersistence, PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot,
+};
 
 #[tokio::main]
 async fn main() {
@@ -32,6 +34,9 @@ async fn main() {
                 pieces,
                 next_piece_index_hash: None,
             })
+        }),
+        network_parameters_persistence_handler: Arc::new(JsonNetworkingPersistence {
+            path: "/Users/shamix/data/networking.json".to_string(),
         }),
         ..Config::with_generated_keypair()
     };
