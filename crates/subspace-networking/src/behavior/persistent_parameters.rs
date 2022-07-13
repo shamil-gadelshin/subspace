@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use futures::channel::mpsc::{self, Sender};
+use futures::channel::mpsc::{self, UnboundedSender};
 use futures::{select, FutureExt, SinkExt, StreamExt};
 use libp2p::{Multiaddr, PeerId};
 use lru::LruCache;
@@ -91,15 +91,15 @@ pub trait NetworkingParametersManager {
 
 // TODO: Result?, save-load params?
 pub trait PersistentNetworkingParametersManager {
-    fn load() -> NetworkingParameters;
-    fn save(params: &NetworkingParameters);
+    fn load(path: &String) -> NetworkingParameters;
+    fn save(path: &String, params: &NetworkingParameters);
 }
 
 pub struct NetworkingDataManager<
-    P: PersistentNetworkingParametersManager = JsonNetworkingPersistence,
+    P: PersistentNetworkingParametersManager = JsonNetworkingPersistence
 > {
     stop_handle: JoinHandle<()>,
-    tx: Sender<(PeerId, HashSet<Multiaddr>)>, //TODO
+    tx: UnboundedSender<(PeerId, HashSet<Multiaddr>)>, //TODO
     initial_bootstrap_addresses: Vec<(PeerId, Multiaddr)>,
     _persistence_marker: PhantomData<P>,
 }
@@ -110,26 +110,30 @@ impl<P: PersistentNetworkingParametersManager> Drop for NetworkingDataManager<P>
     }
 }
 
-//TODO: LRU cache
 impl<P: PersistentNetworkingParametersManager> NetworkingDataManager<P> {
-    pub fn new() -> NetworkingDataManager<P> {
-        let (tx, mut rx) = mpsc::channel(1000); //TODO
+    pub fn new(networking_data_path: Option<String>) -> NetworkingDataManager<P> {
+        let (tx, mut rx) = mpsc::unbounded();
 
-        let networking_params = P::load();
+        let networking_params = networking_data_path.as_ref().map(|ref path| P::load(path)).unwrap_or_default();
         let initial_cache: NetworkingParametersCache = networking_params.into();
-        let initial_bootstrap_addresses = initial_cache.get_known_peer_addresses(1000); // TODO
+
+        const INITIAL_BOOTSTRAP_ADDRESS_NUMBER: usize = 100; //TODO
+        let delay_duration = Duration::from_secs(5); //TODO
+
+        let initial_bootstrap_addresses =
+            initial_cache.get_known_peer_addresses(INITIAL_BOOTSTRAP_ADDRESS_NUMBER);
 
         let stop_handle = tokio::spawn(async move {
             let mut params_cache = initial_cache;
-            let mut delay = sleep(Duration::from_secs(5)).boxed().fuse(); //TODO: outside of the loop?
-
+            let mut delay = sleep(delay_duration).boxed().fuse();
             loop {
                 select! {
                     _ = delay => {
-                        println!("Ping from NetworkingDataManager"); //TODO
-
-                        P::save(&params_cache.clone().into());
-                        delay = sleep(Duration::from_secs(5)).boxed().fuse(); //TODO: outside of the loop?
+                        if let Some(ref path) = networking_data_path.clone(){
+                            P::save(path, &params_cache.clone().into());
+                        }
+                        // restart the delay future
+                        delay = sleep(delay_duration).boxed().fuse();
                     },
                     data = rx.next() => {
                         if let Some((peer_id, addr_set)) = data {
@@ -172,17 +176,18 @@ impl<P: PersistentNetworkingParametersManager + Send> NetworkingParametersManage
 //TODO: empty saver, result errors, parameters?
 pub struct JsonNetworkingPersistence;
 impl PersistentNetworkingParametersManager for JsonNetworkingPersistence {
-    fn load() -> NetworkingParameters {
-        let data = fs::read("/Users/shamix/data/networking.json").expect("Unable to read file"); //TODO
+    fn load(path: &String) -> NetworkingParameters {
+        let data = fs::read(path).expect("Unable to read file"); //TODO
 
-        let result =  serde_json::from_slice(&data).expect("Cannot serialize networking parameters to JSON"); //TODO
+        let result =
+            serde_json::from_slice(&data).expect("Cannot serialize networking parameters to JSON"); //TODO
 
         println!("Networking parameters loaded");
 
         result
     }
 
-    fn save(params: &NetworkingParameters) {
+    fn save(path: &String, params: &NetworkingParameters) {
         //TODO
         //let addresses = params.known_peers.iter().map(|(_, addr)|addr).cloned().flatten().collect();
 
@@ -190,7 +195,7 @@ impl PersistentNetworkingParametersManager for JsonNetworkingPersistence {
         let data =
             serde_json::to_string(&params).expect("Cannot serialize networking parameters to JSON"); //TODO
 
-        fs::write("/Users/shamix/data/networking.json", data).expect("Unable to write file"); //TODO
+        fs::write(path, data).expect("Unable to write file"); //TODO
         println!("Networking parameters saved");
     }
 }

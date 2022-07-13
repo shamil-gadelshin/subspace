@@ -278,7 +278,7 @@ pub async fn create(
         .unwrap_or((None, None));
 
     let transport = build_transport(keypair, timeout, yamux_config, relay_transport).await?;
-    let networking_parameters_manager = NetworkingDataManager::new();
+    let networking_parameters_manager = NetworkingDataManager::new(None); //TODO
     let cached_bootstrap_addresses = networking_parameters_manager.initial_bootstrap_addresses();
 
     let relay_config_for_swarm = relay_config.clone();
