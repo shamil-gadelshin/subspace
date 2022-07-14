@@ -6,7 +6,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use subspace_core_primitives::{FlatPieces, Piece, PieceIndexHash};
 use subspace_networking::{
-    Config, JsonNetworkingPersistence, PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot,
+    Config, JsonNetworkingParametersProvider, PiecesByRangeRequest, PiecesByRangeResponse,
+    PiecesToPlot,
 };
 
 #[tokio::main]
@@ -35,9 +36,9 @@ async fn main() {
                 next_piece_index_hash: None,
             })
         }),
-        network_parameters_persistence_handler: Arc::new(JsonNetworkingPersistence {
-            path: "/Users/shamix/data/networking.json".to_string(),
-        }),
+        network_parameters_persistence_handler: Arc::new(JsonNetworkingParametersProvider::new(
+            std::env::temp_dir().join("networking.json"),
+        )),
         ..Config::with_generated_keypair()
     };
     let (node_1, mut node_runner_1) = subspace_networking::create(config_1).await.unwrap();

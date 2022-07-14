@@ -28,7 +28,7 @@ mod shared;
 mod utils;
 
 pub use crate::behavior::persistent_parameters::{
-    JsonNetworkingPersistence, NetworkPersistenceStub,
+    JsonNetworkingParametersProvider, NetworkingParametersManager, NetworkingParametersProviderStub,
 };
 pub use crate::node::{GetPiecesByRangeError, Node, SubscribeError, TopicSubscription};
 pub use crate::node_runner::NodeRunner;

@@ -1,6 +1,6 @@
 use crate::behavior::persistent_parameters::{
-    NetworkPersistenceStub, NetworkingDataManager, NetworkingParametersManager,
-    PersistentNetworkingParametersManager,
+    NetworkingParametersManager, NetworkingParametersProvider, NetworkingParametersProviderStub,
+    NetworkingParametersRegistry,
 };
 use crate::behavior::{Behavior, Event};
 use crate::pieces_by_range_handler::{self};
@@ -42,7 +42,7 @@ enum QueryResultSender {
 
 /// Runner for the Node.
 #[must_use = "Node does not function properly unless its runner is driven forward"]
-pub struct NodeRunner<P: PersistentNetworkingParametersManager = NetworkPersistenceStub> {
+pub struct NodeRunner<P: NetworkingParametersProvider = NetworkingParametersProviderStub> {
     /// Should non-global addresses be added to the DHT?
     allow_non_globals_in_dht: bool,
     command_receiver: mpsc::Receiver<Command>,
@@ -58,18 +58,18 @@ pub struct NodeRunner<P: PersistentNetworkingParametersManager = NetworkPersiste
     /// present for the same physical subscription).
     topic_subscription_senders: HashMap<TopicHash, IntMap<usize, mpsc::UnboundedSender<Bytes>>>,
     random_query_timeout: Pin<Box<Fuse<Sleep>>>,
-
-    networking_parameters_manager: NetworkingDataManager<P>, //TODO:
+    /// Manages the networking parameters like known peers and addresses
+    networking_parameters_manager: NetworkingParametersManager<P>,
 }
 
-impl<P: PersistentNetworkingParametersManager> NodeRunner<P> {
+impl<P: NetworkingParametersProvider> NodeRunner<P> {
     pub(crate) fn new(
         allow_non_globals_in_dht: bool,
         command_receiver: mpsc::Receiver<Command>,
         swarm: Swarm<Behavior>,
         shared: Arc<Shared>,
         initial_random_query_interval: Duration,
-        networking_parameters_manager: NetworkingDataManager<P>,
+        networking_parameters_manager: NetworkingParametersManager<P>,
     ) -> Self {
         Self {
             allow_non_globals_in_dht,

@@ -1,6 +1,6 @@
 pub use crate::behavior::custom_record_store::ValueGetter;
 use crate::behavior::persistent_parameters::{
-    NetworkPersistenceStub, NetworkingDataManager, NetworkingParameterPersistenceHandler,
+    NetworkingParametersHandler, NetworkingParametersManager, NetworkingParametersProviderStub,
 };
 use crate::behavior::{Behavior, BehaviorConfig};
 use crate::node::Node;
@@ -172,9 +172,8 @@ pub struct Config {
     pub pieces_by_range_request_handler: ExternalPiecesByRangeRequestHandler,
     /// Defines relay mode and limit settings.
     pub relay_config: RelayConfiguration,
-
-    //TODO
-    pub network_parameters_persistence_handler: NetworkingParameterPersistenceHandler,
+    /// A reference to the `NetworkingParametersProvider` implementation.
+    pub network_parameters_persistence_handler: NetworkingParametersHandler,
 }
 
 impl fmt::Debug for Config {
@@ -232,7 +231,7 @@ impl Config {
             initial_random_query_interval: Duration::from_secs(1),
             pieces_by_range_request_handler: Arc::new(|_| None),
             relay_config: Default::default(),
-            network_parameters_persistence_handler: Arc::new(NetworkPersistenceStub),
+            network_parameters_persistence_handler: Arc::new(NetworkingParametersProviderStub),
         }
     }
 }
@@ -286,8 +285,9 @@ pub async fn create(
 
     let transport = build_transport(keypair, timeout, yamux_config, relay_transport).await?;
     let networking_parameters_manager =
-        NetworkingDataManager::new(network_parameters_persistence_handler); //TODO
-    let cached_bootstrap_addresses = networking_parameters_manager.initial_bootstrap_addresses();
+        NetworkingParametersManager::new(network_parameters_persistence_handler);
+    let cached_bootstrap_addresses =
+        networking_parameters_manager.initial_bootstrap_addresses(true);
 
     let relay_config_for_swarm = relay_config.clone();
     // libp2p uses blocking API, hence we need to create a blocking task.
@@ -311,8 +311,6 @@ pub async fn create(
             })
             .chain(cached_bootstrap_addresses.into_iter().map(Ok))
             .collect::<Result<_, CreationError>>()?;
-
-        println!("Total bootstrap nodes: {:?}", bootstrap_nodes);
 
         let (pieces_by_range_request_handler, pieces_by_range_protocol_config) =
             PiecesByRangeRequestHandler::new(pieces_by_range_request_handler);
