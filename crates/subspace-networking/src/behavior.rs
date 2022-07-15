@@ -49,6 +49,10 @@ pub(crate) struct BehaviorConfig {
     pub(crate) is_relay_server: bool,
     /// Circuit relay client.
     pub(crate) relay_client: RelayClient,
+    //TODO
+    pub(crate) object_mappings_protocol_config: RequestResponseConfig,
+    // TODO
+    pub(crate) object_mappings_request_handler: Box<dyn RequestResponseHandlerRunner + Send>,
 }
 
 #[derive(NetworkBehaviour)]
@@ -113,10 +117,16 @@ impl Behavior {
             gossipsub,
             ping: Ping::default(),
             request_response: RequestResponsesBehaviour::new(
-                vec![RequestResponseInstanceConfig {
-                    config: config.pieces_by_range_protocol_config,
-                    handler: config.pieces_by_range_request_handler,
-                }]
+                vec![
+                    RequestResponseInstanceConfig {
+                        config: config.pieces_by_range_protocol_config,
+                        handler: config.pieces_by_range_request_handler,
+                    },
+                    RequestResponseInstanceConfig {
+                        config: config.object_mappings_protocol_config,
+                        handler: config.object_mappings_request_handler,
+                    },
+                ]
                 .into_iter(),
             )
             //TODO: Convert to an error.

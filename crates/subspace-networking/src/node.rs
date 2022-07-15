@@ -2,6 +2,7 @@ use crate::create::{create, Config, CreationError};
 use crate::node_runner::NodeRunner;
 use crate::pieces_by_range_handler::{PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot};
 use crate::shared::{Command, CreatedSubscription, Shared};
+use crate::{ObjectMappingsRequest, ObjectMappingsResponse};
 use bytes::Bytes;
 use event_listener_primitives::HandlerId;
 use futures::channel::{mpsc, oneshot};
@@ -117,6 +118,20 @@ pub enum SendPiecesByRangeRequestError {
     ProtocolFailure,
     /// Underlying protocol returned an incorrect format, impossible to get 'pieces-by-range' response.
     #[error("Underlying protocol returned an incorrect format, impossible to get 'pieces-by-range' response")]
+    IncorrectResponseFormat,
+}
+
+// TODO: remove
+#[derive(Debug, Error)]
+pub enum SendObjectMappingsRequestError {
+    /// Node runner was dropped, impossible to send 'object-mappings' request.
+    #[error("Node runner was dropped, impossible to send 'object-mappings' request")]
+    NodeRunnerDropped,
+    /// Underlying protocol returned an error, impossible to get 'object-mappings' response.
+    #[error("Underlying protocol returned an error, impossible to get 'pieces-by-range' response")]
+    ProtocolFailure,
+    /// Underlying protocol returned an incorrect format, impossible to get 'object-mappings' response.
+    #[error("Underlying protocol returned an incorrect format, impossible to get 'object-mappings' response")]
     IncorrectResponseFormat,
 }
 
@@ -275,7 +290,7 @@ impl Node {
             .map_err(PublishError::Publish)
     }
 
-    // Sends the request to the peer and awaits the result.
+    // Sends the pieces-by-range request to the peer and awaits the result.
     pub async fn send_pieces_by_range_request(
         &self,
         peer_id: PeerId,
@@ -301,6 +316,34 @@ impl Node {
 
         PiecesByRangeResponse::decode(&mut result.as_slice())
             .map_err(|_| SendPiecesByRangeRequestError::IncorrectResponseFormat)
+    }
+
+    // Sends the object-mappings request to the peer and awaits the result.
+    pub async fn send_object_mappings_request(
+        &self,
+        peer_id: PeerId,
+        request: ObjectMappingsRequest,
+    ) -> Result<ObjectMappingsResponse, SendObjectMappingsRequestError> {
+        let (result_sender, result_receiver) = oneshot::channel();
+
+        self.shared
+            .command_sender
+            .clone()
+            .send(Command::ObjectMappingsRequest {
+                request,
+                result_sender,
+                peer_id,
+            })
+            .await
+            .map_err(|_| SendObjectMappingsRequestError::NodeRunnerDropped)?;
+
+        let result = result_receiver
+            .await
+            .map_err(|_| SendObjectMappingsRequestError::NodeRunnerDropped)?
+            .map_err(|_| SendObjectMappingsRequestError::ProtocolFailure)?;
+
+        ObjectMappingsResponse::decode(&mut result.as_slice())
+            .map_err(|_| SendObjectMappingsRequestError::IncorrectResponseFormat)
     }
 
     /// Node's own addresses where it listens for incoming requests.

@@ -14,14 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Helper for incoming pieces-by-range requests.
+//! Helper for incoming object mappings requests.
 //!
-//! Handle (i.e. answer) incoming pieces-by-range requests from a remote peer received via
+//! Handle (i.e. answer) incoming object mappings requests from a remote peer received via
 //! `crate::request_responses::RequestResponsesBehaviour` with
-//! [`PiecesByRangeRequestHandler`](PiecesByRangeRequestHandler).
-
-#[cfg(test)]
-mod tests;
+//! [`ObjectMappingsRequestHandler`](ObjectMappingsRequestHandler).
 
 use crate::request_responses::{
     IncomingRequest, OutgoingResponse, ProtocolConfig, RequestResponseHandlerRunner,
@@ -32,57 +29,43 @@ use futures::prelude::*;
 use libp2p::PeerId;
 use parity_scale_codec::{Decode, Encode};
 use std::sync::Arc;
-use subspace_core_primitives::{FlatPieces, PieceIndex, PieceIndexHash};
+use subspace_core_primitives::objects::GlobalObject;
+use subspace_core_primitives::Sha256Hash;
 use tracing::{debug, trace};
 
-const LOG_TARGET: &str = "pieces-by-range-request-response-handler";
+const LOG_TARGET: &str = "object-mappings-request-response-handler";
 // Could be changed after the production feedback.
 const REQUESTS_BUFFER_SIZE: usize = 50;
 /// Pieces-by-range-protocol name.
-pub const PROTOCOL_NAME: &str = "/sync/pieces-by-range/0.1.0";
+pub const PROTOCOL_NAME: &str = "/object-mappings/0.1.0";
 
-//TODO: A candidate for migrating to a separate crate.
-/// Collection of pieces that potentially need to be plotted
-#[derive(Debug, Default, PartialEq, Eq, Clone, Encode, Decode)]
-pub struct PiecesToPlot {
-    /// Piece indexes for each of the `pieces`
-    pub piece_indexes: Vec<PieceIndex>,
-    /// Pieces themselves
-    pub pieces: FlatPieces,
-}
-
-/// Pieces-by-range protocol request. Assumes requests with paging.
+/// Object-mapping protocol request.
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
-pub struct PiecesByRangeRequest {
-    /// Start of the requested range
-    pub from: PieceIndexHash,
-    /// End of the requested range
-    pub to: PieceIndexHash,
+pub struct ObjectMappingsRequest {
+    /// Object hash (32-bytes)
+    pub object_hash: Sha256Hash,
 }
 
-/// Pieces-by-range protocol response. Assumes requests with paging.
+/// Object-mapping protocol request.
 #[derive(Debug, Default, PartialEq, Eq, Clone, Encode, Decode)]
-pub struct PiecesByRangeResponse {
+pub struct ObjectMappingsResponse {
     /// Returned data.
-    pub pieces: PiecesToPlot,
-    /// Defines starting point (cursor) of the next request.
-    /// None means no further data available.
-    pub next_piece_index_hash: Option<PieceIndexHash>,
+    pub object_mapping: Option<GlobalObject>,
 }
 
 /// Type alias for the actual external request handler.
-pub type ExternalPiecesByRangeRequestHandler =
-    Arc<dyn (Fn(&PiecesByRangeRequest) -> Option<PiecesByRangeResponse>) + Send + Sync + 'static>;
+pub type ExternalObjectMappingsRequestHandler =
+    Arc<dyn (Fn(&ObjectMappingsRequest) -> Option<ObjectMappingsResponse>) + Send + Sync + 'static>;
 
 // Contains pieces-by-range request handler structure
-pub(crate) struct PiecesByRangeRequestHandler {
+pub(crate) struct ObjectMappingsRequestHandler {
     request_receiver: mpsc::Receiver<IncomingRequest>,
-    request_handler: ExternalPiecesByRangeRequestHandler,
+    request_handler: ExternalObjectMappingsRequestHandler,
 }
 
-impl PiecesByRangeRequestHandler {
-    /// Create a new [`PiecesByRangeRequestHandler`].
-    pub fn new(request_handler: ExternalPiecesByRangeRequestHandler) -> (Self, ProtocolConfig) {
+impl ObjectMappingsRequestHandler {
+    /// Create a new [`ObjectMappingsRequestHandler`].
+    pub fn new(request_handler: ExternalObjectMappingsRequestHandler) -> (Self, ProtocolConfig) {
         let (request_sender, request_receiver) = mpsc::channel(REQUESTS_BUFFER_SIZE);
 
         let mut protocol_config = ProtocolConfig::new(PROTOCOL_NAME.into());
@@ -97,15 +80,15 @@ impl PiecesByRangeRequestHandler {
         )
     }
 
-    // Invokes external piece-by-range protocol handler.
+    // Invokes external object mappings protocol handler.
     fn handle_request(
         &mut self,
         peer: PeerId,
         payload: Vec<u8>,
-    ) -> Result<Vec<u8>, PieceByRangeHandleRequestError> {
+    ) -> Result<Vec<u8>, ObjectMappingsRequestHandlerRequestError> {
         trace!(%peer, "Handling request...");
-        let request = PiecesByRangeRequest::decode(&mut payload.as_slice())
-            .map_err(|_| PieceByRangeHandleRequestError::InvalidRequestFormat)?;
+        let request = ObjectMappingsRequest::decode(&mut payload.as_slice())
+            .map_err(|_| ObjectMappingsRequestHandlerRequestError::InvalidRequestFormat)?;
         let response = (self.request_handler)(&request);
 
         // Return the result with treating None as an empty(default) response.
@@ -114,8 +97,8 @@ impl PiecesByRangeRequestHandler {
 }
 
 #[async_trait]
-impl RequestResponseHandlerRunner for PiecesByRangeRequestHandler {
-    /// Run [`RequestResponseHandler`].
+impl RequestResponseHandlerRunner for ObjectMappingsRequestHandler {
+    /// Run [`ObjectMappingsRequestHandler`].
     async fn run(&mut self) {
         while let Some(request) = self.request_receiver.next().await {
             let IncomingRequest {
@@ -137,7 +120,7 @@ impl RequestResponseHandlerRunner for PiecesByRangeRequestHandler {
                             target: LOG_TARGET,
                             %peer,
                             "Failed to handle request: {}",
-                            PieceByRangeHandleRequestError::SendResponse
+                            ObjectMappingsRequestHandlerRequestError::SendResponse
                         ),
                     };
                 }
@@ -153,7 +136,7 @@ impl RequestResponseHandlerRunner for PiecesByRangeRequestHandler {
                         debug!(
                             target: LOG_TARGET,
                             %peer,
-                            "Failed to handle request: {}", PieceByRangeHandleRequestError::SendResponse
+                            "Failed to handle request: {}", ObjectMappingsRequestHandlerRequestError::SendResponse
                         );
                     };
                 }
@@ -163,7 +146,7 @@ impl RequestResponseHandlerRunner for PiecesByRangeRequestHandler {
 }
 
 #[derive(Debug, thiserror::Error)]
-enum PieceByRangeHandleRequestError {
+enum ObjectMappingsRequestHandlerRequestError {
     #[error("Failed to send response.")]
     SendResponse,
 

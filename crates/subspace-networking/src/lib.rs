@@ -22,6 +22,7 @@ mod create;
 pub mod multimess;
 mod node;
 mod node_runner;
+mod object_mappings_request_handler;
 mod pieces_by_range_handler;
 mod request_responses;
 mod shared;
@@ -34,6 +35,7 @@ pub use crate::node_runner::NodeRunner;
 pub use create::{create, Config, CreationError};
 pub use libp2p;
 use libp2p::gossipsub::Sha256Topic;
+pub use object_mappings_request_handler::{ObjectMappingsRequest, ObjectMappingsResponse};
 use once_cell::sync::Lazy;
 pub use pieces_by_range_handler::{PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot};
 

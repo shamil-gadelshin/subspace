@@ -3,7 +3,7 @@
 
 use crate::pieces_by_range_handler::PiecesByRangeRequest;
 use crate::request_responses::RequestFailure;
-use crate::Node;
+use crate::{Node, ObjectMappingsRequest};
 use bytes::Bytes;
 use event_listener_primitives::Bag;
 use futures::channel::{mpsc, oneshot};
@@ -56,6 +56,11 @@ pub(crate) enum Command {
     PiecesByRangeRequest {
         peer_id: PeerId,
         request: PiecesByRangeRequest,
+        result_sender: oneshot::Sender<Result<Vec<u8>, RequestFailure>>,
+    },
+    ObjectMappingsRequest {
+        peer_id: PeerId,
+        request: ObjectMappingsRequest,
         result_sender: oneshot::Sender<Result<Vec<u8>, RequestFailure>>,
     },
 }
