@@ -1,0 +1,1459 @@
+[2022-07-15T16:00:48Z TRACE trust_dns_resolver::async_resolver] handle passed back
+[2022-07-15T16:00:48Z TRACE trust_dns_resolver::async_resolver] handle passed back
+[2022-07-15T16:00:48Z DEBUG libp2p_tcp] listening on 0.0.0.0:0
+[2022-07-15T16:00:48Z TRACE mio::poll] registering event source with poller: token=Token(0), interests=READABLE | WRITABLE
+Node 1 ID is 12D3L7AVCjRRNVZmaD4EZezvGagXbT57PgmDy6YmsmZpoA2kBo9H
+[2022-07-15T16:00:48Z DEBUG libp2p_swarm] Listener ListenerId(2); New address: "/memory/11322231678156937181"
+[2022-07-15T16:00:48Z DEBUG libp2p_tcp] New listen address: /ip4/127.0.0.1/tcp/56989
+[2022-07-15T16:00:48Z DEBUG libp2p_swarm] Listener ListenerId(1); New address: "/ip4/127.0.0.1/tcp/56989"
+[2022-07-15T16:00:48Z DEBUG libp2p_tcp] New listen address: /ip4/10.14.0.2/tcp/56989
+[2022-07-15T16:00:48Z DEBUG libp2p_swarm] Listener ListenerId(1); New address: "/ip4/10.14.0.2/tcp/56989"
+[2022-07-15T16:00:48Z DEBUG libp2p_tcp] New listen address: /ip4/192.168.1.215/tcp/56989
+[2022-07-15T16:00:48Z DEBUG libp2p_swarm] Listener ListenerId(1); New address: "/ip4/192.168.1.215/tcp/56989"
+[2022-07-15T16:00:48Z TRACE libp2p_kad::behaviour] Query QueryId(0) finished.
+[2022-07-15T16:00:48Z TRACE trust_dns_resolver::async_resolver] handle passed back
+[2022-07-15T16:00:48Z TRACE trust_dns_resolver::async_resolver] handle passed back
+[2022-07-15T16:00:48Z DEBUG libp2p_tcp] listening on 0.0.0.0:0
+[2022-07-15T16:00:48Z TRACE mio::poll] registering event source with poller: token=Token(1), interests=READABLE | WRITABLE
+Node 2 ID is 12D3L7AUzJ7gxjsb1aMBz7T9kpK4NMKY6a9Cu47ze2igeYnsdJ3w
+[2022-07-15T16:00:48Z DEBUG libp2p_swarm] Listener ListenerId(2); New address: "/memory/17791060923070202954"
+[2022-07-15T16:00:48Z DEBUG libp2p_tcp] New listen address: /ip4/127.0.0.1/tcp/56990
+[2022-07-15T16:00:48Z DEBUG libp2p_swarm] Listener ListenerId(1); New address: "/ip4/127.0.0.1/tcp/56990"
+[2022-07-15T16:00:48Z DEBUG libp2p_tcp] New listen address: /ip4/192.168.1.215/tcp/56990
+[2022-07-15T16:00:48Z DEBUG libp2p_swarm] Listener ListenerId(1); New address: "/ip4/192.168.1.215/tcp/56990"
+[2022-07-15T16:00:48Z DEBUG libp2p_tcp] New listen address: /ip4/10.14.0.2/tcp/56990
+[2022-07-15T16:00:48Z DEBUG libp2p_swarm] Listener ListenerId(1); New address: "/ip4/10.14.0.2/tcp/56990"
+[2022-07-15T16:00:48Z DEBUG libp2p_dns] Dialing /ip4/127.0.0.1/tcp/56989/p2p/12D3L7AVCjRRNVZmaD4EZezvGagXbT57PgmDy6YmsmZpoA2kBo9H
+[2022-07-15T16:00:48Z DEBUG libp2p_tcp] dialing 127.0.0.1:56989
+[2022-07-15T16:00:48Z TRACE mio::poll] registering event source with poller: token=Token(2), interests=READABLE | WRITABLE
+[2022-07-15T16:00:48Z DEBUG multistream_select::dialer_select] Dialer: Proposed protocol: /noise
+[2022-07-15T16:00:48Z TRACE mio::poll] registering event source with poller: token=Token(3), interests=READABLE | WRITABLE
+[2022-07-15T16:00:48Z DEBUG multistream_select::dialer_select] Dialer: Expecting proposed protocol: /noise
+[2022-07-15T16:00:48Z DEBUG libp2p_tcp] Incoming connection from /ip4/127.0.0.1/tcp/56991 at /ip4/127.0.0.1/tcp/56989
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 32 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 32, buf: [0, 32], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (32, [0, 32], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 32, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 32/32 bytes written
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 32 bytes
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/noise"))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z DEBUG multistream_select::listener_select] Listener: confirming protocol: /noise
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z DEBUG multistream_select::listener_select] Listener: sent confirmed protocol: /noise
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 32
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/noise"))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 32, off: 0 }
+[2022-07-15T16:00:48Z DEBUG multistream_select::negotiated] Negotiated: Received confirmation for protocol: /noise
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 32/32 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 32 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 0 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 200 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 200, buf: [0, 200], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (200, [0, 200], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 200
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 200, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 200, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 200/200 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 200 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 200, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 200/200 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 200 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 104 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 168 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 168, buf: [0, 168], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (168, [0, 168], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 168, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 168/168 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 168 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:48Z DEBUG multistream_select::dialer_select] Dialer: Proposed protocol: /yamux/1.0.0
+[2022-07-15T16:00:48Z DEBUG multistream_select::dialer_select] Dialer: Expecting proposed protocol: /yamux/1.0.0
+[2022-07-15T16:00:48Z DEBUG yamux::connection] new connection: bf36111d (Client)
+[2022-07-15T16:00:48Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 168
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 168, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 168/168 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 168 bytes
+[2022-07-15T16:00:48Z DEBUG libp2p_swarm] Connection established: PeerId("12D3L7AVCjRRNVZmaD4EZezvGagXbT57PgmDy6YmsmZpoA2kBo9H") Dialer { address: "/ip4/127.0.0.1/tcp/56989/p2p/12D3L7AVCjRRNVZmaD4EZezvGagXbT57PgmDy6YmsmZpoA2kBo9H", role_override: Dialer }; Total (peer): 1. Total non-banned (peer): 1
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 104 bytes
+[2022-07-15T16:00:48Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z DEBUG libp2p_gossipsub::behaviour] New peer connected: 12D3L7AVCjRRNVZmaD4EZezvGagXbT57PgmDy6YmsmZpoA2kBo9H
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 34 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 34 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 50 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 50, buf: [0, 50], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (50, [0, 50], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 50, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 50/50 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 50
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 50 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 50, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 50/50 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 50 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 34 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 1/34 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 20/34 bytes
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 20 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 20 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 36 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 36, buf: [0, 36], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (36, [0, 36], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 36, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 36/36 bytes written
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d: creating new outbound stream
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 36 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z DEBUG yamux::connection] bf36111d: new outbound (Stream bf36111d/1) of (Connection bf36111d Client (streams 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 21/34 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 34/34 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/yamux/1.0.0"))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 36
+[2022-07-15T16:00:48Z DEBUG multistream_select::listener_select] Listener: confirming protocol: /yamux/1.0.0
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 36, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 14 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 36/36 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 36 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 14 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 20 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 1/20 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 20/20 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 30 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 30, buf: [0, 30], off: 0 }
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (30, [0, 30], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 30, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 30
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 30, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 30/30 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 30 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 14 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 1/14 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 14/14 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/yamux/1.0.0"))
+[2022-07-15T16:00:48Z DEBUG multistream_select::negotiated] Negotiated: Received confirmation for protocol: /yamux/1.0.0
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 30/30 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 30 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z DEBUG multistream_select::listener_select] Listener: sent confirmed protocol: /yamux/1.0.0
+[2022-07-15T16:00:48Z DEBUG multistream_select::dialer_select] Dialer: Proposed protocol: /subspace/kad/0.1.0
+[2022-07-15T16:00:48Z DEBUG yamux::connection] new connection: 22e9b7c5 (Server)
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/1: write 41 bytes
+[2022-07-15T16:00:48Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d/1: sending: (Header Data 1 (len 41) (flags 1))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Body (offset 0) (buffer-len 41))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 53 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z DEBUG libp2p_swarm] Connection established: PeerId("12D3L7AUzJ7gxjsb1aMBz7T9kpK4NMKY6a9Cu47ze2igeYnsdJ3w") Listener { local_addr: "/ip4/127.0.0.1/tcp/56989", send_back_addr: "/ip4/127.0.0.1/tcp/56991" }; Total (peer): 1. Total non-banned (peer): 1
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 53 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 69 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 69, buf: [0, 69], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (69, [0, 69], 0/2)
+[2022-07-15T16:00:48Z DEBUG libp2p_gossipsub::behaviour] New peer connected: 12D3L7AUzJ7gxjsb1aMBz7T9kpK4NMKY6a9Cu47ze2igeYnsdJ3w
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 69, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 69/69 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 69 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d: creating new outbound stream
+[2022-07-15T16:00:48Z DEBUG yamux::connection] bf36111d: new outbound (Stream bf36111d/3) of (Connection bf36111d Client (streams 1))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z DEBUG multistream_select::dialer_select] Dialer: Proposed protocol: /ipfs/ping/1.0.0
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 69
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/3: write 38 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 69, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 69/69 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 69 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 53 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d/3: sending: (Header Data 3 (len 38) (flags 1))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/53 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 1 (len 41) (flags 1))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 1 (len 41) (flags 1))) (offset 0) (buffer-len 41))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Body (offset 0) (buffer-len 38))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 53/53 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 50 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 1 (len 41) (flags 1))) (offset 41) (buffer-len 41))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 1 (len 41) (flags 1))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5: new inbound (Stream 22e9b7c5/1) of (Connection 22e9b7c5 Server (streams 1))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 50 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 66 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/1: read 1 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 66, buf: [0, 66], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/1: read 19 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (66, [0, 66], 0/2)
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/1: write 20 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 66, off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/1: read 1 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/1: read 20 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 66/66 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 66 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/subspace/kad/0.1.0"))
+[2022-07-15T16:00:48Z DEBUG multistream_select::listener_select] Listener: confirming protocol: /subspace/kad/0.1.0
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/1: write 21 bytes
+[2022-07-15T16:00:48Z DEBUG multistream_select::listener_select] Listener: sent confirmed protocol: /subspace/kad/0.1.0
+[2022-07-15T16:00:48Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 66
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 66, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 66/66 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 66 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 50 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/50 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 3 (len 38) (flags 1))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 3 (len 38) (flags 1))) (offset 0) (buffer-len 38))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 50/50 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 3 (len 38) (flags 1))) (offset 38) (buffer-len 38))
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5/1: sending: (Header Data 1 (len 20) (flags 2))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 3 (len 38) (flags 1))
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5: new inbound (Stream 22e9b7c5/3) of (Connection 22e9b7c5 Server (streams 2))
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/3: read 1 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/3: read 19 bytes
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/3: write 20 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/3: read 1 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/3: read 17 bytes
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/ipfs/ping/1.0.0"))
+[2022-07-15T16:00:48Z DEBUG multistream_select::listener_select] Listener: confirming protocol: /ipfs/ping/1.0.0
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/3: write 18 bytes
+[2022-07-15T16:00:48Z DEBUG multistream_select::listener_select] Listener: sent confirmed protocol: /ipfs/ping/1.0.0
+[2022-07-15T16:00:48Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Body (offset 0) (buffer-len 20))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 32 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 48 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 48, buf: [0, 48], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (48, [0, 48], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 48, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 48/48 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 48 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5/1: sending: (Header Data 1 (len 21) (flags 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 48
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 48, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 48/48 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 48 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 32 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (Header Data 1 (len 20) (flags 2))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 1 (len 20) (flags 2))) (offset 0) (buffer-len 20))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 32/32 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 1 (len 20) (flags 2))) (offset 20) (buffer-len 20))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d: received: (Header Data 1 (len 20) (flags 2))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Body (offset 0) (buffer-len 21))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 33 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/1: read 1 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 33 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/1: read 19 bytes
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 49 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 49, buf: [0, 49], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (49, [0, 49], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 49, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 49/49 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 49 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5/3: sending: (Header Data 3 (len 20) (flags 2))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Body (offset 0) (buffer-len 20))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 49
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 49, off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 49/49 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 49 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 32 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 33 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 48 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/33 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 48, buf: [0, 48], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (48, [0, 48], 0/2)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 48, off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (Header Data 1 (len 21) (flags 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 48/48 bytes written
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 1 (len 21) (flags 0))) (offset 0) (buffer-len 21))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 48 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 33/33 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5/3: sending: (Header Data 3 (len 18) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Body (offset 0) (buffer-len 18))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 30 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 30 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 46 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 46, buf: [0, 46], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 1 (len 21) (flags 0))) (offset 21) (buffer-len 21))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (46, [0, 46], 0/2)
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d: received: (Header Data 1 (len 21) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 46, off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 46/46 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 46 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 48
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 48, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 48/48 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 48 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 32 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (Header Data 3 (len 20) (flags 2))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 3 (len 20) (flags 2))) (offset 0) (buffer-len 20))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 32/32 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 3 (len 20) (flags 2))) (offset 20) (buffer-len 20))
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d: received: (Header Data 3 (len 20) (flags 2))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 46
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 46, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 46/46 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 46 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 30 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/30 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (Header Data 3 (len 18) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 3 (len 18) (flags 0))) (offset 0) (buffer-len 18))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 30/30 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 3 (len 18) (flags 0))) (offset 18) (buffer-len 18))
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d: received: (Header Data 3 (len 18) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/1: read 1 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/1: read 20 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/subspace/kad/0.1.0"))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z DEBUG multistream_select::dialer_select] Dialer: Received confirmation for protocol: /subspace/kad/0.1.0
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5: creating new outbound stream
+[2022-07-15T16:00:48Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:48Z DEBUG yamux::connection] 22e9b7c5: new outbound (Stream 22e9b7c5/2) of (Connection 22e9b7c5 Server (streams 2))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z DEBUG multistream_select::dialer_select] Dialer: Proposed protocol: /ipfs/ping/1.0.0
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/2: write 38 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5/2: sending: (Header Data 2 (len 38) (flags 1))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Body (offset 0) (buffer-len 38))
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/1: write 41 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 50 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/3: read 1 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/3: read 19 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/3: read 1 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/3: read 17 bytes
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/ipfs/ping/1.0.0"))
+[2022-07-15T16:00:48Z DEBUG multistream_select::dialer_select] Dialer: Received confirmation for protocol: /ipfs/ping/1.0.0
+[2022-07-15T16:00:48Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 50 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 66 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 66, buf: [0, 66], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (66, [0, 66], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 66, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 66/66 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 66 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/3: write 32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d/1: sending: (Header Data 1 (len 41) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Body (offset 0) (buffer-len 41))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 53 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 66
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 66, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 66/66 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 66 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 50 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/50 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (Header Data 2 (len 38) (flags 1))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 2 (len 38) (flags 1))) (offset 0) (buffer-len 38))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 50/50 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 2 (len 38) (flags 1))) (offset 38) (buffer-len 38))
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d/3: sending: (Header Data 3 (len 32) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d: received: (Header Data 2 (len 38) (flags 1))
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d: new inbound (Stream bf36111d/2) of (Connection bf36111d Client (streams 3))
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/2: read 1 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/2: read 19 bytes
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/2: write 20 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/2: read 1 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/2: read 17 bytes
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/ipfs/ping/1.0.0"))
+[2022-07-15T16:00:48Z DEBUG multistream_select::listener_select] Listener: confirming protocol: /ipfs/ping/1.0.0
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/2: write 18 bytes
+[2022-07-15T16:00:48Z DEBUG multistream_select::listener_select] Listener: sent confirmed protocol: /ipfs/ping/1.0.0
+[2022-07-15T16:00:48Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 65 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Body (offset 0) (buffer-len 32))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 97 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 97 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 113 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 113, buf: [0, 113], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (113, [0, 113], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 113, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 113/113 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 113 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d/2: sending: (Header Data 2 (len 20) (flags 2))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 113
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 113, off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 113/113 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 113 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Body (offset 0) (buffer-len 20))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 97 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 32 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/97 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 1 (len 41) (flags 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 1 (len 41) (flags 0))) (offset 0) (buffer-len 41))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 53/97 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 1 (len 41) (flags 0))) (offset 41) (buffer-len 41))
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 1 (len 41) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 48 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 48, buf: [0, 48], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (48, [0, 48], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 65/97 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 3 (len 32) (flags 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 48, off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 3 (len 32) (flags 0))) (offset 0) (buffer-len 32))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 48/48 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 97/97 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 48 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 3 (len 32) (flags 0))) (offset 32) (buffer-len 32))
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d/2: sending: (Header Data 2 (len 18) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 3 (len 32) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Body (offset 0) (buffer-len 18))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 30 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 48
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 48, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 48/48 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 48 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 32 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 30 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 2 (len 20) (flags 2))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 46 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 2 (len 20) (flags 2))) (offset 0) (buffer-len 20))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 46, buf: [0, 46], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 32/32 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (46, [0, 46], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 2 (len 20) (flags 2))) (offset 20) (buffer-len 20))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 46, off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 2 (len 20) (flags 2))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 46/46 bytes written
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 46 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 46
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 46, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 46/46 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 46 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 30 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/30 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 2 (len 18) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 2 (len 18) (flags 0))) (offset 0) (buffer-len 18))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 30/30 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 2 (len 18) (flags 0))) (offset 18) (buffer-len 18))
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 2 (len 18) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/1: read 41 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/3: read 32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/3: write 32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/2: read 1 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/2: read 19 bytes
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/2: read 1 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/2: read 17 bytes
+[2022-07-15T16:00:48Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/ipfs/ping/1.0.0"))
+[2022-07-15T16:00:48Z DEBUG multistream_select::dialer_select] Dialer: Received confirmation for protocol: /ipfs/ping/1.0.0
+[2022-07-15T16:00:48Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/2: write 32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5/3: sending: (Header Data 3 (len 32) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Body (offset 0) (buffer-len 32))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 44 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 44 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 60 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 60, buf: [0, 60], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (60, [0, 60], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 60, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 60/60 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 60 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5/2: sending: (Header Data 2 (len 32) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Body (offset 0) (buffer-len 32))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 44 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 44 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 60 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 60, buf: [0, 60], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (60, [0, 60], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 60, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 60/60 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 60 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 60
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 60, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 60/60 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 60 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 44 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/44 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (Header Data 3 (len 32) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 3 (len 32) (flags 0))) (offset 0) (buffer-len 32))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 44/44 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 3 (len 32) (flags 0))) (offset 32) (buffer-len 32))
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d: received: (Header Data 3 (len 32) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 60
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 60, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 60/60 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 60 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 44 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/44 bytes
+[2022-07-15T16:00:48Z DEBUG libp2p_ping] Ping received from PeerId("12D3L7AUzJ7gxjsb1aMBz7T9kpK4NMKY6a9Cu47ze2igeYnsdJ3w")
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (Header Data 2 (len 32) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/1: write 5 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 2 (len 32) (flags 0))) (offset 0) (buffer-len 32))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 44/44 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 2 (len 32) (flags 0))) (offset 32) (buffer-len 32))
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d: received: (Header Data 2 (len 32) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/2: read 32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/2: write 32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/3: read 32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d/2: sending: (Header Data 2 (len 32) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Body (offset 0) (buffer-len 32))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 44 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 44 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 60 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 60, buf: [0, 60], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (60, [0, 60], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 60, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 60/60 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 60 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z DEBUG libp2p_ping] Ping received from PeerId("12D3L7AVCjRRNVZmaD4EZezvGagXbT57PgmDy6YmsmZpoA2kBo9H")
+[2022-07-15T16:00:48Z DEBUG libp2p_ping] Ping sent to PeerId("12D3L7AVCjRRNVZmaD4EZezvGagXbT57PgmDy6YmsmZpoA2kBo9H")
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5/1: sending: (Header Data 1 (len 5) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Body (offset 0) (buffer-len 5))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 17 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 60
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 60, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 60/60 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 60 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 44 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/44 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 2 (len 32) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 2 (len 32) (flags 0))) (offset 0) (buffer-len 32))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 44/44 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 2 (len 32) (flags 0))) (offset 32) (buffer-len 32))
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 2 (len 32) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 17 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 33 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 33, buf: [0, 33], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (33, [0, 33], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 33, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 33/33 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 33 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/2: read 32 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 33
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 33, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 33/33 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 33 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 17 bytes
+[2022-07-15T16:00:48Z DEBUG libp2p_ping] Ping sent to PeerId("12D3L7AUzJ7gxjsb1aMBz7T9kpK4NMKY6a9Cu47ze2igeYnsdJ3w")
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/17 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (Header Data 1 (len 5) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 1 (len 5) (flags 0))) (offset 0) (buffer-len 5))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 17/17 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 1 (len 5) (flags 0))) (offset 5) (buffer-len 5))
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d: received: (Header Data 1 (len 5) (flags 0))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/1: read 5 bytes
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/1: close
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/1: update state: (Open SendClosed SendClosed)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d/1: sending close
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::connection] bf36111d: removing dropped (Stream bf36111d/1)
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] bf36111d/1: update state: (SendClosed Closed Closed)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] flush: sending 12 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: cipher text len = 28 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 28, buf: [0, 28], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: frame len (28, [0, 28], 0/2)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state WriteData { len: 28, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: 28/28 bytes written
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write: finished with 28 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_kad::behaviour] Request to PeerId("12D3L7AVCjRRNVZmaD4EZezvGagXbT57PgmDy6YmsmZpoA2kBo9H") in query QueryId(0) succeeded.
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: frame len = 28
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 28, off: 0 }
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: 28/28 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: decrypting 28 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read: payload len = 12 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: copied 12/12 bytes
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 1 (len 0) (flags 4))
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 1 (len 0) (flags 4))) (offset 0) (buffer-len 0))
+[2022-07-15T16:00:48Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 1 (len 0) (flags 4))
+[2022-07-15T16:00:48Z TRACE yamux::connection::stream] 22e9b7c5/1: update state: (Open RecvClosed RecvClosed)
+[2022-07-15T16:00:48Z TRACE libp2p_kad::behaviour] Query QueryId(0) finished.
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:48Z DEBUG yamux::connection::stream] 22e9b7c5/1: eof
+[2022-07-15T16:00:48Z TRACE libp2p_kad::handler] Inbound substream: EOF
+[2022-07-15T16:00:48Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:48Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5: creating new outbound stream
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z DEBUG yamux::connection] 22e9b7c5: new outbound (Stream 22e9b7c5/4) of (Connection 22e9b7c5 Server (streams 3))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d: creating new outbound stream
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5: removing dropped (Stream 22e9b7c5/1)
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/1: update state: (RecvClosed Closed Closed)
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5/1: sending: (Header Data 1 (len 0) (flags 4))
+[2022-07-15T16:00:49Z DEBUG yamux::connection] bf36111d: new outbound (Stream bf36111d/5) of (Connection bf36111d Client (streams 2))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] flush: sending 12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: cipher text len = 28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 28, buf: [0, 28], off: 0 }
+[2022-07-15T16:00:49Z DEBUG multistream_select::dialer_select] Dialer: Proposed protocol: /ipfs/id/1.0.0
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: frame len (28, [0, 28], 0/2)
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/5: write 36 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteData { len: 28, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: 28/28 bytes written
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: finished with 28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d/5: sending: (Header Data 5 (len 36) (flags 1))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:49Z DEBUG multistream_select::dialer_select] Dialer: Proposed protocol: /ipfs/id/1.0.0
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Body (offset 0) (buffer-len 36))
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/4: write 36 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 48 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: frame len = 28
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 28, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: 28/28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: decrypting 28 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5/4: sending: (Header Data 4 (len 36) (flags 1))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: payload len = 12 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 12/12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (Header Data 1 (len 0) (flags 4))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Body (offset 0) (buffer-len 36))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 1 (len 0) (flags 4))) (offset 0) (buffer-len 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 48 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d: received: (Header Data 1 (len 0) (flags 4))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d/1: data frame for unknown stream, possibly dropped earlier: Frame { header: Header { version: Version(0), tag: Data, flags: Flags(4), stream_id: StreamId(1), length: Len(0), _marker: PhantomData }, body: [] }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] flush: sending 48 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] flush: sending 48 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: cipher text len = 64 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: cipher text len = 64 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 64, buf: [0, 64], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: frame len (64, [0, 64], 0/2)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteData { len: 64, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: 64/64 bytes written
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: finished with 64 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 64, buf: [0, 64], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: frame len (64, [0, 64], 0/2)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteData { len: 64, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: 64/64 bytes written
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: finished with 64 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: frame len = 64
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 64, off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: 64/64 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: decrypting 64 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: frame len = 64
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: payload len = 48 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 64, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 12/48 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: 64/64 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: decrypting 64 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (Header Data 4 (len 36) (flags 1))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 4 (len 36) (flags 1))) (offset 0) (buffer-len 36))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 48/48 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 4 (len 36) (flags 1))) (offset 36) (buffer-len 36))
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d: received: (Header Data 4 (len 36) (flags 1))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: payload len = 48 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d: new inbound (Stream bf36111d/4) of (Connection bf36111d Client (streams 4))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 12/48 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 5 (len 36) (flags 1))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 5 (len 36) (flags 1))) (offset 0) (buffer-len 36))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 48/48 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/4: read 1 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 5 (len 36) (flags 1))) (offset 36) (buffer-len 36))
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/4: read 19 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 5 (len 36) (flags 1))
+[2022-07-15T16:00:49Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5: new inbound (Stream 22e9b7c5/5) of (Connection 22e9b7c5 Server (streams 4))
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/4: write 20 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/4: read 1 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/4: read 15 bytes
+[2022-07-15T16:00:49Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/ipfs/id/1.0.0"))
+[2022-07-15T16:00:49Z DEBUG multistream_select::listener_select] Listener: confirming protocol: /ipfs/id/1.0.0
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/4: write 16 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/5: read 1 bytes
+[2022-07-15T16:00:49Z DEBUG multistream_select::listener_select] Listener: sent confirmed protocol: /ipfs/id/1.0.0
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/5: read 19 bytes
+[2022-07-15T16:00:49Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/5: write 20 bytes
+[2022-07-15T16:00:49Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/5: read 1 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/5: read 15 bytes
+[2022-07-15T16:00:49Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/ipfs/id/1.0.0"))
+[2022-07-15T16:00:49Z DEBUG multistream_select::listener_select] Listener: confirming protocol: /ipfs/id/1.0.0
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/5: write 16 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z DEBUG multistream_select::listener_select] Listener: sent confirmed protocol: /ipfs/id/1.0.0
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d/4: sending: (Header Data 4 (len 20) (flags 2))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5/5: sending: (Header Data 5 (len 20) (flags 2))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Body (offset 0) (buffer-len 20))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 32 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] flush: sending 32 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: cipher text len = 48 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 48, buf: [0, 48], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: frame len (48, [0, 48], 0/2)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteData { len: 48, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: 48/48 bytes written
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Body (offset 0) (buffer-len 20))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 32 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: finished with 48 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5/5: sending: (Header Data 5 (len 16) (flags 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Body (offset 0) (buffer-len 16))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 28 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] flush: sending 28 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: cipher text len = 44 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 44, buf: [0, 44], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: frame len (44, [0, 44], 0/2)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteData { len: 44, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: frame len = 48
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: 44/44 bytes written
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: finished with 44 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 48, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: 48/48 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: decrypting 48 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: payload len = 32 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 12/32 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (Header Data 5 (len 20) (flags 2))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 5 (len 20) (flags 2))) (offset 0) (buffer-len 20))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 32/32 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 5 (len 20) (flags 2))) (offset 20) (buffer-len 20))
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d/4: sending: (Header Data 4 (len 16) (flags 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d: received: (Header Data 5 (len 20) (flags 2))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 44 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Body (offset 0) (buffer-len 16))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 60 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: frame len = 44
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 44, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: 44/44 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: decrypting 44 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: payload len = 28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 12/28 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (Header Data 5 (len 16) (flags 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 5 (len 16) (flags 0))) (offset 0) (buffer-len 16))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 28/28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 5 (len 16) (flags 0))) (offset 16) (buffer-len 16))
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d: received: (Header Data 5 (len 16) (flags 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] flush: sending 60 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: cipher text len = 76 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 76, buf: [0, 76], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: frame len (76, [0, 76], 0/2)
+[2022-07-15T16:00:49Z TRACE libp2p_identify::protocol] Sending: IdentifyInfo { public_key: Sr25519(PublicKey(compressed): ecd0fbc06aa29b6176ca2c205a88a25a46c44cc3df6560b53439f2ea184b9578), protocol_version: "ipfs/0.1.0", agent_version: "rust-libp2p/0.36.1", listen_addrs: ["/memory/11322231678156937181", "/memory/11322231678156937181", "/ip4/127.0.0.1/tcp/56989", "/ip4/10.14.0.2/tcp/56989", "/ip4/192.168.1.215/tcp/56989"], protocols: ["/ipfs/id/1.0.0", "/ipfs/id/push/1.0.0", "/subspace/kad/0.1.0", "//subspace/gossipsub/0.1.0/1.1.0", "//subspace/gossipsub/0.1.0/1.0.0", "/ipfs/ping/1.0.0", "/subspace/sync/pieces-by-range/0.1.0", "/subspace/object-mappings/0.1.0", "/libp2p/circuit/relay/0.2.0/hop", "/libp2p/circuit/relay/0.2.0/stop"], observed_addr: "/ip4/127.0.0.1/tcp/56991" }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteData { len: 76, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: 76/76 bytes written
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: finished with 76 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/5: write 418 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/5: close
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/5: update state: (Open SendClosed SendClosed)
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/5: read 1 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/5: read 19 bytes
+[2022-07-15T16:00:49Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/5: read 1 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/5: read 15 bytes
+[2022-07-15T16:00:49Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/ipfs/id/1.0.0"))
+[2022-07-15T16:00:49Z DEBUG multistream_select::dialer_select] Dialer: Received confirmation for protocol: /ipfs/id/1.0.0
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/5: close
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/5: update state: (Open SendClosed SendClosed)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d/5: sending close
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] flush: sending 12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: cipher text len = 28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 28, buf: [0, 28], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: frame len (28, [0, 28], 0/2)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteData { len: 28, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: 28/28 bytes written
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: finished with 28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: frame len = 76
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 76, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_identify::protocol] Sending: IdentifyInfo { public_key: Sr25519(PublicKey(compressed): 3492bdc5ae2ead89f4f97e8854cf9b9ff34bb80107c7be7ced69339d0d81b2e), protocol_version: "ipfs/0.1.0", agent_version: "rust-libp2p/0.36.1", listen_addrs: ["/memory/17791060923070202954", "/memory/17791060923070202954", "/ip4/127.0.0.1/tcp/56990", "/ip4/192.168.1.215/tcp/56990", "/ip4/10.14.0.2/tcp/56990"], protocols: ["/ipfs/id/1.0.0", "/ipfs/id/push/1.0.0", "/subspace/kad/0.1.0", "//subspace/gossipsub/0.1.0/1.1.0", "//subspace/gossipsub/0.1.0/1.0.0", "/ipfs/ping/1.0.0", "/subspace/sync/pieces-by-range/0.1.0", "/subspace/object-mappings/0.1.0", "/libp2p/circuit/relay/0.2.0/hop", "/libp2p/circuit/relay/0.2.0/stop"], observed_addr: "/ip4/127.0.0.1/tcp/56989/p2p/12D3L7AVCjRRNVZmaD4EZezvGagXbT57PgmDy6YmsmZpoA2kBo9H" }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: 76/76 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/4: write 459 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: decrypting 76 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/4: close
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/4: update state: (Open SendClosed SendClosed)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: payload len = 60 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 12/60 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d/4: sending: (Header Data 4 (len 459) (flags 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 4 (len 20) (flags 2))
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d: removing dropped (Stream bf36111d/4)
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/4: update state: (SendClosed Closed Closed)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 4 (len 20) (flags 2))) (offset 0) (buffer-len 20))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 32/60 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Body (offset 0) (buffer-len 459))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 471 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 4 (len 20) (flags 2))) (offset 20) (buffer-len 20))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5/5: sending: (Header Data 5 (len 418) (flags 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 4 (len 20) (flags 2))
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5: removing dropped (Stream 22e9b7c5/5)
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/5: update state: (SendClosed Closed Closed)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Body (offset 0) (buffer-len 418))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 430 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 44/60 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 4 (len 16) (flags 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 4 (len 16) (flags 0))) (offset 0) (buffer-len 16))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 60/60 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 4 (len 16) (flags 0))) (offset 16) (buffer-len 16))
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5/5: sending close
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 4 (len 16) (flags 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 442 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: frame len = 28
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 28, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: 28/28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: decrypting 28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: payload len = 12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 12/12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 5 (len 0) (flags 4))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 5 (len 0) (flags 4))) (offset 0) (buffer-len 0))
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 5 (len 0) (flags 4))
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5/5: data frame for unknown stream, possibly dropped earlier: Frame { header: Header { version: Version(0), tag: Data, flags: Flags(4), stream_id: StreamId(5), length: Len(0), _marker: PhantomData }, body: [] }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] flush: sending 442 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: cipher text len = 458 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 458, buf: [1, 202], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: frame len (458, [1, 202], 0/2)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] flush: sending 471 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteData { len: 458, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: 458/458 bytes written
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: cipher text len = 487 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: finished with 458 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 487, buf: [1, 231], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: frame len (487, [1, 231], 0/2)
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/4: read 1 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteData { len: 487, off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/4: read 19 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: 487/487 bytes written
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: finished with 487 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d/4: sending close
+[2022-07-15T16:00:49Z TRACE multistream_select::protocol] Received message: Header(V1)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/4: read 1 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/4: read 15 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: frame len = 458
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 458, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: 458/458 bytes
+[2022-07-15T16:00:49Z TRACE multistream_select::protocol] Received message: Protocol(Protocol(b"/ipfs/id/1.0.0"))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: decrypting 458 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: payload len = 442 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 12/442 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (Header Data 5 (len 418) (flags 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 5 (len 418) (flags 0))) (offset 0) (buffer-len 418))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 430/442 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 5 (len 418) (flags 0))) (offset 418) (buffer-len 418))
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d: received: (Header Data 5 (len 418) (flags 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 442/442 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (Header Data 5 (len 0) (flags 4))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 5 (len 0) (flags 4))) (offset 0) (buffer-len 0))
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d: received: (Header Data 5 (len 0) (flags 4))
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/5: update state: (SendClosed RecvClosed Closed)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] flush: sending 12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: cipher text len = 28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 28, buf: [0, 28], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: frame len (28, [0, 28], 0/2)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteData { len: 28, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: 28/28 bytes written
+[2022-07-15T16:00:49Z DEBUG multistream_select::dialer_select] Dialer: Received confirmation for protocol: /ipfs/id/1.0.0
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: finished with 28 bytes
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/4: close
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/4: update state: (Open SendClosed SendClosed)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: frame len = 487
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 487, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: 487/487 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: decrypting 487 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: payload len = 471 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 12/471 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 4 (len 459) (flags 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 4 (len 459) (flags 0))) (offset 0) (buffer-len 459))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 471/471 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 4 (len 459) (flags 0))) (offset 459) (buffer-len 459))
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5/4: sending close
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 4 (len 459) (flags 0))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] write: buffered 12 bytes
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: frame len = 28
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 28, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: 28/28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: decrypting 28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: payload len = 12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 12/12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (Header Data 4 (len 0) (flags 4))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Body (header (Header Data 4 (len 0) (flags 4))) (offset 0) (buffer-len 0))
+[2022-07-15T16:00:49Z TRACE yamux::connection] 22e9b7c5: received: (Header Data 4 (len 0) (flags 4))
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/4: update state: (SendClosed RecvClosed Closed)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/5: read 418 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] flush: sending 12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: cipher text len = 28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteLen { len: 28, buf: [0, 28], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: frame len (28, [0, 28], 0/2)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state WriteData { len: 28, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: 28/28 bytes written
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write: finished with 28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] 22e9b7c5/4: read 459 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_identify::protocol] Received: IdentifyInfo { public_key: Sr25519(PublicKey(compressed): 3492bdc5ae2ead89f4f97e8854cf9b9ff34bb80107c7be7ced69339d0d81b2e), protocol_version: "ipfs/0.1.0", agent_version: "rust-libp2p/0.36.1", listen_addrs: ["/memory/17791060923070202954", "/memory/17791060923070202954", "/ip4/127.0.0.1/tcp/56990", "/ip4/192.168.1.215/tcp/56990", "/ip4/10.14.0.2/tcp/56990"], protocols: ["/ipfs/id/1.0.0", "/ipfs/id/push/1.0.0", "/subspace/kad/0.1.0", "//subspace/gossipsub/0.1.0/1.1.0", "//subspace/gossipsub/0.1.0/1.0.0", "/ipfs/ping/1.0.0", "/subspace/sync/pieces-by-range/0.1.0", "/subspace/object-mappings/0.1.0", "/libp2p/circuit/relay/0.2.0/hop", "/libp2p/circuit/relay/0.2.0/stop"], observed_addr: "/ip4/127.0.0.1/tcp/56989/p2p/12D3L7AVCjRRNVZmaD4EZezvGagXbT57PgmDy6YmsmZpoA2kBo9H" }
+[2022-07-15T16:00:49Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] 22e9b7c5: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_identify::protocol] Received: IdentifyInfo { public_key: Sr25519(PublicKey(compressed): ecd0fbc06aa29b6176ca2c205a88a25a46c44cc3df6560b53439f2ea184b9578), protocol_version: "ipfs/0.1.0", agent_version: "rust-libp2p/0.36.1", listen_addrs: ["/memory/11322231678156937181", "/memory/11322231678156937181", "/ip4/127.0.0.1/tcp/56989", "/ip4/10.14.0.2/tcp/56989", "/ip4/192.168.1.215/tcp/56989"], protocols: ["/ipfs/id/1.0.0", "/ipfs/id/push/1.0.0", "/subspace/kad/0.1.0", "//subspace/gossipsub/0.1.0/1.1.0", "//subspace/gossipsub/0.1.0/1.0.0", "/ipfs/ping/1.0.0", "/subspace/sync/pieces-by-range/0.1.0", "/subspace/object-mappings/0.1.0", "/libp2p/circuit/relay/0.2.0/hop", "/libp2p/circuit/relay/0.2.0/stop"], observed_addr: "/ip4/127.0.0.1/tcp/56991" }
+[2022-07-15T16:00:49Z DEBUG libp2p_core::upgrade::apply] Successfully applied negotiated protocol
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: frame len = 28
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadData { len: 28, off: 0 }
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: 28/28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: decrypting 28 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read: payload len = 12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: copied 12/12 bytes
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io] read: frame consumed
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 12))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (Header Data 4 (len 0) (flags 4))
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Body (header (Header Data 4 (len 0) (flags 4))) (offset 0) (buffer-len 0))
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d: received: (Header Data 4 (len 0) (flags 4))
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d/4: data frame for unknown stream, possibly dropped earlier: Frame { header: Header { version: Version(0), tag: Data, flags: Flags(4), stream_id: StreamId(4), length: Len(0), _marker: PhantomData }, body: [] }
+[2022-07-15T16:00:49Z TRACE yamux::connection] bf36111d: removing dropped (Stream bf36111d/5)
+[2022-07-15T16:00:49Z TRACE yamux::connection::stream] bf36111d/5: update state: (Closed Closed Closed)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Init)
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: Ready
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: write: (WriteState::Init)
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] write state Ready
+[2022-07-15T16:00:49Z TRACE yamux::frame::io] bf36111d: read: (ReadState::Header (offset 0))
+[2022-07-15T16:00:49Z TRACE libp2p_noise::io::framed] read state: ReadLen { buf: [0, 0], off: 0 }

@@ -4,8 +4,9 @@ use libp2p::multiaddr::Protocol;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::Duration;
+use subspace_core_primitives::{FlatPieces, Piece, PieceIndexHash};
 use subspace_core_primitives::objects::GlobalObject;
-use subspace_networking::{Config, ObjectMappingsRequest, ObjectMappingsResponse};
+use subspace_networking::{Config, ObjectMappingsRequest, ObjectMappingsResponse, PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot};
 
 #[tokio::main]
 async fn main() {
@@ -13,7 +14,26 @@ async fn main() {
 
     let config_1 = Config {
         listen_on: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()],
+        value_getter: Arc::new(|key| {
+            // Return the reversed digest as a value
+            Some(key.digest().iter().copied().rev().collect())
+        }),
         allow_non_globals_in_dht: true,
+        pieces_by_range_request_handler: Arc::new(|req| {
+            println!("Request handler for request: {:?}", req);
+
+            let piece_bytes: Vec<u8> = Piece::default().into();
+            let flat_pieces = FlatPieces::try_from(piece_bytes).unwrap();
+            let pieces = PiecesToPlot {
+                piece_indexes: vec![1],
+                pieces: flat_pieces,
+            };
+
+            Some(PiecesByRangeResponse {
+                pieces,
+                next_piece_index_hash: None,
+            })
+        }),
         object_mappings_request_handler: Arc::new(|req| {
             println!("Request handler for request: {:?}", req);
 
@@ -24,13 +44,6 @@ async fn main() {
                 }),
             })
         }),
-        // pieces_by_range_request_handler: Arc::new(|req| {
-        //     println!("Request handler for request: {:?}", req);
-        //
-        //     println!("Shouldn't be here");
-        //
-        //     panic!()
-        // }),
         ..Config::with_generated_keypair()
     };
     let (node_1, mut node_runner_1) = subspace_networking::create(config_1).await.unwrap();
@@ -76,6 +89,17 @@ async fn main() {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     tokio::spawn(async move {
+        node_2
+            .send_pieces_by_range_request(
+                node_1.id(),
+                PiecesByRangeRequest {
+                    from: PieceIndexHash::from([1u8; 32]),
+                    to: PieceIndexHash::from([1u8; 32]),
+                },
+            )
+            .await
+            .unwrap();
+
         let resp = node_2
             .send_object_mappings_request(
                 node_1.id(),
@@ -86,7 +110,6 @@ async fn main() {
             .await;
 
         println!("Response: {:?}", resp);
-        tokio::time::sleep(Duration::from_secs(2)).await;
     });
 
     tokio::time::sleep(Duration::from_secs(5)).await;
