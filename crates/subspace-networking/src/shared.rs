@@ -1,7 +1,7 @@
 //! Data structures shared between node and node runner, facilitating exchange and creation of
 //! queries, subscriptions, various events and shared information.
 
-use crate::pieces_by_range_handler::PiecesByRangeRequest;
+use crate::request_handlers::pieces_by_range::PiecesByRangeRequest;
 use crate::request_responses::RequestFailure;
 use crate::{Node, ObjectMappingsRequest};
 use bytes::Bytes;

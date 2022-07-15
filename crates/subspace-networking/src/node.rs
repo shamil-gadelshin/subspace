@@ -1,8 +1,10 @@
 use crate::create::{create, Config, CreationError};
 use crate::node_runner::NodeRunner;
-use crate::pieces_by_range_handler::{PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot};
+use crate::request_handlers::object_mappings::{ObjectMappingsRequest, ObjectMappingsResponse};
+use crate::request_handlers::pieces_by_range::{
+    PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot,
+};
 use crate::shared::{Command, CreatedSubscription, Shared};
-use crate::{ObjectMappingsRequest, ObjectMappingsResponse};
 use bytes::Bytes;
 use event_listener_primitives::HandlerId;
 use futures::channel::{mpsc, oneshot};

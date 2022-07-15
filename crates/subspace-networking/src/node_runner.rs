@@ -1,8 +1,9 @@
 use crate::behavior::{Behavior, Event};
-use crate::pieces_by_range_handler::{self};
+use crate::request_handlers::object_mappings;
+use crate::request_handlers::pieces_by_range::{self};
 use crate::request_responses::{Event as RequestResponseEvent, IfDisconnected};
 use crate::shared::{Command, CreatedSubscription, Shared};
-use crate::{object_mappings_request_handler, utils};
+use crate::utils;
 use bytes::Bytes;
 use futures::channel::{mpsc, oneshot};
 use futures::future::Fuse;
@@ -486,7 +487,7 @@ impl NodeRunner {
             } => {
                 self.swarm.behaviour_mut().request_response.send_request(
                     &peer_id,
-                    pieces_by_range_handler::PROTOCOL_NAME,
+                    pieces_by_range::PROTOCOL_NAME,
                     request.encode(),
                     result_sender,
                     IfDisconnected::TryConnect,
@@ -499,7 +500,7 @@ impl NodeRunner {
             } => {
                 self.swarm.behaviour_mut().request_response.send_request(
                     &peer_id,
-                    object_mappings_request_handler::PROTOCOL_NAME,
+                    object_mappings::PROTOCOL_NAME,
                     request.encode(),
                     result_sender,
                     IfDisconnected::TryConnect,

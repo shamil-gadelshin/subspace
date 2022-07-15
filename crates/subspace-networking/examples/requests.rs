@@ -4,9 +4,12 @@ use libp2p::multiaddr::Protocol;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::Duration;
-use subspace_core_primitives::{FlatPieces, Piece, PieceIndexHash};
 use subspace_core_primitives::objects::GlobalObject;
-use subspace_networking::{Config, ObjectMappingsRequest, ObjectMappingsResponse, PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot};
+use subspace_core_primitives::{FlatPieces, Piece, PieceIndexHash};
+use subspace_networking::{
+    Config, ObjectMappingsRequest, ObjectMappingsResponse, PiecesByRangeRequest,
+    PiecesByRangeResponse, PiecesToPlot,
+};
 
 #[tokio::main]
 async fn main() {
