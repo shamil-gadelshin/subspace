@@ -37,7 +37,7 @@ const LOG_TARGET: &str = "object-mappings-request-response-handler";
 // Could be changed after the production feedback.
 const REQUESTS_BUFFER_SIZE: usize = 50;
 /// Pieces-by-range-protocol name.
-pub const PROTOCOL_NAME: &str = "/object-mappings/0.1.0";
+pub const PROTOCOL_NAME: &str = "/subspace/object-mappings/0.1.0";
 
 /// Object-mapping protocol request.
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]

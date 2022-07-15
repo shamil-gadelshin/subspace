@@ -39,7 +39,7 @@ const LOG_TARGET: &str = "pieces-by-range-request-response-handler";
 // Could be changed after the production feedback.
 const REQUESTS_BUFFER_SIZE: usize = 50;
 /// Pieces-by-range-protocol name.
-pub const PROTOCOL_NAME: &str = "/sync/pieces-by-range/0.1.0";
+pub const PROTOCOL_NAME: &str = "/subspace/sync/pieces-by-range/0.1.0";
 
 //TODO: A candidate for migrating to a separate crate.
 /// Collection of pieces that potentially need to be plotted

@@ -24,6 +24,13 @@ async fn main() {
                 }),
             })
         }),
+        // pieces_by_range_request_handler: Arc::new(|req| {
+        //     println!("Request handler for request: {:?}", req);
+        //
+        //     println!("Shouldn't be here");
+        //
+        //     panic!()
+        // }),
         ..Config::with_generated_keypair()
     };
     let (node_1, mut node_runner_1) = subspace_networking::create(config_1).await.unwrap();
@@ -69,15 +76,17 @@ async fn main() {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     tokio::spawn(async move {
-        node_2
+        let resp = node_2
             .send_object_mappings_request(
                 node_1.id(),
                 ObjectMappingsRequest {
                     object_hash: Default::default(),
                 },
             )
-            .await
-            .unwrap();
+            .await;
+
+        println!("Response: {:?}", resp);
+        tokio::time::sleep(Duration::from_secs(2)).await;
     });
 
     tokio::time::sleep(Duration::from_secs(5)).await;
