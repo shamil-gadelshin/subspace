@@ -28,10 +28,13 @@ use tracing::{debug, trace};
 // Could be changed after the production feedback.
 const REQUESTS_BUFFER_SIZE: usize = 50;
 
-// TODO comment,
+/// Defines a config for the generic request handler for the request-response protocol.
 pub struct RequestHandlerConfig<Req, Resp> {
+    /// Tracing log target
     pub log_target: &'static str,
-    pub protocol_name: &'static str, // TODO: change logging for protocol_name
+    /// Request-response protocol name
+    pub protocol_name: &'static str,
+    /// Actual request-response handler.
     pub request_handler: ExternalRequestHandler<Req, Resp>,
 }
 
@@ -43,6 +46,7 @@ pub(crate) struct RequestHandler<Req, Resp> {
     request_receiver: mpsc::Receiver<IncomingRequest>,
     request_handler: ExternalRequestHandler<Req, Resp>,
     log_target: &'static str,
+    protocol_name: &'static str,
 }
 
 impl<Req: Decode, Resp: Encode + Default> RequestHandler<Req, Resp> {
@@ -57,6 +61,7 @@ impl<Req: Decode, Resp: Encode + Default> RequestHandler<Req, Resp> {
                 request_receiver,
                 request_handler: handler_config.request_handler,
                 log_target: handler_config.log_target,
+                protocol_name: handler_config.protocol_name,
             },
             protocol_config,
         )
@@ -68,7 +73,7 @@ impl<Req: Decode, Resp: Encode + Default> RequestHandler<Req, Resp> {
         peer: PeerId,
         payload: Vec<u8>,
     ) -> Result<Vec<u8>, RequestHandlerError> {
-        trace!(%peer, "Handling request...");
+        trace!(%peer, protocol=self.protocol_name, "Handling request...");
         let request = Req::decode(&mut payload.as_slice())
             .map_err(|_| RequestHandlerError::InvalidRequestFormat)?;
         let response = (self.request_handler)(&request);
@@ -102,6 +107,7 @@ impl<Req: Decode, Resp: Encode + Default> RequestResponseHandlerRunner
                         Ok(()) => trace!(target = self.log_target, %peer, "Handled request",),
                         Err(_) => debug!(
                             target = self.log_target,
+                            protocol = self.protocol_name,
                             %peer,
                             "Failed to handle request: {}",
                             RequestHandlerError::SendResponse
@@ -109,7 +115,12 @@ impl<Req: Decode, Resp: Encode + Default> RequestResponseHandlerRunner
                     };
                 }
                 Err(e) => {
-                    debug!(target = self.log_target, %e, "Failed to handle request.",);
+                    debug!(
+                        target = self.log_target,
+                        protocol = self.protocol_name,
+                        %e,
+                        "Failed to handle request.",
+                    );
 
                     let response = OutgoingResponse {
                         result: Err(()),
@@ -119,6 +130,7 @@ impl<Req: Decode, Resp: Encode + Default> RequestResponseHandlerRunner
                     if pending_response.send(response).is_err() {
                         debug!(
                             target = self.log_target,
+                            protocol = self.protocol_name,
                             %peer,
                             "Failed to handle request: {}", RequestHandlerError::SendResponse
                         );

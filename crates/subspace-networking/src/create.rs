@@ -4,6 +4,7 @@ use crate::node::{CircuitRelayClientError, Node};
 use crate::node_runner::NodeRunner;
 use crate::request_handlers::object_mappings::{self, ExternalObjectMappingsRequestHandler};
 use crate::request_handlers::pieces_by_range::{self, ExternalPiecesByRangeRequestHandler};
+use crate::request_responses::RequestResponseInstanceConfig;
 use crate::shared::Shared;
 use futures::channel::mpsc;
 use libp2p::core::muxing::StreamMuxerBox;
@@ -217,12 +218,18 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
             kademlia,
             gossipsub,
             value_getter,
-            pieces_by_range_protocol_config,
-            pieces_by_range_request_handler: Box::new(pieces_by_range_request_handler),
+            request_response_protocols: vec![
+                RequestResponseInstanceConfig {
+                    config: pieces_by_range_protocol_config,
+                    handler: Box::new(pieces_by_range_request_handler),
+                },
+                RequestResponseInstanceConfig {
+                    config: object_mappings_protocol_config,
+                    handler: Box::new(object_mappings_request_handler),
+                },
+            ],
             is_relay_server,
             relay_client,
-            object_mappings_protocol_config,
-            object_mappings_request_handler: Box::new(object_mappings_request_handler),
         });
 
         let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id)

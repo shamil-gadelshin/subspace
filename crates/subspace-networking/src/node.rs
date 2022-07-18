@@ -82,6 +82,13 @@ pub enum GetValueError {
 }
 
 #[derive(Debug, Error)]
+pub enum GetClosestPeersError {
+    /// Node runner was dropped, impossible to get closest peers.
+    #[error("Node runner was dropped, impossible to get closest peers")]
+    NodeRunnerDropped,
+}
+
+#[derive(Debug, Error)]
 pub enum SubscribeError {
     /// Node runner was dropped, impossible to subscribe.
     #[error("Node runner was dropped, impossible to get value")]
@@ -106,34 +113,23 @@ pub enum GetPiecesByRangeError {
     /// Cannot find closest pieces by range.
     #[error("Cannot find closest pieces by range")]
     NoClosestPiecesFound,
+    /// Cannot get closest peers from DHT.
+    #[error("Cannot get closest peers from DHT")]
+    CannotGetClosestPeers,
     /// Node runner was dropped, impossible to get pieces by range.
     #[error("Node runner was dropped, impossible to get pieces by range")]
     NodeRunnerDropped,
 }
 #[derive(Debug, Error)]
-pub enum SendPiecesByRangeRequestError {
-    /// Node runner was dropped, impossible to send 'pieces-by-range' request.
-    #[error("Node runner was dropped, impossible to send 'pieces-by-range' request")]
+pub enum SendRequestError {
+    /// Node runner was dropped, impossible to send request.
+    #[error("Node runner was dropped, impossible to send request")]
     NodeRunnerDropped,
-    /// Underlying protocol returned an error, impossible to get 'pieces-by-range' response.
-    #[error("Underlying protocol returned an error, impossible to get 'pieces-by-range' response")]
+    /// Underlying protocol returned an error, impossible to get response.
+    #[error("Underlying protocol returned an error, impossible to get response")]
     ProtocolFailure,
-    /// Underlying protocol returned an incorrect format, impossible to get 'pieces-by-range' response.
-    #[error("Underlying protocol returned an incorrect format, impossible to get 'pieces-by-range' response")]
-    IncorrectResponseFormat,
-}
-
-// TODO: remove
-#[derive(Debug, Error)]
-pub enum SendObjectMappingsRequestError {
-    /// Node runner was dropped, impossible to send 'object-mappings' request.
-    #[error("Node runner was dropped, impossible to send 'object-mappings' request")]
-    NodeRunnerDropped,
-    /// Underlying protocol returned an error, impossible to get 'object-mappings' response.
-    #[error("Underlying protocol returned an error, impossible to get 'pieces-by-range' response")]
-    ProtocolFailure,
-    /// Underlying protocol returned an incorrect format, impossible to get 'object-mappings' response.
-    #[error("Underlying protocol returned an incorrect format, impossible to get 'object-mappings' response")]
+    /// Underlying protocol returned an incorrect format, impossible to get response.
+    #[error("Underlying protocol returned an incorrect format, impossible to get response")]
     IncorrectResponseFormat,
 }
 
@@ -297,7 +293,7 @@ impl Node {
         &self,
         peer_id: PeerId,
         request: PiecesByRangeRequest,
-    ) -> Result<PiecesByRangeResponse, SendPiecesByRangeRequestError> {
+    ) -> Result<PiecesByRangeResponse, SendRequestError> {
         let (result_sender, result_receiver) = oneshot::channel();
 
         self.shared
@@ -309,15 +305,15 @@ impl Node {
                 peer_id,
             })
             .await
-            .map_err(|_| SendPiecesByRangeRequestError::NodeRunnerDropped)?;
+            .map_err(|_| SendRequestError::NodeRunnerDropped)?;
 
         let result = result_receiver
             .await
-            .map_err(|_| SendPiecesByRangeRequestError::NodeRunnerDropped)?
-            .map_err(|_| SendPiecesByRangeRequestError::ProtocolFailure)?;
+            .map_err(|_| SendRequestError::NodeRunnerDropped)?
+            .map_err(|_| SendRequestError::ProtocolFailure)?;
 
         PiecesByRangeResponse::decode(&mut result.as_slice())
-            .map_err(|_| SendPiecesByRangeRequestError::IncorrectResponseFormat)
+            .map_err(|_| SendRequestError::IncorrectResponseFormat)
     }
 
     // Sends the object-mappings request to the peer and awaits the result.
@@ -325,7 +321,7 @@ impl Node {
         &self,
         peer_id: PeerId,
         request: ObjectMappingsRequest,
-    ) -> Result<ObjectMappingsResponse, SendObjectMappingsRequestError> {
+    ) -> Result<ObjectMappingsResponse, SendRequestError> {
         let (result_sender, result_receiver) = oneshot::channel();
 
         self.shared
@@ -337,15 +333,41 @@ impl Node {
                 peer_id,
             })
             .await
-            .map_err(|_| SendObjectMappingsRequestError::NodeRunnerDropped)?;
+            .map_err(|_| SendRequestError::NodeRunnerDropped)?;
 
         let result = result_receiver
             .await
-            .map_err(|_| SendObjectMappingsRequestError::NodeRunnerDropped)?
-            .map_err(|_| SendObjectMappingsRequestError::ProtocolFailure)?;
+            .map_err(|_| SendRequestError::NodeRunnerDropped)?
+            .map_err(|_| SendRequestError::ProtocolFailure)?;
 
         ObjectMappingsResponse::decode(&mut result.as_slice())
-            .map_err(|_| SendObjectMappingsRequestError::IncorrectResponseFormat)
+            .map_err(|_| SendRequestError::IncorrectResponseFormat)
+    }
+
+    /// Get closest peers by multihash key using Kademlia DHT.
+    pub async fn get_closest_peers(
+        &self,
+        key: Multihash,
+    ) -> Result<Vec<PeerId>, GetClosestPeersError> {
+        trace!(key=?key, "Starting 'GetClosestPeers' request.");
+
+        let (result_sender, result_receiver) = oneshot::channel();
+
+        // obtain closest peers to the middle of the range
+        self.shared
+            .command_sender
+            .clone()
+            .send(Command::GetClosestPeers { key, result_sender })
+            .await
+            .map_err(|_| GetClosestPeersError::NodeRunnerDropped)?;
+
+        let peers = result_receiver
+            .await
+            .map_err(|_| GetClosestPeersError::NodeRunnerDropped)?;
+
+        trace!("Kademlia 'GetClosestPeers' returned {} peers", peers.len());
+
+        Ok(peers)
     }
 
     /// Node's own addresses where it listens for incoming requests.
@@ -373,8 +395,6 @@ impl Node {
         from: PieceIndexHash,
         to: PieceIndexHash,
     ) -> Result<mpsc::Receiver<PiecesToPlot>, GetPiecesByRangeError> {
-        let (result_sender, result_receiver) = oneshot::channel();
-
         // calculate the middle of the range (big endian)
         let middle = {
             let from = U256::from(from);
@@ -384,22 +404,11 @@ impl Node {
             middle.to_be_bytes()
         };
 
-        // obtain closest peers to the middle of the range
-        self.shared
-            .command_sender
-            .clone()
-            .send(Command::GetClosestPeers {
-                key: Code::Identity.digest(&middle),
-                result_sender,
-            })
+        let key = Code::Identity.digest(&middle);
+        let peers = self
+            .get_closest_peers(key)
             .await
-            .map_err(|_| GetPiecesByRangeError::NodeRunnerDropped)?;
-
-        let peers = result_receiver
-            .await
-            .map_err(|_| GetPiecesByRangeError::NodeRunnerDropped)?;
-
-        trace!("Kademlia 'GetClosestPeers' returned {} peers", peers.len());
+            .map_err(|_| GetPiecesByRangeError::CannotGetClosestPeers)?;
 
         // select first peer for the piece-by-range protocol
         let peer_id = *peers
@@ -432,7 +441,7 @@ impl Node {
                         },
                     )
                     .await
-                    .map_err(|_| SendPiecesByRangeRequestError::NodeRunnerDropped);
+                    .map_err(|_| SendRequestError::NodeRunnerDropped);
 
                 // send the result to the stream and exit on any error
                 match response {
