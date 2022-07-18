@@ -4,6 +4,7 @@ use crate::request_handlers::object_mappings::{ObjectMappingsRequest, ObjectMapp
 use crate::request_handlers::pieces_by_range::{
     PiecesByRangeRequest, PiecesByRangeResponse, PiecesToPlot,
 };
+use crate::request_responses::RequestFailure;
 use crate::shared::{Command, CreatedSubscription, Shared};
 use bytes::Bytes;
 use event_listener_primitives::HandlerId;
@@ -152,6 +153,10 @@ pub struct Node {
     relay_server_memory_port: Arc<Mutex<Option<u64>>>,
 }
 
+// Type alias for the command creation function for sending generic requests.
+type BehaviourCommandCreator =
+    Box<dyn FnOnce(oneshot::Sender<Result<Vec<u8>, RequestFailure>>) -> Command + Send>;
+
 impl Node {
     pub(crate) fn new(shared: Arc<Shared>, is_relay_server: bool) -> Self {
         Self {
@@ -294,26 +299,16 @@ impl Node {
         peer_id: PeerId,
         request: PiecesByRangeRequest,
     ) -> Result<PiecesByRangeResponse, SendRequestError> {
-        let (result_sender, result_receiver) = oneshot::channel();
+        let command_creator = move |result_sender| Command::PiecesByRangeRequest {
+            request,
+            result_sender,
+            peer_id,
+        };
 
-        self.shared
-            .command_sender
-            .clone()
-            .send(Command::PiecesByRangeRequest {
-                request,
-                result_sender,
-                peer_id,
-            })
-            .await
-            .map_err(|_| SendRequestError::NodeRunnerDropped)?;
-
-        let result = result_receiver
-            .await
-            .map_err(|_| SendRequestError::NodeRunnerDropped)?
-            .map_err(|_| SendRequestError::ProtocolFailure)?;
-
-        PiecesByRangeResponse::decode(&mut result.as_slice())
-            .map_err(|_| SendRequestError::IncorrectResponseFormat)
+        self.send_generic_request::<PiecesByRangeRequest, PiecesByRangeResponse>(Box::new(
+            command_creator,
+        ))
+        .await
     }
 
     // Sends the object-mappings request to the peer and awaits the result.
@@ -322,16 +317,30 @@ impl Node {
         peer_id: PeerId,
         request: ObjectMappingsRequest,
     ) -> Result<ObjectMappingsResponse, SendRequestError> {
+        let command_creator = move |result_sender| Command::ObjectMappingsRequest {
+            request,
+            result_sender,
+            peer_id,
+        };
+
+        self.send_generic_request::<ObjectMappingsRequest, ObjectMappingsResponse>(Box::new(
+            command_creator,
+        ))
+        .await
+    }
+
+    // Sends the generic request to the peer and awaits the result.
+    async fn send_generic_request<Req, Resp: Decode>(
+        &self,
+        command_creator: BehaviourCommandCreator,
+    ) -> Result<Resp, SendRequestError> {
         let (result_sender, result_receiver) = oneshot::channel();
+        let command = command_creator(result_sender);
 
         self.shared
             .command_sender
             .clone()
-            .send(Command::ObjectMappingsRequest {
-                request,
-                result_sender,
-                peer_id,
-            })
+            .send(command)
             .await
             .map_err(|_| SendRequestError::NodeRunnerDropped)?;
 
@@ -340,8 +349,7 @@ impl Node {
             .map_err(|_| SendRequestError::NodeRunnerDropped)?
             .map_err(|_| SendRequestError::ProtocolFailure)?;
 
-        ObjectMappingsResponse::decode(&mut result.as_slice())
-            .map_err(|_| SendRequestError::IncorrectResponseFormat)
+        Resp::decode(&mut result.as_slice()).map_err(|_| SendRequestError::IncorrectResponseFormat)
     }
 
     /// Get closest peers by multihash key using Kademlia DHT.
