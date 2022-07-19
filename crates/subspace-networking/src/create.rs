@@ -4,7 +4,6 @@ use crate::node::{CircuitRelayClientError, Node};
 use crate::node_runner::NodeRunner;
 use crate::request_handlers::object_mappings::{self, ExternalObjectMappingsRequestHandler};
 use crate::request_handlers::pieces_by_range::{self, ExternalPiecesByRangeRequestHandler};
-use crate::request_responses::RequestResponseInstanceConfig;
 use crate::shared::Shared;
 use futures::channel::mpsc;
 use libp2p::core::muxing::StreamMuxerBox;
@@ -203,11 +202,9 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
             })
             .collect::<Result<_, CreationError>>()?;
 
-        let (pieces_by_range_request_handler, pieces_by_range_protocol_config) =
-            pieces_by_range::new(pieces_by_range_request_handler);
+        let pieces_by_range_request_handler = pieces_by_range::new(pieces_by_range_request_handler);
 
-        let (object_mappings_request_handler, object_mappings_protocol_config) =
-            object_mappings::new(object_mappings_request_handler);
+        let object_mappings_request_handler = object_mappings::new(object_mappings_request_handler);
 
         let is_relay_server = !listen_on.is_empty() && relay_server_address.is_none();
 
@@ -219,14 +216,8 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
             gossipsub,
             value_getter,
             request_response_protocols: vec![
-                RequestResponseInstanceConfig {
-                    config: pieces_by_range_protocol_config,
-                    handler: Box::new(pieces_by_range_request_handler),
-                },
-                RequestResponseInstanceConfig {
-                    config: object_mappings_protocol_config,
-                    handler: Box::new(object_mappings_request_handler),
-                },
+                Box::new(pieces_by_range_request_handler),
+                Box::new(object_mappings_request_handler),
             ],
             is_relay_server,
             relay_client,
