@@ -16,6 +16,7 @@ use std::borrow::Cow;
 use std::iter;
 use std::time::Duration;
 
+#[derive(Clone)]
 struct MockRunner(ProtocolConfig);
 
 #[async_trait]
