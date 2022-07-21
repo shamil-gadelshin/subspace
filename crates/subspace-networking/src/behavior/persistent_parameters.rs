@@ -1,14 +1,13 @@
 use async_trait::async_trait;
 pub use db::DbNetworkingParametersProvider;
 use futures::future::Fuse;
-use futures::{select, FutureExt};
+use futures::FutureExt;
 pub use json::JsonNetworkingParametersProvider;
 use libp2p::multiaddr::Protocol;
 use libp2p::{Multiaddr, PeerId};
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -79,10 +78,7 @@ pub trait NetworkingParametersRegistry {
 
     /// Returns known addresses from networking parameters DB. It removes p2p-protocol suffix.
     /// Peer number parameter limits peers to retrieve.
-    async fn known_addresses(
-        &self,
-        peer_number: usize,
-    ) -> Vec<(PeerId, Multiaddr)>;
+    async fn known_addresses(&self, peer_number: usize) -> Vec<(PeerId, Multiaddr)>;
 
     /// Drive async work in the persistence provider
     async fn run(&mut self);
@@ -98,23 +94,21 @@ pub trait NetworkingParametersProvider: Send {
 }
 
 /// Handles networking parameters. It manages network parameters set and its persistence.
-pub struct NetworkingParametersManager<P: NetworkingParametersProvider> {
+pub struct NetworkingParametersManager {
     // Persistence provider for the networking parameters.
     network_parameters_persistence_handler: NetworkingParametersHandler,
-    // Networking paramters working cache.
+    // Networking parameters working cache.
     networking_params: NetworkingParameters,
     // Period between networking parameters saves.
     networking_parameters_save_delay: Pin<Box<Fuse<Sleep>>>,
-    // Defines `NetworkingParametersProvider` implementation.
-    _persistence_marker: PhantomData<P>,
 }
 
-impl<P: NetworkingParametersProvider + Send> NetworkingParametersManager<P> {
+impl NetworkingParametersManager {
     /// Object constructor. It accepts `NetworkingParametersProvider` implementation as a parameter.
     /// On object creation it starts a job for networking parameters cache handling.
     pub fn new(
         network_parameters_persistence_handler: NetworkingParametersHandler,
-    ) -> NetworkingParametersManager<P> {
+    ) -> NetworkingParametersManager {
         let networking_params = network_parameters_persistence_handler
             .load()
             .unwrap_or_else(|_| NetworkingParameters::new(PEER_CACHE_SIZE));
@@ -123,7 +117,6 @@ impl<P: NetworkingParametersProvider + Send> NetworkingParametersManager<P> {
             network_parameters_persistence_handler,
             networking_params,
             networking_parameters_save_delay: Self::default_delay(),
-            _persistence_marker: PhantomData,
         }
     }
 
@@ -134,9 +127,7 @@ impl<P: NetworkingParametersProvider + Send> NetworkingParametersManager<P> {
 }
 
 #[async_trait]
-impl<P: NetworkingParametersProvider + Send + Sync> NetworkingParametersRegistry
-    for NetworkingParametersManager<P>
-{
+impl NetworkingParametersRegistry for NetworkingParametersManager {
     async fn add_known_peer(&mut self, peer_id: PeerId, addresses: Vec<Multiaddr>) {
         let addr_set = addresses.iter().cloned().collect::<HashSet<_>>();
 
@@ -162,16 +153,15 @@ impl<P: NetworkingParametersProvider + Send + Sync> NetworkingParametersRegistry
     }
 
     async fn run(&mut self) {
-        select! {
-            _ = &mut self.networking_parameters_save_delay => {
-                if let Err(err) = self.network_parameters_persistence_handler.save(
-                    &self.networking_params.clone()
-                ) {
-                    trace!(error=%err, "Error on saving network parameters");
-                }
-                self.networking_parameters_save_delay = NetworkingParametersManager::<P>::default_delay();
-            },
-        };
+        (&mut self.networking_parameters_save_delay).await;
+
+        if let Err(err) = self
+            .network_parameters_persistence_handler
+            .save(&self.networking_params.clone())
+        {
+            trace!(error=%err, "Error on saving network parameters");
+        }
+        self.networking_parameters_save_delay = NetworkingParametersManager::default_delay();
     }
 }
 
@@ -284,8 +274,6 @@ mod db {
             let mut options = Options::with_columns(path, 1);
             // We don't use stats
             options.stats = false;
-            // Remove salt to avoid mangling of keys
-            options.salt = Some([0u8; 32]);
 
             let db = Db::open_or_create(&options)?;
 

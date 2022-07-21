@@ -1,6 +1,5 @@
 use crate::behavior::persistent_parameters::{
-    NetworkingParametersManager, NetworkingParametersProvider, NetworkingParametersProviderStub,
-    NetworkingParametersRegistry,
+    NetworkingParametersManager, NetworkingParametersRegistry,
 };
 use crate::behavior::{Behavior, Event};
 use crate::pieces_by_range_handler::{self};
@@ -43,7 +42,7 @@ enum QueryResultSender {
 
 /// Runner for the Node.
 #[must_use = "Node does not function properly unless its runner is driven forward"]
-pub struct NodeRunner<P: NetworkingParametersProvider = NetworkingParametersProviderStub> {
+pub struct NodeRunner {
     /// Should non-global addresses be added to the DHT?
     allow_non_globals_in_dht: bool,
     is_relay_server: bool,
@@ -61,10 +60,10 @@ pub struct NodeRunner<P: NetworkingParametersProvider = NetworkingParametersProv
     topic_subscription_senders: HashMap<TopicHash, IntMap<usize, mpsc::UnboundedSender<Bytes>>>,
     random_query_timeout: Pin<Box<Fuse<Sleep>>>,
     /// Manages the networking parameters like known peers and addresses
-    networking_parameters_manager: NetworkingParametersManager<P>,
+    networking_parameters_manager: NetworkingParametersManager,
 }
 
-impl<P: NetworkingParametersProvider + Sync> NodeRunner<P> {
+impl NodeRunner {
     pub(crate) fn new(
         allow_non_globals_in_dht: bool,
         is_relay_server: bool,
@@ -72,7 +71,7 @@ impl<P: NetworkingParametersProvider + Sync> NodeRunner<P> {
         swarm: Swarm<Behavior>,
         shared_weak: Weak<Shared>,
         initial_random_query_interval: Duration,
-        networking_parameters_manager: NetworkingParametersManager<P>,
+        networking_parameters_manager: NetworkingParametersManager,
     ) -> Self {
         Self {
             allow_non_globals_in_dht,
