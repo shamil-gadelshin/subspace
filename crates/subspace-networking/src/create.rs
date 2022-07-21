@@ -190,7 +190,8 @@ pub async fn create(config: Config) -> Result<(Node, NodeRunner), CreationError>
     let networking_parameters_manager =
         NetworkingParametersManager::new(network_parameters_persistence_handler);
     let cached_bootstrap_addresses = networking_parameters_manager
-        .bootstrap_addresses(true, INITIAL_BOOTSTRAP_ADDRESS_NUMBER)
+        .known_addresses(INITIAL_BOOTSTRAP_ADDRESS_NUMBER)
+        .await
         .iter()
         .cloned()
         .filter(|(_, addr)| {

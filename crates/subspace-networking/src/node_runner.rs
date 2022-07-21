@@ -64,7 +64,7 @@ pub struct NodeRunner<P: NetworkingParametersProvider = NetworkingParametersProv
     networking_parameters_manager: NetworkingParametersManager<P>,
 }
 
-impl<P: NetworkingParametersProvider> NodeRunner<P> {
+impl<P: NetworkingParametersProvider + Sync> NodeRunner<P> {
     pub(crate) fn new(
         allow_non_globals_in_dht: bool,
         is_relay_server: bool,
