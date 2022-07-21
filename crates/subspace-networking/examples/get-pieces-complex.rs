@@ -7,7 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use subspace_core_primitives::{FlatPieces, Piece, PieceIndexHash};
 use subspace_networking::{
-    Config, DbNetworkingParametersProvider, PiecesByRangeResponse, PiecesToPlot,
+    Config, DbNetworkingParametersProvider, NetworkingParametersManager, PiecesByRangeResponse,
+    PiecesToPlot,
 };
 
 #[tokio::main]
@@ -93,7 +94,7 @@ async fn main() {
         bootstrap_nodes,
         listen_on: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()],
         allow_non_globals_in_dht: true,
-        network_parameters_persistence_handler: Arc::new(
+        networking_parameters_registry: NetworkingParametersManager::new(Arc::new(
             DbNetworkingParametersProvider::new(
                 std::env::temp_dir()
                     .join("database")
@@ -101,7 +102,8 @@ async fn main() {
                     .as_ref(),
             )
             .unwrap(),
-        ),
+        ))
+        .boxed(),
         ..Config::with_generated_keypair()
     };
 

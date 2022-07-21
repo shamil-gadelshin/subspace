@@ -72,7 +72,7 @@ impl NetworkingParameters {
 
 /// Defines operations with the networking parameters.
 #[async_trait]
-pub trait NetworkingParametersRegistry {
+pub trait NetworkingParametersRegistry: Send {
     /// Registers a peer ID and associated addresses
     async fn add_known_peer(&mut self, peer_id: PeerId, addresses: Vec<Multiaddr>);
 
@@ -82,6 +82,9 @@ pub trait NetworkingParametersRegistry {
 
     /// Drive async work in the persistence provider
     async fn run(&mut self);
+
+    //TODO:
+    fn clone_box(&self) -> Box<dyn NetworkingParametersRegistry>;
 }
 
 /// Defines networking parameters persistence operations
@@ -120,9 +123,20 @@ impl NetworkingParametersManager {
         }
     }
 
+    //TODO: add comment
+    pub fn boxed(self) -> Box<dyn NetworkingParametersRegistry> {
+        Box::new(self)
+    }
+
     // Create default delay for networking parameters.
     fn default_delay() -> Pin<Box<Fuse<Sleep>>> {
         Box::pin(sleep(Duration::from_secs(DATA_FLUSH_DURATION_SECS)).fuse())
+    }
+}
+
+impl Clone for Box<dyn NetworkingParametersRegistry> {
+    fn clone(&self) -> Self {
+        self.clone_box()
     }
 }
 
@@ -134,7 +148,6 @@ impl NetworkingParametersRegistry for NetworkingParametersManager {
         self.networking_params.add_known_peer(peer_id, addr_set);
     }
 
-    /// Returns known addresses from networking parameters DB. It removes p2p-protocol suffix.
     async fn known_addresses(&self, peer_number: usize) -> Vec<(PeerId, Multiaddr)> {
         self.networking_params
             .get_known_peer_addresses(peer_number)
@@ -162,6 +175,17 @@ impl NetworkingParametersRegistry for NetworkingParametersManager {
             trace!(error=%err, "Error on saving network parameters");
         }
         self.networking_parameters_save_delay = NetworkingParametersManager::default_delay();
+    }
+
+    fn clone_box(&self) -> Box<dyn NetworkingParametersRegistry> {
+        NetworkingParametersManager {
+            network_parameters_persistence_handler: self
+                .network_parameters_persistence_handler
+                .clone(),
+            networking_params: self.networking_params.clone(),
+            networking_parameters_save_delay: Self::default_delay(),
+        }
+        .boxed()
     }
 }
 
@@ -338,6 +362,25 @@ impl NetworkingParametersProvider for NetworkingParametersProviderStub {
         trace!("Network parameters saving skipped.");
 
         Ok(())
+    }
+}
+
+/// The default implementation for networking manager stub. All operations are muted.
+#[derive(Clone)]
+pub struct NetworkingParametersRegistryStub;
+
+#[async_trait]
+impl NetworkingParametersRegistry for NetworkingParametersRegistryStub {
+    async fn add_known_peer(&mut self, _: PeerId, _: Vec<Multiaddr>) {}
+
+    async fn known_addresses(&self, _: usize) -> Vec<(PeerId, Multiaddr)> {
+        Vec::new()
+    }
+
+    async fn run(&mut self) {}
+
+    fn clone_box(&self) -> Box<dyn NetworkingParametersRegistry> {
+        Box::new(self.clone())
     }
 }
 
