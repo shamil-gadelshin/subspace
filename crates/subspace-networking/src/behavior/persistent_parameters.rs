@@ -6,8 +6,10 @@ pub use json::JsonNetworkingParametersProvider;
 use libp2p::multiaddr::Protocol;
 use libp2p::{Multiaddr, PeerId};
 use lru::LruCache;
+use parity_db::{Db, Options};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -207,6 +209,12 @@ impl From<&NetworkingParameters> for NetworkingParametersDto {
     }
 }
 
+impl From<NetworkingParameters> for NetworkingParametersDto {
+    fn from(cache: NetworkingParameters) -> Self {
+        From::<&NetworkingParameters>::from(&cache)
+    }
+}
+
 impl From<NetworkingParametersDto> for NetworkingParameters {
     fn from(params: NetworkingParametersDto) -> Self {
         let mut known_peers = LruCache::<PeerId, HashSet<Multiaddr>>::new(PEER_CACHE_SIZE);
@@ -394,4 +402,184 @@ pub enum NetworkParametersPersistenceError {
 
     #[error("JSON serialization error: {0}")]
     JsonSerialization(#[from] serde_json::Error),
+}
+
+/// Handles networking parameters. It manages network parameters set and its persistence.
+pub struct NetworkingParametersManagerMonolith {
+    // LRU cache for the known peers and their addresses
+    known_peers: LruCache<PeerId, HashSet<Multiaddr>>,
+    // Period between networking parameters saves.
+    networking_parameters_save_delay: Pin<Box<Fuse<Sleep>>>,
+    // Parity DB instance
+    db: Arc<Db>,
+    // Column ID to persist parameters
+    column_id: u8,
+    // Key to persistent parameters
+    object_id: &'static [u8],
+}
+
+impl NetworkingParametersManagerMonolith {
+    /// Object constructor. It accepts `NetworkingParametersProvider` implementation as a parameter.
+    /// On object creation it starts a job for networking parameters cache handling.
+    pub fn new(
+        path: &Path,
+    ) -> Result<NetworkingParametersManagerMonolith, NetworkParametersPersistenceError> {
+        let mut options = Options::with_columns(path, 1);
+        // We don't use stats
+        options.stats = false;
+
+        let db = Db::open_or_create(&options)?;
+
+        let mut manager = NetworkingParametersManagerMonolith {
+            db: Arc::new(db),
+            column_id: 0u8,
+            object_id: b"global_networking_parameters_key",
+            known_peers: LruCache::new(PEER_CACHE_SIZE),
+            networking_parameters_save_delay: Self::default_delay(),
+        };
+
+        manager.known_peers = manager
+            .load()
+            .unwrap_or_else(|_| LruCache::new(PEER_CACHE_SIZE));
+
+        Ok(manager)
+    }
+
+    //TODO
+    fn clone_known_peers(&self) -> LruCache<PeerId, HashSet<Multiaddr>> {
+        let mut known_peers = LruCache::new(self.known_peers.cap());
+
+        for (peer_id, addresses) in self.known_peers.iter() {
+            known_peers.push(*peer_id, addresses.clone());
+        }
+
+        known_peers
+    }
+
+    //TODO: add comment
+    pub fn boxed(self) -> Box<dyn NetworkingParametersRegistry> {
+        Box::new(self)
+    }
+
+    // Create default delay for networking parameters.
+    fn default_delay() -> Pin<Box<Fuse<Sleep>>> {
+        Box::pin(sleep(Duration::from_secs(DATA_FLUSH_DURATION_SECS)).fuse())
+    }
+
+    fn load(
+        &self,
+    ) -> Result<LruCache<PeerId, HashSet<Multiaddr>>, NetworkParametersPersistenceError> {
+        let result = self
+            .db
+            .get(self.column_id, self.object_id)?
+            .map(|data| {
+                let result = serde_json::from_slice::<NetworkingParametersDto>(&data)
+                    .map(|data|{
+                        let cache: LruCache<PeerId, HashSet<Multiaddr>> = data.into();
+
+                        cache
+                    });
+
+                if result.is_ok() {
+                    trace!("Networking parameters loaded from DB");
+                }
+
+                result
+            })
+            .unwrap_or_else(|| Ok(LruCache::new(PEER_CACHE_SIZE)))?;
+
+        Ok(result)
+    }
+
+    fn save(&self) -> Result<(), NetworkParametersPersistenceError> {
+        let dto: NetworkingParametersDto = self.clone_known_peers().into();
+        let data = serde_json::to_vec(&dto)?;
+
+        let tx = vec![(self.column_id, self.object_id, Some(data))];
+        self.db.commit(tx)?;
+
+        trace!("Networking parameters saved to DB");
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl NetworkingParametersRegistry for NetworkingParametersManagerMonolith {
+    async fn add_known_peer(&mut self, peer_id: PeerId, addresses: Vec<Multiaddr>) {
+        let addr_set = addresses.iter().cloned().collect::<HashSet<_>>();
+
+        if let Some(addresses) = self.known_peers.get_mut(&peer_id) {
+            *addresses = addresses.union(&addr_set).cloned().collect()
+        } else {
+            self.known_peers.push(peer_id, addr_set);
+        }
+    }
+
+    async fn known_addresses(&self, peer_number: usize) -> Vec<(PeerId, Multiaddr)> {
+        self.known_peers
+            .iter()
+            .take(peer_number)
+            .flat_map(|(peer_id, addresses)| addresses.iter().map(|addr| (*peer_id, addr.clone())))
+            .map(|(peer_id, addr)| {
+                // remove p2p-protocol suffix if any
+                let mut modified_address = addr.clone();
+
+                if let Some(Protocol::P2p(_)) = modified_address.pop() {
+                    (peer_id, modified_address)
+                } else {
+                    (peer_id, addr)
+                }
+            })
+            .collect()
+    }
+
+    async fn run(&mut self) {
+        (&mut self.networking_parameters_save_delay).await;
+
+        if let Err(err) = self.save() {
+            trace!(error=%err, "Error on saving network parameters");
+        }
+        self.networking_parameters_save_delay = NetworkingParametersManager::default_delay();
+    }
+
+    fn clone_box(&self) -> Box<dyn NetworkingParametersRegistry> {
+        NetworkingParametersManagerMonolith {
+            known_peers: self.clone_known_peers(),
+            networking_parameters_save_delay: Self::default_delay(),
+            db: self.db.clone(),
+            column_id: self.column_id,
+            object_id: self.object_id,
+        }
+        .boxed()
+    }
+}
+
+impl From<&LruCache::<PeerId, HashSet<Multiaddr>>> for NetworkingParametersDto {
+    fn from(cache: &LruCache::<PeerId, HashSet<Multiaddr>>) -> Self {
+        Self {
+            known_peers: cache
+                .iter()
+                .map(|(peer_id, addresses)| (*peer_id, addresses.clone()))
+                .collect(),
+        }
+    }
+}
+
+impl From<LruCache::<PeerId, HashSet<Multiaddr>>> for NetworkingParametersDto {
+    fn from(cache: LruCache::<PeerId, HashSet<Multiaddr>>) -> Self {
+        From::<&LruCache::<PeerId, HashSet<Multiaddr>>>::from(&cache)
+    }
+}
+
+impl From<NetworkingParametersDto> for LruCache::<PeerId, HashSet<Multiaddr>> {
+    fn from(params: NetworkingParametersDto) -> Self {
+        let mut known_peers = LruCache::<PeerId, HashSet<Multiaddr>>::new(PEER_CACHE_SIZE);
+
+        for (peer_id, addresses) in params.known_peers.iter() {
+            known_peers.push(*peer_id, addresses.clone());
+        }
+
+        known_peers
+    }
 }
