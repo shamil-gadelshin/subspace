@@ -28,8 +28,8 @@ pub struct EligibleSector {
     pub chunk: Chunk,
     /// Expanded version of the above chunk
     pub expanded_chunk: SolutionRange,
-    /// Piece where chunk is located
-    pub piece: Piece,
+    /// Encoded piece where chunk is located
+    pub encoded_piece: Piece,
     /// Offset of the piece in sector
     pub audit_piece_offset: u64,
 }
@@ -89,7 +89,7 @@ where
                 audit_index,
                 chunk,
                 expanded_chunk,
-                piece,
+                encoded_piece: piece,
                 audit_piece_offset,
             },
         ),
@@ -112,7 +112,7 @@ where
 
     // Decode piece
     let (record, witness_bytes) = eligible_sector
-        .piece
+        .encoded_piece
         .split_at_mut(farmer_protocol_info.record_size.get() as usize);
     let piece_witness = match Witness::try_from_bytes(
         (&*witness_bytes).try_into().expect(
