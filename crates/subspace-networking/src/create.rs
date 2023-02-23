@@ -1,5 +1,5 @@
 pub(crate) mod temporary_bans;
-mod transport;
+pub mod transport;
 
 use crate::behavior::persistent_parameters::{
     BootstrappedNetworkingParameters, NetworkingParametersRegistry,

@@ -12,6 +12,8 @@ use libp2p::websocket::WsConfig;
 use libp2p::yamux::YamuxConfig;
 use libp2p::{core, identity, noise, PeerId};
 use parking_lot::Mutex;
+use std::error::Error;
+use std::fmt::Debug;
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -125,7 +127,8 @@ where
                     if let Ok(peer_id) = PeerId::try_from(multihash) {
                         if temporary_bans.is_banned(&peer_id) {
                             let error =
-                                io::Error::new(io::ErrorKind::Other, "Peer is temporarily banned");
+                                io::Error::new(io::ErrorKind::Other, CustomTransportError::Banned);
+
                             return Err(TransportError::Other(error.into()));
                         }
                     }
@@ -154,3 +157,10 @@ where
         Pin::new(&mut self.base_transport).poll(cx)
     }
 }
+
+#[derive(Debug, derive_more::Display)]
+pub enum CustomTransportError {
+    Banned,
+}
+
+impl Error for CustomTransportError {}

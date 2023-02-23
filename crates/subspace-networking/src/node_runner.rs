@@ -489,9 +489,13 @@ where
                             let should_temporary_ban = match &error {
                                 DialError::Transport(addresses) => {
                                     // Ignoring other errors, those are likely temporary ban errors
+                                    let other_error = std::io::Error::new(
+                                        std::io::ErrorKind::Other,
+                                        crate::create::transport::CustomTransportError::Banned,
+                                    );
                                     !matches!(
                                         addresses.first(),
-                                        Some((_multiaddr, TransportError::Other(_error)))
+                                        Some((_multiaddr, TransportError::Other(other_error)))
                                     )
                                 }
                                 _ => true,
