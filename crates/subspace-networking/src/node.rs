@@ -1,3 +1,5 @@
+pub(crate) mod piece_announcement;
+
 use crate::request_handlers::generic_request_handler::GenericRequest;
 use crate::request_responses;
 use crate::shared::{Command, CreatedSubscription, HandlerFn, HandlerFn2, Shared};
