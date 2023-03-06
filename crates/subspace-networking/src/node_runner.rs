@@ -15,7 +15,6 @@ use futures::{FutureExt, StreamExt};
 use libp2p::core::ConnectedPoint;
 use libp2p::gossipsub::{Event as GossipsubEvent, TopicHash};
 use libp2p::identify::Event as IdentifyEvent;
-use libp2p::kad::store::RecordStore;
 use libp2p::kad::{
     AddProviderError, AddProviderOk, GetClosestPeersError, GetClosestPeersOk, GetProvidersError,
     GetProvidersOk, GetRecordError, GetRecordOk, InboundRequest, Kademlia, KademliaEvent,
@@ -631,29 +630,30 @@ where
 
         match event {
             KademliaEvent::InboundRequest {
-                request: InboundRequest::AddProvider { record, guard },
+                request: InboundRequest::AddProvider { record, .. },
             } => {
-                trace!("Add provider request received: {:?}", record);
-                if let (Some(record), Some(guard)) = (record, guard) {
-                    if let Err(err) = self
-                        .swarm
-                        .behaviour_mut()
-                        .kademlia
-                        .store_mut()
-                        .add_provider(record.clone())
-                    {
-                        error!(?err, "Failed to add provider record: {:?}", record);
-                    }
-
-                    let shared = match self.shared_weak.upgrade() {
-                        Some(shared) => shared,
-                        None => {
-                            return;
-                        }
-                    };
-
-                    shared.handlers.announcement.call_simple(&record, &guard);
-                }
+                warn!("Unexpected AddProvider request received: {:?}", record);
+                //TODO: remove
+                // if let (Some(record), Some(guard)) = (record, guard) {
+                //     if let Err(err) = self
+                //         .swarm
+                //         .behaviour_mut()
+                //         .kademlia
+                //         .store_mut()
+                //         .add_provider(record.clone())
+                //     {
+                //         error!(?err, "Failed to add provider record: {:?}", record);
+                //     }
+                //
+                //     let shared = match self.shared_weak.upgrade() {
+                //         Some(shared) => shared,
+                //         None => {
+                //             return;
+                //         }
+                //     };
+                //
+                //     shared.handlers.announcement.call_simple(&record, &guard);
+                // }
             }
             KademliaEvent::OutboundQueryProgressed {
                 step: ProgressStep { last, .. },
