@@ -20,11 +20,12 @@ use subspace_networking::libp2p::identity::Keypair;
 use subspace_networking::utils::multihash::ToMultihash;
 use subspace_networking::{
     create, peer_id, BootstrappedNetworkingParameters, Config, Node, NodeRunner,
-    ParityDbProviderStorage, PieceByHashRequest, PieceByHashRequestHandler, PieceByHashResponse,
-    RootBlockBySegmentIndexesRequestHandler, RootBlockRequest, RootBlockResponse,
+    ParityDbProviderStorage, PieceAnnouncementRequestHandler, PieceByHashRequest,
+    PieceByHashRequestHandler, PieceByHashResponse, RootBlockBySegmentIndexesRequestHandler,
+    RootBlockRequest, RootBlockResponse,
 };
 use tokio::runtime::Handle;
-use tracing::{debug, error, info, Instrument, Span};
+use tracing::{debug, error, info, trace, Instrument, Span};
 
 const MAX_CONCURRENT_ANNOUNCEMENTS_QUEUE: NonZeroUsize =
     NonZeroUsize::new(2000).expect("Not zero; qed");
@@ -147,62 +148,64 @@ pub(super) fn configure_dsn(
         networking_parameters_registry: BootstrappedNetworkingParameters::new(bootstrap_nodes)
             .boxed(),
         request_response_protocols: vec![
-            PieceByHashRequestHandler::create(move |&PieceByHashRequest { piece_index_hash }| {
-                debug!(?piece_index_hash, "Piece request received. Trying cache...");
-                let multihash = piece_index_hash.to_multihash();
+            PieceByHashRequestHandler::create(
+                move |_, &PieceByHashRequest { piece_index_hash }| {
+                    debug!(?piece_index_hash, "Piece request received. Trying cache...");
+                    let multihash = piece_index_hash.to_multihash();
 
-                let weak_readers_and_pieces = weak_readers_and_pieces.clone();
-                let piece_store = piece_store.clone();
-                let piece_memory_cache = piece_memory_cache.clone();
+                    let weak_readers_and_pieces = weak_readers_and_pieces.clone();
+                    let piece_store = piece_store.clone();
+                    let piece_memory_cache = piece_memory_cache.clone();
 
-                async move {
-                    if let Some(piece) = piece_memory_cache.get_piece(&piece_index_hash) {
-                        return Some(PieceByHashResponse { piece: Some(piece) });
-                    }
+                    async move {
+                        if let Some(piece) = piece_memory_cache.get_piece(&piece_index_hash) {
+                            return Some(PieceByHashResponse { piece: Some(piece) });
+                        }
 
-                    let piece_from_store = piece_store.get(&multihash.into());
+                        let piece_from_store = piece_store.get(&multihash.into());
 
-                    if let Some(piece) = piece_from_store {
-                        Some(PieceByHashResponse { piece: Some(piece) })
-                    } else {
-                        debug!(
-                            ?piece_index_hash,
-                            "No piece in the cache. Trying archival storage..."
-                        );
+                        if let Some(piece) = piece_from_store {
+                            Some(PieceByHashResponse { piece: Some(piece) })
+                        } else {
+                            debug!(
+                                ?piece_index_hash,
+                                "No piece in the cache. Trying archival storage..."
+                            );
 
-                        let read_piece_fut = {
-                            let readers_and_pieces = match weak_readers_and_pieces.upgrade() {
-                                Some(readers_and_pieces) => readers_and_pieces,
-                                None => {
-                                    debug!("A readers and pieces are already dropped");
-                                    return None;
-                                }
+                            let read_piece_fut = {
+                                let readers_and_pieces = match weak_readers_and_pieces.upgrade() {
+                                    Some(readers_and_pieces) => readers_and_pieces,
+                                    None => {
+                                        debug!("A readers and pieces are already dropped");
+                                        return None;
+                                    }
+                                };
+                                let readers_and_pieces = readers_and_pieces.lock();
+                                let readers_and_pieces = match readers_and_pieces.as_ref() {
+                                    Some(readers_and_pieces) => readers_and_pieces,
+                                    None => {
+                                        debug!(
+                                            ?piece_index_hash,
+                                            "Readers and pieces are not initialized yet"
+                                        );
+                                        return None;
+                                    }
+                                };
+
+                                readers_and_pieces
+                                    .read_piece(&piece_index_hash)?
+                                    .instrument(Span::current())
                             };
-                            let readers_and_pieces = readers_and_pieces.lock();
-                            let readers_and_pieces = match readers_and_pieces.as_ref() {
-                                Some(readers_and_pieces) => readers_and_pieces,
-                                None => {
-                                    debug!(
-                                        ?piece_index_hash,
-                                        "Readers and pieces are not initialized yet"
-                                    );
-                                    return None;
-                                }
-                            };
 
-                            readers_and_pieces
-                                .read_piece(&piece_index_hash)?
-                                .instrument(Span::current())
-                        };
+                            let piece = read_piece_fut.await;
 
-                        let piece = read_piece_fut.await;
-
-                        Some(PieceByHashResponse { piece })
+                            Some(PieceByHashResponse { piece })
+                        }
                     }
-                }
-                .instrument(Span::current())
-            }),
-            RootBlockBySegmentIndexesRequestHandler::create(move |req| {
+                    .instrument(Span::current())
+                },
+            ),
+            RootBlockBySegmentIndexesRequestHandler::create(move |_, req| {
                 debug!(?req, "Root blocks request received.");
 
                 let node_client = node_client.clone();
@@ -256,6 +259,11 @@ pub(super) fn configure_dsn(
                     }
                 }
                 .instrument(Span::current())
+            }),
+            PieceAnnouncementRequestHandler::create(move |req, _| {
+                trace!(?req, "Piece announcement request received.");
+
+                async { None } // TODO: implement handler
             }),
         ],
         provider_storage: farmer_provider_storage,

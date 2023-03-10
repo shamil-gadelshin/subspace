@@ -15,13 +15,16 @@ use sp_runtime::traits::Block as BlockT;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use subspace_archiving::archiver::ArchivedSegment;
 use subspace_core_primitives::{PieceIndex, RootBlock, PIECES_IN_SEGMENT};
+use subspace_networking::libp2p::kad::ProviderRecord;
 use subspace_networking::libp2p::{identity, Multiaddr};
 use subspace_networking::utils::pieces::announce_single_piece_index_with_backoff;
 use subspace_networking::{
     peer_id, BootstrappedNetworkingParameters, CreationError, MemoryProviderStorage, Node,
-    NodeRunner, ParityDbProviderStorage, PieceByHashRequestHandler, PieceByHashResponse,
+    NodeRunner, ParityDbProviderStorage, PieceAnnouncementRequestHandler,
+    PieceAnnouncementResponse, PieceByHashRequestHandler, PieceByHashResponse, ProviderStorage,
     RootBlockBySegmentIndexesRequestHandler, RootBlockRequest, RootBlockResponse,
 };
 use tokio::sync::Semaphore;
@@ -31,6 +34,9 @@ use tracing::{debug, error, info, trace, warn, Instrument};
 const MAX_PROVIDER_RECORDS_LIMIT: usize = 100000; // ~ 10 MB
 
 const ROOT_BLOCK_NUMBER_LIMIT: u64 = 100;
+
+// Defines an expiration interval for item providers in Kademlia network.
+const KADEMLIA_PROVIDER_TTL_IN_SECS: Option<Duration> = Some(Duration::from_secs(86400)); /* 1 day */
 
 /// DSN configuration parameters.
 #[derive(Clone, Debug)]
@@ -84,6 +90,11 @@ where
     let provider_storage =
         NodeProviderStorage::new(peer_id, piece_cache.clone(), external_provider_storage);
 
+    let mut other_networking_params = subspace_networking::Config::default();
+    other_networking_params
+        .kademlia
+        .set_provider_record_ttl(KADEMLIA_PROVIDER_TTL_IN_SECS);
+
     let networking_config = subspace_networking::Config {
         keypair: dsn_config.keypair.clone(),
         listen_on: dsn_config.listen_on,
@@ -93,7 +104,7 @@ where
         )
         .boxed(),
         request_response_protocols: vec![
-            PieceByHashRequestHandler::create(move |req| {
+            PieceByHashRequestHandler::create(move |_, req| {
                 let result = match piece_cache.get_piece(req.piece_index_hash) {
                     Ok(maybe_piece) => maybe_piece,
                     Err(error) => {
@@ -104,7 +115,7 @@ where
 
                 async { Some(PieceByHashResponse { piece: result }) }
             }),
-            RootBlockBySegmentIndexesRequestHandler::create(move |req| {
+            RootBlockBySegmentIndexesRequestHandler::create(move |_, req| {
                 let segment_indexes = match req {
                     RootBlockRequest::SegmentIndexes { segment_indexes } => segment_indexes.clone(),
                     RootBlockRequest::LastRootBlocks { root_block_number } => {
@@ -146,9 +157,53 @@ where
 
                 async move { result }
             }),
+            PieceAnnouncementRequestHandler::create({
+                let provider_storage = provider_storage.clone();
+                move |peer_id, req| {
+                    trace!(?req, %peer_id, "Piece announcement request received.");
+
+                    let mut provider_storage = provider_storage.clone();
+                    let req = req.clone();
+
+                    async move {
+                        let key = match req.piece_key.clone().try_into() {
+                            Ok(key) => key,
+
+                            Err(error) => {
+                                error!(
+                                    %error,
+                                    %peer_id,
+                                    ?req,
+                                    "Failed to convert received key to record:Key."
+                                );
+
+                                return None;
+                            }
+                        };
+
+                        if let Err(error) = provider_storage.add_provider(ProviderRecord {
+                            provider: peer_id,
+                            key,
+                            addresses: Vec::new(), // TODO: add address hints
+                            expires: KADEMLIA_PROVIDER_TTL_IN_SECS.map(|ttl| Instant::now() + ttl),
+                        }) {
+                            error!(
+                                %error,
+                                %peer_id,
+                                ?req,
+                                "Failed to add provider for received key."
+                            );
+
+                            return None;
+                        }
+
+                        Some(PieceAnnouncementResponse)
+                    }
+                }
+            }),
         ],
         provider_storage,
-        ..subspace_networking::Config::default()
+        ..other_networking_params
     };
 
     subspace_networking::create(networking_config)
