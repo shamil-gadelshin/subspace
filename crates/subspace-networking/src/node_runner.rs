@@ -604,6 +604,7 @@ where
                 request: InboundRequest::AddProvider { record, .. },
             } => {
                 warn!("Unexpected AddProvider request received: {:?}", record);
+
                 //TODO: remove
                 // if let (Some(record), Some(guard)) = (record, guard) {
                 //     if let Err(err) = self

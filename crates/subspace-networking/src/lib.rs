@@ -53,6 +53,9 @@ pub use request_handlers::object_mappings::{
 pub use request_handlers::peer_info::{
     PeerInfo, PeerInfoRequest, PeerInfoRequestHandler, PeerInfoResponse, PeerSyncStatus,
 };
+pub use request_handlers::piece_announcement::{
+    PieceAnnouncementRequest, PieceAnnouncementRequestHandler, PieceAnnouncementResponse,
+};
 pub use request_handlers::piece_by_key::{
     PieceByHashRequest, PieceByHashRequestHandler, PieceByHashResponse,
 };
