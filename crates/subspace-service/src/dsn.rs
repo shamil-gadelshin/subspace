@@ -14,14 +14,17 @@ use sp_core::traits::SpawnNamed;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use subspace_archiving::archiver::NewArchivedSegment;
 use subspace_core_primitives::{PieceIndex, SegmentHeader, SegmentIndex};
+use subspace_networking::libp2p::kad::ProviderRecord;
 use subspace_networking::libp2p::{identity, Multiaddr};
 use subspace_networking::utils::pieces::announce_single_piece_index_with_backoff;
 use subspace_networking::{
     peer_id, BootstrappedNetworkingParameters, CreationError, MemoryProviderStorage,
     NetworkParametersPersistenceError, NetworkingParametersManager, Node, NodeRunner,
-    ParityDbError, ParityDbProviderStorage, PieceByHashRequestHandler, PieceByHashResponse,
+    ParityDbError, ParityDbProviderStorage, PieceAnnouncementRequestHandler,
+    PieceAnnouncementResponse, PieceByHashRequestHandler, PieceByHashResponse, ProviderStorage,
     SegmentHeaderBySegmentIndexesRequestHandler, SegmentHeaderRequest, SegmentHeaderResponse,
 };
 use thiserror::Error;
@@ -32,6 +35,9 @@ use tracing::{debug, error, info, trace, warn, Instrument};
 const MAX_PROVIDER_RECORDS_LIMIT: usize = 100000; // ~ 10 MB
 
 const ROOT_BLOCK_NUMBER_LIMIT: u64 = 100;
+
+// Defines an expiration interval for item providers in Kademlia network.
+const KADEMLIA_PROVIDER_TTL_IN_SECS: Option<Duration> = Some(Duration::from_secs(86400)); /* 1 day */
 
 /// Errors that might happen during DSN configuration.
 #[derive(Debug, Error)]
@@ -129,8 +135,12 @@ where
     let provider_storage =
         NodeProviderStorage::new(peer_id, piece_cache.clone(), external_provider_storage);
     let keypair = dsn_config.keypair.clone();
-    let default_networking_config =
-        subspace_networking::Config::new(dsn_protocol_version, keypair, provider_storage);
+    let mut default_networking_config =
+        subspace_networking::Config::new(dsn_protocol_version, keypair, provider_storage.clone());
+
+    default_networking_config
+        .kademlia
+        .set_provider_record_ttl(KADEMLIA_PROVIDER_TTL_IN_SECS);
 
     let networking_config = subspace_networking::Config {
         keypair: dsn_config.keypair.clone(),
@@ -138,7 +148,50 @@ where
         allow_non_global_addresses_in_dht: dsn_config.allow_non_global_addresses_in_dht,
         networking_parameters_registry,
         request_response_protocols: vec![
-            PieceByHashRequestHandler::create(move |req| {
+            PieceAnnouncementRequestHandler::create({
+                move |peer_id, req| {
+                    trace!(?req, %peer_id, "Piece announcement request received.");
+
+                    let mut provider_storage = provider_storage.clone();
+                    let req = req.clone();
+
+                    async move {
+                        let key = match req.piece_key.clone().try_into() {
+                            Ok(key) => key,
+
+                            Err(error) => {
+                                error!(
+                                    %error,
+                                    %peer_id,
+                                    ?req,
+                                    "Failed to convert received key to record:Key."
+                                );
+
+                                return None;
+                            }
+                        };
+
+                        if let Err(error) = provider_storage.add_provider(ProviderRecord {
+                            provider: peer_id,
+                            key,
+                            addresses: Vec::new(), // TODO: add address hints
+                            expires: KADEMLIA_PROVIDER_TTL_IN_SECS.map(|ttl| Instant::now() + ttl),
+                        }) {
+                            error!(
+                                %error,
+                                %peer_id,
+                                ?req,
+                                "Failed to add provider for received key."
+                            );
+
+                            return None;
+                        }
+
+                        Some(PieceAnnouncementResponse)
+                    }
+                }
+            }),
+            PieceByHashRequestHandler::create(move |_, req| {
                 let result = match piece_cache.get_piece(req.piece_index_hash) {
                     Ok(maybe_piece) => maybe_piece,
                     Err(error) => {
@@ -149,7 +202,7 @@ where
 
                 async { Some(PieceByHashResponse { piece: result }) }
             }),
-            SegmentHeaderBySegmentIndexesRequestHandler::create(move |req| {
+            SegmentHeaderBySegmentIndexesRequestHandler::create(move |_, req| {
                 let segment_indexes = match req {
                     SegmentHeaderRequest::SegmentIndexes { segment_indexes } => {
                         segment_indexes.clone()
