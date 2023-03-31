@@ -1,3 +1,3 @@
-(function() {var implementors = {};
-implementors["sp_executor"] = [{"text":"impl PassBy for <a class=\"struct\" href=\"sp_executor/struct.FraudProof.html\" title=\"struct sp_executor::FraudProof\">FraudProof</a>","synthetic":false,"types":["sp_executor::FraudProof"]}];
-if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
+(function() {var implementors = {
+"sp_consensus_subspace":[["impl PassBy for <a class=\"struct\" href=\"sp_consensus_subspace/struct.WrappedSolution.html\" title=\"struct sp_consensus_subspace::WrappedSolution\">WrappedSolution</a>"],["impl&lt;'a&gt; PassBy for <a class=\"struct\" href=\"sp_consensus_subspace/struct.WrappedVerifySolutionParams.html\" title=\"struct sp_consensus_subspace::WrappedVerifySolutionParams\">WrappedVerifySolutionParams</a>&lt;'a&gt;"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

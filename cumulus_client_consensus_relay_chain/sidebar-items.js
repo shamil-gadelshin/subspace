@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["import_queue","Start an import queue for a Cumulus collator that does not uses any special authoring logic."]],"struct":[["Verifier","A verifier that just checks the inherents."]]});

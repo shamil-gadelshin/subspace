@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["AuxStoreProviderRecordIterator",""],["PieceCache","Cache of recently produced pieces in aux storage"]]};

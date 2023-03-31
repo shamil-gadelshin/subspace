@@ -1,4 +1,7 @@
-(function() {var implementors = {};
-implementors["subspace_runtime"] = [{"text":"impl Config for <a class=\"struct\" href=\"subspace_runtime/struct.Runtime.html\" title=\"struct subspace_runtime::Runtime\">Runtime</a>","synthetic":false,"types":["subspace_runtime::Runtime"]}];
-implementors["subspace_test_runtime"] = [{"text":"impl Config for <a class=\"struct\" href=\"subspace_test_runtime/struct.Runtime.html\" title=\"struct subspace_test_runtime::Runtime\">Runtime</a>","synthetic":false,"types":["subspace_test_runtime::Runtime"]}];
-if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
+(function() {var implementors = {
+"core_eth_relay_runtime":[["impl Config for <a class=\"struct\" href=\"core_eth_relay_runtime/struct.Runtime.html\" title=\"struct core_eth_relay_runtime::Runtime\">Runtime</a>"]],
+"core_payments_domain_runtime":[["impl Config for <a class=\"struct\" href=\"core_payments_domain_runtime/struct.Runtime.html\" title=\"struct core_payments_domain_runtime::Runtime\">Runtime</a>"]],
+"subspace_runtime":[["impl Config for <a class=\"struct\" href=\"subspace_runtime/struct.Runtime.html\" title=\"struct subspace_runtime::Runtime\">Runtime</a>"]],
+"subspace_test_runtime":[["impl Config for <a class=\"struct\" href=\"subspace_test_runtime/struct.Runtime.html\" title=\"struct subspace_test_runtime::Runtime\">Runtime</a>"]],
+"system_domain_runtime":[["impl Config for <a class=\"struct\" href=\"system_domain_runtime/struct.Runtime.html\" title=\"struct system_domain_runtime::Runtime\">Runtime</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
