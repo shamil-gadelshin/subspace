@@ -1,14 +1,4 @@
-#![feature(
-    const_option,
-    drain_filter,
-    hash_drain_filter,
-    io_error_other,
-    let_chains,
-    trait_alias,
-    try_blocks,
-    type_alias_impl_trait,
-    type_changing_struct_update
-)]
+#![feature(type_alias_impl_trait)]
 
 //! # `subspace-farmer` library implementation overview
 //!
