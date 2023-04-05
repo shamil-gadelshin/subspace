@@ -234,6 +234,8 @@ where
             let network_info = self.swarm.network_info();
             let connections = network_info.connection_counters();
 
+            debug!(?connections, "Current connections and limits.");
+
             (
                 connections.num_pending_outgoing()
                     + connections.num_established_outgoing()
