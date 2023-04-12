@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["CoreDomainExtrinsicsBuilder","ExecutionProver","InvalidStateTransitionProofVerifier","PrePostStateRootVerifier","SystemDomainExtrinsicsBuilder"],"trait":["BuildDomainExtrinsics","VerifyInvalidStateTransitionProof","VerifyPrePostStateRoot"]};

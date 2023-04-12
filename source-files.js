@@ -3,7 +3,7 @@ var sourcesIndex = JSON.parse('{\
 "core_payments_domain_runtime":["",[],["lib.rs","runtime.rs"]],\
 "cross_domain_message_gossip":["",[],["gossip_worker.rs","lib.rs","message_listener.rs"]],\
 "domain_block_builder":["",[],["lib.rs"]],\
-"domain_block_preprocessor":["",[],["lib.rs","preprocessor.rs","runtime_api.rs","runtime_api_full.rs","runtime_api_light.rs","xdm_verifier.rs"]],\
+"domain_block_preprocessor":["",[],["lib.rs","runtime_api.rs","runtime_api_full.rs","runtime_api_light.rs","utils.rs","xdm_verifier.rs"]],\
 "domain_client_consensus_relay_chain":["",[],["import_queue.rs","lib.rs"]],\
 "domain_client_executor":["",[],["aux_schema.rs","bundle_election_solver.rs","core_bundle_processor.rs","core_domain_worker.rs","core_executor.rs","core_gossip_message_validator.rs","domain_block_processor.rs","domain_bundle_producer.rs","domain_bundle_proposer.rs","domain_worker.rs","fraud_proof.rs","gossip_message_validator.rs","lib.rs","parent_chain.rs","system_bundle_processor.rs","system_domain_worker.rs","system_executor.rs","system_gossip_message_validator.rs","utils.rs"]],\
 "domain_client_executor_gossip":["",[],["lib.rs","worker.rs"]],\
@@ -48,7 +48,7 @@ var sourcesIndex = JSON.parse('{\
 "subspace_farmer_components":["",[],["farming.rs","file_ext.rs","lib.rs","piece_caching.rs","plotting.rs","segment_reconstruction.rs"]],\
 "subspace_fraud_proof":["",[],["invalid_state_transition_proof.rs","lib.rs"]],\
 "subspace_networking":["",[["behavior",[["provider_storage",[],["providers.rs"]]],["persistent_parameters.rs","provider_storage.rs"]],["create",[],["temporary_bans.rs","transport.rs"]],["request_handlers",[],["generic_request_handler.rs","object_mappings.rs","peer_info.rs","piece_by_key.rs","pieces_by_range.rs","segment_header.rs"]],["utils",[],["multihash.rs","piece_provider.rs","pieces.rs","prometheus.rs","unique_record_binary_heap.rs"]]],["behavior.rs","create.rs","lib.rs","node.rs","node_runner.rs","request_handlers.rs","request_responses.rs","shared.rs","utils.rs"]],\
-"subspace_node":["",[["core_domain",[],["cli.rs","core_payments_chain_spec.rs"]],["system_domain",[],["chain_spec.rs","cli.rs"]]],["chain_spec.rs","chain_spec_utils.rs","core_domain.rs","import_blocks_from_dsn.rs","lib.rs","system_domain.rs"]],\
+"subspace_node":["",[["core_domain",[],["cli.rs","core_eth_relay_chain_spec.rs","core_payments_chain_spec.rs"]],["system_domain",[],["chain_spec.rs","cli.rs"]]],["chain_spec.rs","chain_spec_utils.rs","core_domain.rs","import_blocks_from_dsn.rs","lib.rs","system_domain.rs"]],\
 "subspace_proof_of_space":["",[],["lib.rs"]],\
 "subspace_rpc_primitives":["",[],["lib.rs"]],\
 "subspace_runtime":["",[["weights",[],["subspace.rs"]]],["domains.rs","feed_processor.rs","fees.rs","lib.rs","object_mapping.rs","signed_extensions.rs","weights.rs"]],\

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/subspace-archiving/src/archiver/incremental_record_commitments.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>incremental_record_commitments.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-52c5db6f6f352e54.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../../../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../../../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-d2686a620d99aad7.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../subspace_archiving/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/subspace-archiving/src/archiver/incremental_record_commitments.rs`."><title>incremental_record_commitments.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-fbd14db5c88ed452.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="subspace_archiving" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0-nightly (0599b6b93 2023-04-01)" data-search-js="search-bc5a112813b5d712.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" data-theme-light-css="light-db279b6232be9c13.css" data-theme-dark-css="dark-cf923f49f397b216.css" data-theme-ayu-css="ayu-be46fdc453a55015.css" ></div><script src="../../../static.files/storage-d4a1a279bad1a0c0.js"></script><script defer src="../../../static.files/source-script-1b95b7cca98b26e5.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-8e6affb8c73a5ff1.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-db279b6232be9c13.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-cf923f49f397b216.css"><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../subspace_archiving/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -141,62 +141,14 @@
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
-<a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-<a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
 </pre><pre class="rust"><code><span class="kw">extern crate </span>alloc;
 
 <span class="kw">use </span><span class="kw">crate</span>::archiver::Segment;
 <span class="kw">use </span>alloc::vec::Vec;
-<span class="kw">use </span>core::ops::Deref;
+<span class="kw">use </span>core::ops::{Deref, DerefMut};
 <span class="kw">use </span>parity_scale_codec::{Encode, Output};
+<span class="attr">#[cfg(feature = <span class="string">&quot;rayon&quot;</span>)]
+</span><span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>subspace_core_primitives::crypto::kzg::{Commitment, Kzg};
 <span class="kw">use </span>subspace_core_primitives::crypto::Scalar;
 <span class="kw">use </span>subspace_core_primitives::RawRecord;
@@ -213,10 +165,16 @@
 }
 
 <span class="kw">impl </span>Deref <span class="kw">for </span>IncrementalRecordCommitmentsState {
-    <span class="kw">type </span>Target = [Commitment];
+    <span class="kw">type </span>Target = Vec&lt;Commitment&gt;;
 
     <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
         <span class="kw-2">&amp;</span><span class="self">self</span>.state
+    }
+}
+
+<span class="kw">impl </span>DerefMut <span class="kw">for </span>IncrementalRecordCommitmentsState {
+    <span class="kw">fn </span>deref_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Target {
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>.state
     }
 }
 
@@ -234,84 +192,81 @@
     }
 }
 
-<span class="doccomment">/// Update internal record commitments state based on (full or partial) segment.
+<span class="doccomment">/// Update internal record commitments state based on provided segment.
 </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>update_record_commitments(
     incremental_record_commitments: <span class="kw-2">&amp;mut </span>IncrementalRecordCommitmentsState,
     segment: <span class="kw-2">&amp;</span>Segment,
     kzg: <span class="kw-2">&amp;</span>Kzg,
-    full: bool,
 ) {
     segment.encode_to(<span class="kw-2">&amp;mut </span>IncrementalRecordCommitmentsProcessor::new(
         incremental_record_commitments,
         kzg,
-        full,
     ));
 }
 
 <span class="doccomment">/// Processor is hidden to not expose unnecessary implementation details (like `Output` trait
 /// implementation)
 </span><span class="kw">struct </span>IncrementalRecordCommitmentsProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="doccomment">/// Processed bytes in the segment so far
-    </span>processed_bytes: usize,
-    <span class="doccomment">/// Buffer where current (partial) record is written
-    </span>raw_record_buffer: Vec&lt;u8&gt;,
+    <span class="doccomment">/// Number of bytes of recorded history segment for which commitments were already created
+    </span>skip_bytes: usize,
+    <span class="doccomment">/// Buffer where new bytes for which commitments need to be created are pushed
+    </span>buffer: Vec&lt;u8&gt;,
     <span class="doccomment">/// Record commitments already created
     </span>incremental_record_commitments: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>IncrementalRecordCommitmentsState,
     <span class="doccomment">/// Kzg instance used for commitments creation
     </span>kzg: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Kzg,
-    <span class="doccomment">/// Whether segment is full or partial
-    </span>full: bool,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Drop <span class="kw">for </span>IncrementalRecordCommitmentsProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">if </span><span class="self">self</span>.full {
-            <span class="kw">let </span>record_offset = <span class="self">self</span>.processed_bytes % RawRecord::SIZE;
-            <span class="kw">if </span>record_offset &gt; <span class="number">0 </span>{
-                <span class="comment">// This is fine since we&#39;ll have at most a few iterations and allocation is less
-                // desirable than a loop here
-                </span><span class="kw">for _ in </span><span class="number">0</span>..(RawRecord::SIZE - record_offset) {
-                    <span class="self">self</span>.update_commitment_state(<span class="kw-2">&amp;</span>[<span class="number">0</span>]);
-                }
-                <span class="self">self</span>.create_commitment();
-            }
-        }
+        <span class="attr">#[cfg(not(feature = <span class="string">&quot;rayon&quot;</span>))]
+        </span><span class="kw">let </span>raw_records_bytes = <span class="self">self</span>.buffer.chunks_exact(RawRecord::SIZE);
+        <span class="attr">#[cfg(feature = <span class="string">&quot;rayon&quot;</span>)]
+        </span><span class="kw">let </span>raw_records_bytes = <span class="self">self</span>.buffer.par_chunks_exact(RawRecord::SIZE);
+
+        <span class="kw">let </span>iter = raw_records_bytes
+            .map(|raw_record_bytes| {
+                raw_record_bytes
+                    .array_chunks::&lt;{ Scalar::SAFE_BYTES }&gt;()
+                    .map(Scalar::from)
+            })
+            .map(|record_chunks| {
+                <span class="kw">let </span>number_of_chunks = record_chunks.len();
+                <span class="kw">let </span><span class="kw-2">mut </span>scalars = Vec::with_capacity(number_of_chunks.next_power_of_two());
+
+                record_chunks.collect_into(<span class="kw-2">&amp;mut </span>scalars);
+
+                <span class="comment">// Number of scalars for KZG must be a power of two elements
+                </span>scalars.resize(scalars.capacity(), Scalar::default());
+
+                <span class="kw">let </span>polynomial = <span class="self">self
+                    </span>.kzg
+                    .poly(<span class="kw-2">&amp;</span>scalars)
+                    .expect(<span class="string">&quot;KZG instance must be configured to support this many scalars; qed&quot;</span>);
+                <span class="self">self</span>.kzg
+                    .commit(<span class="kw-2">&amp;</span>polynomial)
+                    .expect(<span class="string">&quot;KZG instance must be configured to support this many scalars; qed&quot;</span>)
+            });
+
+        <span class="attr">#[cfg(not(feature = <span class="string">&quot;rayon&quot;</span>))]
+        </span>iter.collect_into(<span class="kw-2">&amp;mut </span><span class="self">self</span>.incremental_record_commitments.state);
+        <span class="comment">// TODO: `collect_into_vec()`, unfortunately, truncates input, which is not what we want
+        //  can be unified when https://github.com/rayon-rs/rayon/issues/1039 is resolved
+        </span><span class="attr">#[cfg(feature = <span class="string">&quot;rayon&quot;</span>)]
+        </span><span class="self">self</span>.incremental_record_commitments
+            .extend(<span class="kw-2">&amp;</span>iter.collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;());
     }
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Output <span class="kw">for </span>IncrementalRecordCommitmentsProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="kw">fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>bytes: <span class="kw-2">&amp;</span>[u8]) {
-        <span class="comment">// Try to finish last partial record if possible
-
-        </span><span class="kw">let </span>record_offset = <span class="self">self</span>.processed_bytes % RawRecord::SIZE;
-        <span class="kw">let </span>bytes_left_in_record = RawRecord::SIZE - record_offset;
-        <span class="kw">if </span>bytes_left_in_record &gt; <span class="number">0 </span>{
-            <span class="kw">let </span>remaining_record_bytes;
-            (remaining_record_bytes, bytes) =
-                bytes.split_at(<span class="kw">if </span>bytes.len() &gt;= bytes_left_in_record {
-                    bytes_left_in_record
-                } <span class="kw">else </span>{
-                    bytes.len()
-                });
-
-            <span class="self">self</span>.update_commitment_state(remaining_record_bytes);
-
-            <span class="kw">if </span>remaining_record_bytes.len() == bytes_left_in_record {
-                <span class="self">self</span>.create_commitment();
-            }
+        <span class="kw">if </span><span class="self">self</span>.skip_bytes &gt;= bytes.len() {
+            <span class="self">self</span>.skip_bytes -= bytes.len();
+        } <span class="kw">else </span>{
+            bytes = <span class="kw-2">&amp;</span>bytes[<span class="self">self</span>.skip_bytes..];
+            <span class="self">self</span>.skip_bytes = <span class="number">0</span>;
+            <span class="self">self</span>.buffer.extend_from_slice(bytes);
         }
-
-        <span class="comment">// Continue processing records (full and partial) from remaining data, at this point we have
-        // processed some number of full records, so can simply chunk the remaining bytes into
-        // record sizes
-        </span>bytes.chunks(RawRecord::SIZE).for_each(|record| {
-            <span class="self">self</span>.update_commitment_state(record);
-
-            <span class="comment">// Store hashes of full records
-            </span><span class="kw">if </span>record.len() == RawRecord::SIZE {
-                <span class="self">self</span>.create_commitment();
-            }
-        });
     }
 }
 
@@ -319,70 +274,14 @@
     <span class="kw">fn </span>new(
         incremental_record_commitments: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>IncrementalRecordCommitmentsState,
         kzg: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Kzg,
-        full: bool,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            <span class="comment">// TODO: Remove `processed_bytes`, `raw_record_buffer` should be sufficient
-            </span>processed_bytes: <span class="number">0</span>,
-            raw_record_buffer: Vec::with_capacity(RawRecord::SIZE),
+            skip_bytes: incremental_record_commitments.len() * RawRecord::SIZE,
+            <span class="comment">// Default to record size, may grow if necessary
+            </span>buffer: Vec::with_capacity(RawRecord::SIZE),
             incremental_record_commitments,
             kzg,
-            full,
-        }
-    }
-
-    <span class="doccomment">/// Whether commitment for current record needs to be created
-    </span><span class="kw">fn </span>should_commit_to_record(<span class="kw-2">&amp;</span><span class="self">self</span>, record_position: usize) -&gt; bool {
-        <span class="self">self</span>.incremental_record_commitments
-            .state
-            .get(record_position)
-            .is_none()
-    }
-
-    <span class="doccomment">/// In case commitment is necessary for currently processed record, internal commitment state
-    /// will be updated with provided bytes.
-    ///
-    /// NOTE: This method is called with bytes that either cover part of the record or stop at the
-    /// edge of the record.
-    </span><span class="kw">fn </span>update_commitment_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bytes: <span class="kw-2">&amp;</span>[u8]) {
-        <span class="kw">if </span><span class="self">self</span>.should_commit_to_record(<span class="self">self</span>.processed_bytes / RawRecord::SIZE) {
-            <span class="self">self</span>.raw_record_buffer.extend_from_slice(bytes);
-        }
-        <span class="self">self</span>.processed_bytes += bytes.len();
-    }
-
-    <span class="doccomment">/// In case commitment is necessary for currently processed record, internal hashing state will
-    /// be finalized and commitment will be stored in shared state.
-    </span><span class="kw">fn </span>create_commitment(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">if </span><span class="self">self</span>.should_commit_to_record(<span class="self">self</span>.processed_bytes / RawRecord::SIZE - <span class="number">1</span>) {
-            <span class="kw">let </span>scalars = {
-                <span class="kw">let </span>record_chunks = <span class="self">self
-                    </span>.raw_record_buffer
-                    .array_chunks::&lt;{ Scalar::SAFE_BYTES }&gt;();
-                <span class="kw">let </span>number_of_chunks = record_chunks.len();
-                <span class="kw">let </span><span class="kw-2">mut </span>scalars = Vec::with_capacity(number_of_chunks.next_power_of_two());
-
-                record_chunks.map(Scalar::from).collect_into(<span class="kw-2">&amp;mut </span>scalars);
-
-                <span class="comment">// Number of scalars for KZG must be a power of two elements
-                </span>scalars.resize(scalars.capacity(), Scalar::default());
-
-                scalars
-            };
-            <span class="self">self</span>.raw_record_buffer.clear();
-
-            <span class="kw">let </span>polynomial = <span class="self">self
-                </span>.kzg
-                .poly(<span class="kw-2">&amp;</span>scalars)
-                .expect(<span class="string">&quot;KZG instance must be configured to support this many scalars; qed&quot;</span>);
-            <span class="kw">let </span>commitment = <span class="self">self
-                </span>.kzg
-                .commit(<span class="kw-2">&amp;</span>polynomial)
-                .expect(<span class="string">&quot;KZG instance must be configured to support this many scalars; qed&quot;</span>);
-
-            <span class="self">self</span>.incremental_record_commitments.state.push(commitment);
         }
     }
 }
-</code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="subspace_archiving" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0-nightly (afaf3e07a 2023-01-14)" data-search-js="search-181581080540673f.js" data-settings-js="settings-a2afdefbb7c817f1.js" data-settings-css="settings-84508a86fe805444.css" ></div></body></html>
+</code></pre></div></section></main></body></html>

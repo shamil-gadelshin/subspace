@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/subspace-core-primitives/src/pieces.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>pieces.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-52c5db6f6f352e54.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-d2686a620d99aad7.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../subspace_core_primitives/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/subspace-core-primitives/src/pieces.rs`."><title>pieces.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-fbd14db5c88ed452.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="subspace_core_primitives" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0-nightly (0599b6b93 2023-04-01)" data-search-js="search-bc5a112813b5d712.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" data-theme-light-css="light-db279b6232be9c13.css" data-theme-dark-css="dark-cf923f49f397b216.css" data-theme-ayu-css="ayu-be46fdc453a55015.css" ></div><script src="../../static.files/storage-d4a1a279bad1a0c0.js"></script><script defer src="../../static.files/source-script-1b95b7cca98b26e5.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-8e6affb8c73a5ff1.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-db279b6232be9c13.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-cf923f49f397b216.css"><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../subspace_core_primitives/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -562,6 +562,60 @@
 <a href="#562" id="562">562</a>
 <a href="#563" id="563">563</a>
 <a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
 </pre><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;serde&quot;</span>)]
 </span><span class="kw">mod </span>serde;
 
@@ -582,6 +636,8 @@
     MulAssign, Sub, SubAssign,
 };
 <span class="kw">use </span>parity_scale_codec::{Decode, Encode, Input, MaxEncodedLen};
+<span class="attr">#[cfg(feature = <span class="string">&quot;rayon&quot;</span>)]
+</span><span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>scale_info::TypeInfo;
 
 <span class="comment">// TODO: Remove once we redefine it through raw record
@@ -660,6 +716,11 @@
     <span class="doccomment">/// Piece index 1.
     </span><span class="kw">pub const </span>ONE: PieceIndex = PieceIndex(<span class="number">1</span>);
 
+    <span class="doccomment">/// Derive piece index hash
+    </span><span class="kw">pub fn </span>hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; PieceIndexHash {
+        PieceIndexHash::from(blake2b_256_hash(<span class="kw-2">&amp;</span><span class="self">self</span>.to_bytes()))
+    }
+
     <span class="doccomment">/// Convert piece index into bytes.
     </span><span class="kw">pub const fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [u8; mem::size_of::&lt;u64&gt;()] {
         <span class="self">self</span>.<span class="number">0</span>.to_le_bytes()
@@ -689,9 +750,10 @@
 }
 
 <span class="kw">impl </span>PieceIndexHash {
-    <span class="doccomment">/// Constructs `PieceIndexHash` from `PieceIndex`
+    <span class="comment">// TODO: Remove and replace uses with `index.hash()`
+    </span><span class="doccomment">/// Constructs `PieceIndexHash` from `PieceIndex`
     </span><span class="kw">pub fn </span>from_index(index: PieceIndex) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(blake2b_256_hash(<span class="kw-2">&amp;</span>index.to_bytes()))
+        index.hash()
     }
 }
 
@@ -723,6 +785,13 @@
 <span class="kw">impl </span>RawRecord {
     <span class="doccomment">/// Size of raw record in bytes, is guaranteed to be a multiple of [`Scalar::SAFE_BYTES`].
     </span><span class="kw">pub const </span>SIZE: usize = Record::SIZE / Scalar::FULL_BYTES * Scalar::SAFE_BYTES;
+
+    <span class="doccomment">/// Create boxed value without hitting stack overflow
+    </span><span class="kw">pub fn </span>new_boxed() -&gt; Box&lt;<span class="self">Self</span>&gt; {
+        <span class="comment">// TODO: Should have been just `::new()`, but https://github.com/rust-lang/rust/issues/53827
+        // SAFETY: Data structure filled with zeroes is a valid invariant
+        </span><span class="kw">unsafe </span>{ Box::new_zeroed().assume_init() }
+    }
 }
 
 <span class="doccomment">/// Record contained within a piece.
@@ -749,40 +818,39 @@
     /// [`RawRecord`], is guaranteed to be a multiple of [`Scalar::FULL_BYTES`].
     </span><span class="kw">pub const </span>SIZE: usize = RECORD_SIZE;
 
-    <span class="doccomment">/// Get a stream of arrays, each containing safe scalar bytes.
-    ///
-    /// Only useful for source records since only those contain raw record bytes that fit into safe
-    /// scalar bytes and the rest is zero bytes padding.
-    </span><span class="kw">pub fn </span>safe_scalar_arrays(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-    ) -&gt; <span class="kw">impl </span>ExactSizeIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>[u8; Scalar::SAFE_BYTES]&gt; + <span class="lifetime">&#39;_ </span>{
-        <span class="self">self</span>.full_scalar_arrays().map(|bytes| {
-            bytes
-                .array_chunks::&lt;{ Scalar::SAFE_BYTES }&gt;()
-                .next()
-                .expect(
-                    <span class="string">&quot;Safe bytes are smaller length as safe bytes, hence first element always \
-                    exists; qed&quot;</span>,
-                )
-        })
+    <span class="doccomment">/// Create boxed value without hitting stack overflow
+    </span><span class="kw">pub fn </span>new_boxed() -&gt; Box&lt;<span class="self">Self</span>&gt; {
+        <span class="comment">// TODO: Should have been just `::new()`, but https://github.com/rust-lang/rust/issues/53827
+        // SAFETY: Data structure filled with zeroes is a valid invariant
+        </span><span class="kw">unsafe </span>{ Box::new_zeroed().assume_init() }
     }
 
-    <span class="doccomment">/// Get a stream of mutable arrays, each containing safe scalar bytes.
-    ///
-    /// Only useful for source records since only those contain raw record bytes that fit into safe
-    /// scalar bytes and the rest is zero bytes padding.
-    </span><span class="kw">pub fn </span>safe_scalar_arrays_mut(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-    ) -&gt; <span class="kw">impl </span>ExactSizeIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="kw-2">mut </span>[u8; Scalar::SAFE_BYTES]&gt; + <span class="lifetime">&#39;_ </span>{
-        <span class="self">self</span>.full_scalar_arrays_mut().map(|bytes| {
-            bytes
-                .array_chunks_mut::&lt;{ Scalar::SAFE_BYTES }&gt;()
-                .next()
-                .expect(
-                    <span class="string">&quot;Safe bytes are smaller length as safe bytes, hence first element always \
-                    exists; qed&quot;</span>,
-                )
-        })
+    <span class="doccomment">/// Convenient conversion from slice of record to underlying representation for efficiency
+    /// purposes.
+    </span><span class="kw">pub fn </span>slice_to_repr(value: <span class="kw-2">&amp;</span>[<span class="self">Self</span>]) -&gt; <span class="kw-2">&amp;</span>[[u8; <span class="self">Self</span>::SIZE]] {
+        <span class="comment">// SAFETY: `Record` is `#[repr(transparent)]` and guaranteed to have the same memory layout
+        </span><span class="kw">unsafe </span>{ mem::transmute(value) }
+    }
+
+    <span class="doccomment">/// Convenient conversion from slice of underlying representation to record for efficiency
+    /// purposes.
+    </span><span class="kw">pub fn </span>slice_from_repr(value: <span class="kw-2">&amp;</span>[[u8; <span class="self">Self</span>::SIZE]]) -&gt; <span class="kw-2">&amp;</span>[<span class="self">Self</span>] {
+        <span class="comment">// SAFETY: `Record` is `#[repr(transparent)]` and guaranteed to have the same memory layout
+        </span><span class="kw">unsafe </span>{ mem::transmute(value) }
+    }
+
+    <span class="doccomment">/// Convenient conversion from mutable slice of record to underlying representation for
+    /// efficiency purposes.
+    </span><span class="kw">pub fn </span>slice_mut_to_repr(value: <span class="kw-2">&amp;mut </span>[<span class="self">Self</span>]) -&gt; <span class="kw-2">&amp;mut </span>[[u8; <span class="self">Self</span>::SIZE]] {
+        <span class="comment">// SAFETY: `Record` is `#[repr(transparent)]` and guaranteed to have the same memory layout
+        </span><span class="kw">unsafe </span>{ mem::transmute(value) }
+    }
+
+    <span class="doccomment">/// Convenient conversion from mutable slice of underlying representation to record for
+    /// efficiency purposes.
+    </span><span class="kw">pub fn </span>slice_mut_from_repr(value: <span class="kw-2">&amp;mut </span>[[u8; <span class="self">Self</span>::SIZE]]) -&gt; <span class="kw-2">&amp;mut </span>[<span class="self">Self</span>] {
+        <span class="comment">// SAFETY: `Record` is `#[repr(transparent)]` and guaranteed to have the same memory layout
+        </span><span class="kw">unsafe </span>{ mem::transmute(value) }
     }
 
     <span class="doccomment">/// Get a stream of arrays, each containing scalar bytes.
@@ -801,7 +869,9 @@
 }
 
 <span class="doccomment">/// Record commitment contained within a piece.
-</span><span class="attr">#[derive(Debug, Copy, Clone, Eq, PartialEq, Deref, DerefMut)]
+</span><span class="attr">#[derive(
+    Debug, Copy, Clone, Eq, PartialEq, Deref, DerefMut, Encode, Decode, TypeInfo, MaxEncodedLen,
+)]
 #[repr(transparent)]
 </span><span class="kw">pub struct </span>RecordCommitment([u8; <span class="self">Self</span>::SIZE]);
 
@@ -823,7 +893,9 @@
 }
 
 <span class="doccomment">/// Record witness contained within a piece.
-</span><span class="attr">#[derive(Debug, Copy, Clone, Eq, PartialEq, Deref, DerefMut)]
+</span><span class="attr">#[derive(
+    Debug, Copy, Clone, Eq, PartialEq, Deref, DerefMut, Encode, Decode, TypeInfo, MaxEncodedLen,
+)]
 #[repr(transparent)]
 </span><span class="kw">pub struct </span>RecordWitness([u8; <span class="self">Self</span>::SIZE]);
 
@@ -851,9 +923,15 @@
 /// Internally piece contains a record and corresponding witness that together with segment
 /// commitment of the segment this piece belongs to can be used to verify that a piece belongs to
 /// the actual archival history of the blockchain.
-</span><span class="attr">#[derive(Debug, Default, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Encode, TypeInfo)]
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Encode, TypeInfo)]
 #[cfg_attr(feature = <span class="string">&quot;serde&quot;</span>, derive(Serialize, Deserialize))]
 </span><span class="kw">pub struct </span>Piece(Box&lt;PieceArray&gt;);
+
+<span class="kw">impl </span>Default <span class="kw">for </span>Piece {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(PieceArray::new_boxed())
+    }
+}
 
 <span class="comment">// TODO: Manual implementation due to https://github.com/paritytech/parity-scale-codec/issues/419,
 //  can be replaced with derive once fixed upstream version is released
@@ -887,6 +965,14 @@
     <span class="kw">fn </span>try_from(vec: Vec&lt;u8&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
         <span class="comment">// TODO: Maybe possible to transmute boxed slice into boxed array
         </span><span class="self">Self</span>::try_from(vec.as_slice())
+    }
+}
+
+<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>PieceArray&gt; <span class="kw">for </span>Piece {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>PieceArray) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>piece = Piece::default();
+        piece.as_mut().copy_from_slice(value.as_ref());
+        piece
     }
 }
 
@@ -967,19 +1053,14 @@
     </span>}
 }
 
-<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>PieceArray&gt; <span class="kw">for </span>Piece {
-    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>PieceArray) -&gt; <span class="self">Self </span>{
-        Piece(Box::new(<span class="kw-2">*</span>value))
-    }
-}
-
-<span class="kw">impl </span>From&lt;PieceArray&gt; <span class="kw">for </span>Piece {
-    <span class="kw">fn </span>from(value: PieceArray) -&gt; <span class="self">Self </span>{
-        Piece(Box::new(value))
-    }
-}
-
 <span class="kw">impl </span>PieceArray {
+    <span class="doccomment">/// Create boxed value without hitting stack overflow
+    </span><span class="kw">pub fn </span>new_boxed() -&gt; Box&lt;<span class="self">Self</span>&gt; {
+        <span class="comment">// TODO: Should have been just `::new()`, but https://github.com/rust-lang/rust/issues/53827
+        // SAFETY: Data structure filled with zeroes is a valid invariant
+        </span><span class="kw">unsafe </span>{ Box::&lt;<span class="self">Self</span>&gt;::new_zeroed().assume_init() }
+    }
+
     <span class="doccomment">/// Split piece into underlying components.
     </span><span class="kw">pub fn </span>split(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>Record, <span class="kw-2">&amp;</span>RecordCommitment, <span class="kw-2">&amp;</span>RecordWitness) {
         <span class="kw">let </span>(record, extra) = <span class="self">self</span>.<span class="number">0</span>.split_at(Record::SIZE);
@@ -1105,6 +1186,33 @@
     }
 }
 
+<span class="attr">#[cfg(feature = <span class="string">&quot;rayon&quot;</span>)]
+</span><span class="kw">impl </span>FlatPieces {
+    <span class="doccomment">/// Parallel iterator over source pieces (even indices).
+    </span><span class="kw">pub fn </span>par_source(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>IndexedParallelIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>PieceArray&gt; + <span class="lifetime">&#39;_ </span>{
+        <span class="self">self</span>.<span class="number">0</span>.par_iter().step_by(<span class="number">2</span>)
+    }
+
+    <span class="doccomment">/// Mutable parallel iterator over source pieces (even indices).
+    </span><span class="kw">pub fn </span>par_source_mut(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+    ) -&gt; <span class="kw">impl </span>IndexedParallelIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="kw-2">mut </span>PieceArray&gt; + <span class="lifetime">&#39;_ </span>{
+        <span class="self">self</span>.<span class="number">0</span>.par_iter_mut().step_by(<span class="number">2</span>)
+    }
+
+    <span class="doccomment">/// Parallel iterator over parity pieces (odd indices).
+    </span><span class="kw">pub fn </span>par_parity(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>IndexedParallelIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>PieceArray&gt; + <span class="lifetime">&#39;_ </span>{
+        <span class="self">self</span>.<span class="number">0</span>.par_iter().skip(<span class="number">1</span>).step_by(<span class="number">2</span>)
+    }
+
+    <span class="doccomment">/// Mutable parallel iterator over parity pieces (odd indices).
+    </span><span class="kw">pub fn </span>par_parity_mut(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+    ) -&gt; <span class="kw">impl </span>IndexedParallelIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="kw-2">mut </span>PieceArray&gt; + <span class="lifetime">&#39;_ </span>{
+        <span class="self">self</span>.<span class="number">0</span>.par_iter_mut().skip(<span class="number">1</span>).step_by(<span class="number">2</span>)
+    }
+}
+
 <span class="kw">impl </span>From&lt;PieceArray&gt; <span class="kw">for </span>FlatPieces {
     <span class="kw">fn </span>from(value: PieceArray) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(<span class="macro">vec!</span>[value])
@@ -1126,5 +1234,4 @@
         pieces.flatten_mut()
     }
 }
-</code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="subspace_core_primitives" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0-nightly (afaf3e07a 2023-01-14)" data-search-js="search-181581080540673f.js" data-settings-js="settings-a2afdefbb7c817f1.js" data-settings-css="settings-84508a86fe805444.css" ></div></body></html>
+</code></pre></div></section></main></body></html>

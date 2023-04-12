@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `domains/runtime/system/src/runtime.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>runtime.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-52c5db6f6f352e54.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-d2686a620d99aad7.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../system_domain_runtime/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `domains/runtime/system/src/runtime.rs`."><title>runtime.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-fbd14db5c88ed452.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="system_domain_runtime" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0-nightly (0599b6b93 2023-04-01)" data-search-js="search-bc5a112813b5d712.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" data-theme-light-css="light-db279b6232be9c13.css" data-theme-dark-css="dark-cf923f49f397b216.css" data-theme-ayu-css="ayu-be46fdc453a55015.css" ></div><script src="../../static.files/storage-d4a1a279bad1a0c0.js"></script><script defer src="../../static.files/source-script-1b95b7cca98b26e5.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-8e6affb8c73a5ff1.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-db279b6232be9c13.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-cf923f49f397b216.css"><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../system_domain_runtime/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -739,7 +739,30 @@
 <a href="#739" id="739">739</a>
 <a href="#740" id="740">740</a>
 <a href="#741" id="741">741</a>
-</pre><pre class="rust"><code><span class="kw">use </span>domain_runtime_primitives::{opaque, RelayerId};
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+</pre><pre class="rust"><code><span class="kw">use </span>codec::Decode;
+<span class="kw">use </span>domain_runtime_primitives::{opaque, RelayerId};
 <span class="kw">pub use </span>domain_runtime_primitives::{
     AccountId, Address, Balance, BlockNumber, Hash, Index, Signature,
 };
@@ -776,6 +799,7 @@
 
 <span class="comment">// Make core-payments WASM runtime available.
 </span><span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/core_payments_wasm_bundle.rs&quot;</span>));
+<span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/core_eth_relay_wasm_bundle.rs&quot;</span>));
 
 <span class="doccomment">/// Block header type as expected by this runtime.
 </span><span class="kw">pub type </span>Header = generic::Header&lt;BlockNumber, BlakeTwo256&gt;;
@@ -830,7 +854,7 @@
     spec_name: <span class="macro">create_runtime_str!</span>(<span class="string">&quot;subspace-system-domain&quot;</span>),
     impl_name: <span class="macro">create_runtime_str!</span>(<span class="string">&quot;subspace-system-domain&quot;</span>),
     authoring_version: <span class="number">0</span>,
-    spec_version: <span class="number">1</span>,
+    spec_version: <span class="number">2</span>,
     impl_version: <span class="number">0</span>,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: <span class="number">0</span>,
@@ -960,6 +984,10 @@
     <span class="kw">type </span>WeightInfo = pallet_balances::weights::SubstrateWeight&lt;Runtime&gt;;
     <span class="kw">type </span>MaxReserves = MaxReserves;
     <span class="kw">type </span>ReserveIdentifier = [u8; <span class="number">8</span>];
+    <span class="kw">type </span>FreezeIdentifier = ();
+    <span class="kw">type </span>MaxFreezes = ();
+    <span class="kw">type </span>HoldIdentifier = ();
+    <span class="kw">type </span>MaxHolds = ();
 }
 
 <span class="macro">parameter_types! </span>{
@@ -1161,6 +1189,14 @@
         <span class="kw">fn </span>metadata() -&gt; OpaqueMetadata {
             OpaqueMetadata::new(Runtime::metadata().into())
         }
+
+        <span class="kw">fn </span>metadata_at_version(version: u32) -&gt; <span class="prelude-ty">Option</span>&lt;OpaqueMetadata&gt; {
+            Runtime::metadata_at_version(version)
+        }
+
+        <span class="kw">fn </span>metadata_versions() -&gt; sp_std::vec::Vec&lt;u32&gt; {
+            Runtime::metadata_versions()
+        }
     }
 
     <span class="kw">impl </span>sp_block_builder::BlockBuilder&lt;Block&gt; <span class="kw">for </span>Runtime {
@@ -1286,6 +1322,10 @@
         ) -&gt; <span class="prelude-ty">Option</span>&lt;Hash&gt; {
             Receipts::state_root((domain_id, domain_block_number, domain_block_hash))
         }
+
+        <span class="kw">fn </span>primary_hash(domain_id: DomainId, domain_block_number: BlockNumber) -&gt; <span class="prelude-ty">Option</span>&lt;Hash&gt; {
+            Receipts::primary_hash(domain_id, domain_block_number)
+        }
     }
 
     <span class="kw">impl </span>system_runtime_primitives::SystemDomainApi&lt;Block, BlockNumber, Hash&gt; <span class="kw">for </span>Runtime {
@@ -1401,7 +1441,7 @@
 
     <span class="kw">impl </span>sp_messenger::MessengerApi&lt;Block, BlockNumber&gt; <span class="kw">for </span>Runtime {
         <span class="kw">fn </span>extract_xdm_proof_state_roots(
-            extrinsic: <span class="kw-2">&amp;</span>&lt;Block <span class="kw">as </span>BlockT&gt;::Extrinsic,
+            extrinsic: Vec&lt;u8&gt;,
         ) -&gt; <span class="prelude-ty">Option</span>&lt;ExtractedStateRootsFromProof&lt;BlockNumber, &lt;Block <span class="kw">as </span>BlockT&gt;::Hash, &lt;Block <span class="kw">as </span>BlockT&gt;::Hash&gt;&gt; {
             extract_xdm_proof_state_roots(extrinsic)
         }
@@ -1468,17 +1508,20 @@
 }
 
 <span class="kw">fn </span>extract_xdm_proof_state_roots(
-    ext: <span class="kw-2">&amp;</span>UncheckedExtrinsic,
+    encoded_ext: Vec&lt;u8&gt;,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;ExtractedStateRootsFromProof&lt;BlockNumber, Hash, Hash&gt;&gt; {
-    <span class="kw">match </span><span class="kw-2">&amp;</span>ext.function {
-        RuntimeCall::Messenger(pallet_messenger::Call::relay_message { msg }) =&gt; {
-            msg.extract_state_roots_from_proof::&lt;BlakeTwo256&gt;()
+    <span class="kw">if let </span><span class="prelude-val">Ok</span>(ext) = UncheckedExtrinsic::decode(<span class="kw-2">&amp;mut </span>encoded_ext.as_slice()) {
+        <span class="kw">match </span><span class="kw-2">&amp;</span>ext.function {
+            RuntimeCall::Messenger(pallet_messenger::Call::relay_message { msg }) =&gt; {
+                msg.extract_state_roots_from_proof::&lt;BlakeTwo256&gt;()
+            }
+            RuntimeCall::Messenger(pallet_messenger::Call::relay_message_response { msg }) =&gt; {
+                msg.extract_state_roots_from_proof::&lt;BlakeTwo256&gt;()
+            }
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
-        RuntimeCall::Messenger(pallet_messenger::Call::relay_message_response { msg }) =&gt; {
-            msg.extract_state_roots_from_proof::&lt;BlakeTwo256&gt;()
-        }
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-    }
+    } <span class="kw">else </span>{
+        <span class="prelude-val">None
+    </span>}
 }
-</code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="system_domain_runtime" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0-nightly (afaf3e07a 2023-01-14)" data-search-js="search-181581080540673f.js" data-settings-js="settings-a2afdefbb7c817f1.js" data-settings-css="settings-84508a86fe805444.css" ></div></body></html>
+</code></pre></div></section></main></body></html>

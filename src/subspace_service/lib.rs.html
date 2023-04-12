@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/subspace-service/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-52c5db6f6f352e54.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-d2686a620d99aad7.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../subspace_service/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/subspace-service/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-fbd14db5c88ed452.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="subspace_service" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0-nightly (0599b6b93 2023-04-01)" data-search-js="search-bc5a112813b5d712.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" data-theme-light-css="light-db279b6232be9c13.css" data-theme-dark-css="dark-cf923f49f397b216.css" data-theme-ayu-css="ayu-be46fdc453a55015.css" ></div><script src="../../static.files/storage-d4a1a279bad1a0c0.js"></script><script defer src="../../static.files/source-script-1b95b7cca98b26e5.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-8e6affb8c73a5ff1.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-db279b6232be9c13.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-cf923f49f397b216.css"><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../subspace_service/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -831,6 +831,54 @@
 <a href="#831" id="831">831</a>
 <a href="#832" id="832">832</a>
 <a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (C) 2021 Subspace Labs, Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -879,7 +927,7 @@
 <span class="kw">use </span>sc_consensus_slots::SlotProportion;
 <span class="kw">use </span>sc_consensus_subspace::notification::SubspaceNotificationStream;
 <span class="kw">use </span>sc_consensus_subspace::{
-    ArchivedSegmentNotification, ImportedBlockNotification, NewSlotNotification,
+    ArchivedSegmentNotification, BlockImportingNotification, NewSlotNotification,
     RewardSigningNotification, SubspaceLink, SubspaceParams,
 };
 <span class="kw">use </span>sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
@@ -909,8 +957,12 @@
 <span class="kw">use </span>std::num::NonZeroUsize;
 <span class="kw">use </span>std::sync::{Arc, Mutex};
 <span class="kw">use </span>subspace_core_primitives::crypto::kzg::{embedded_kzg_settings, Kzg};
+<span class="kw">use </span>subspace_fraud_proof::invalid_state_transition_proof::{
+    PrePostStateRootVerifier, SystemDomainExtrinsicsBuilder,
+};
 <span class="kw">use </span>subspace_networking::libp2p::multiaddr::Protocol;
 <span class="kw">use </span>subspace_networking::libp2p::Multiaddr;
+<span class="kw">use </span>subspace_networking::utils::online_status_informer;
 <span class="kw">use </span>subspace_networking::{peer_id, Node};
 <span class="kw">use </span>subspace_runtime_primitives::opaque::Block;
 <span class="kw">use </span>subspace_runtime_primitives::{AccountId, Balance, Hash, Index <span class="kw">as </span>Nonce};
@@ -961,14 +1013,24 @@
 <span class="kw">pub type </span>FullBackend = sc_service::TFullBackend&lt;Block&gt;;
 <span class="kw">pub type </span>FullSelectChain = sc_consensus::LongestChain&lt;FullBackend, Block&gt;;
 
+<span class="kw">pub type </span>InvalidStateTransitionProofVerifier&lt;RuntimeApi, ExecutorDispatch&gt; =
+    subspace_fraud_proof::invalid_state_transition_proof::InvalidStateTransitionProofVerifier&lt;
+        Block,
+        FullClient&lt;RuntimeApi, ExecutorDispatch&gt;,
+        NativeElseWasmExecutor&lt;ExecutorDispatch&gt;,
+        SpawnTaskHandle,
+        Hash,
+        PrePostStateRootVerifier&lt;FullClient&lt;RuntimeApi, ExecutorDispatch&gt;, Block&gt;,
+        SystemDomainExtrinsicsBuilder&lt;
+            Block,
+            FullClient&lt;RuntimeApi, ExecutorDispatch&gt;,
+            NativeElseWasmExecutor&lt;ExecutorDispatch&gt;,
+        &gt;,
+    &gt;;
+
 <span class="kw">pub type </span>FraudProofVerifier&lt;RuntimeApi, ExecutorDispatch&gt; = subspace_fraud_proof::ProofVerifier&lt;
     Block,
-    Block,
-    FullClient&lt;RuntimeApi, ExecutorDispatch&gt;,
-    NativeElseWasmExecutor&lt;ExecutorDispatch&gt;,
-    SpawnTaskHandle,
-    Hash,
-    subspace_fraud_proof::PrePostStateRootVerifier&lt;FullClient&lt;RuntimeApi, ExecutorDispatch&gt;, Block&gt;,
+    InvalidStateTransitionProofVerifier&lt;RuntimeApi, ExecutorDispatch&gt;,
 &gt;;
 
 <span class="doccomment">/// Subspace networking instantiation variant
@@ -1125,12 +1187,15 @@
 
     <span class="kw">let </span>bundle_validator = BundleValidator::new(client.clone());
 
-    <span class="kw">let </span>proof_verifier = subspace_fraud_proof::ProofVerifier::new(
-        client.clone(),
-        executor,
-        task_manager.spawn_handle(),
-        subspace_fraud_proof::PrePostStateRootVerifier::new(client.clone()),
-    );
+    <span class="kw">let </span>proof_verifier = subspace_fraud_proof::ProofVerifier::new(Arc::new(
+        InvalidStateTransitionProofVerifier::new(
+            client.clone(),
+            executor.clone(),
+            task_manager.spawn_handle(),
+            PrePostStateRootVerifier::new(client.clone()),
+            SystemDomainExtrinsicsBuilder::new(client.clone(), Arc::new(executor)),
+        ),
+    ));
     <span class="kw">let </span>tx_pre_validator = PrimaryChainTxPreValidator::new(
         client.clone(),
         Box::new(task_manager.spawn_handle()),
@@ -1229,8 +1294,10 @@
     </span><span class="kw">pub </span>client: Arc&lt;Client&gt;,
     <span class="doccomment">/// Chain selection rule.
     </span><span class="kw">pub </span>select_chain: FullSelectChain,
-    <span class="doccomment">/// Network.
-    </span><span class="kw">pub </span>network: Arc&lt;sc_network::NetworkService&lt;Block, &lt;Block <span class="kw">as </span>BlockT&gt;::Hash&gt;&gt;,
+    <span class="doccomment">/// Network service.
+    </span><span class="kw">pub </span>network_service: Arc&lt;sc_network::NetworkService&lt;Block, &lt;Block <span class="kw">as </span>BlockT&gt;::Hash&gt;&gt;,
+    <span class="doccomment">/// Sync service.
+    </span><span class="kw">pub </span>sync_service: Arc&lt;sc_network_sync::SyncingService&lt;Block&gt;&gt;,
     <span class="doccomment">/// RPC handlers.
     </span><span class="kw">pub </span>rpc_handlers: sc_service::RpcHandlers,
     <span class="doccomment">/// Full client backend.
@@ -1239,9 +1306,9 @@
     </span><span class="kw">pub </span>new_slot_notification_stream: SubspaceNotificationStream&lt;NewSlotNotification&gt;,
     <span class="doccomment">/// Block signing stream.
     </span><span class="kw">pub </span>reward_signing_notification_stream: SubspaceNotificationStream&lt;RewardSigningNotification&gt;,
-    <span class="doccomment">/// Imported block stream.
-    </span><span class="kw">pub </span>imported_block_notification_stream:
-        SubspaceNotificationStream&lt;ImportedBlockNotification&lt;Block&gt;&gt;,
+    <span class="doccomment">/// Stream of notifications about blocks about to be imported.
+    </span><span class="kw">pub </span>block_importing_notification_stream:
+        SubspaceNotificationStream&lt;BlockImportingNotification&lt;Block&gt;&gt;,
     <span class="doccomment">/// Archived segment stream.
     </span><span class="kw">pub </span>archived_segment_notification_stream:
         SubspaceNotificationStream&lt;ArchivedSegmentNotification&gt;,
@@ -1336,11 +1403,22 @@
             bootstrap_nodes,
         } =&gt; (node, bootstrap_nodes),
         SubspaceNetworking::Create {
-            config,
+            config: dsn_config,
             piece_cache_size,
         } =&gt; {
-            <span class="kw">let </span>piece_cache =
-                PieceCache::new(client.clone(), piece_cache_size, peer_id(<span class="kw-2">&amp;</span>config.keypair));
+            <span class="kw">let </span>dsn_protocol_prefix = hex::encode(client.chain_info().genesis_hash);
+
+            <span class="macro">info!</span>(
+                chain_type=<span class="question-mark">?</span>config.chain_spec.chain_type(),
+                genesis_hash=%hex::encode(client.chain_info().genesis_hash),
+                <span class="string">&quot;Setting DSN protocol prefix...&quot;
+            </span>);
+
+            <span class="kw">let </span>piece_cache = PieceCache::new(
+                client.clone(),
+                piece_cache_size,
+                peer_id(<span class="kw-2">&amp;</span>dsn_config.keypair),
+            );
 
             <span class="comment">// Start before archiver below, so we don&#39;t have potential race condition and miss pieces
             </span>task_manager
@@ -1373,8 +1451,9 @@
                     }
                 });
 
-            <span class="kw">let </span>(node, <span class="kw-2">mut </span>node_runner) = create_dsn_instance::&lt;Block, <span class="kw">_</span>&gt;(
-                config.clone(),
+            <span class="kw">let </span>(node, <span class="kw-2">mut </span>node_runner) = create_dsn_instance(
+                dsn_protocol_prefix,
+                dsn_config.clone(),
                 piece_cache,
                 segment_header_cache.clone(),
             )<span class="question-mark">?</span>;
@@ -1393,6 +1472,18 @@
             }))
             .detach();
 
+            <span class="kw">let </span>status_informer_fut = online_status_informer(<span class="kw-2">&amp;</span>node);
+            task_manager.spawn_handle().spawn(
+                <span class="string">&quot;status-observer&quot;</span>,
+                <span class="prelude-val">Some</span>(<span class="string">&quot;subspace-networking&quot;</span>),
+                Box::pin(
+                    <span class="kw">async move </span>{
+                        status_informer_fut.<span class="kw">await</span>;
+                    }
+                    .in_current_span(),
+                ),
+            );
+
             task_manager.spawn_essential_handle().spawn_essential(
                 <span class="string">&quot;node-runner&quot;</span>,
                 <span class="prelude-val">Some</span>(<span class="string">&quot;subspace-networking&quot;</span>),
@@ -1404,7 +1495,7 @@
                 ),
             );
 
-            (node, config.bootstrap_nodes)
+            (node, dsn_config.bootstrap_nodes)
         }
     };
 
@@ -1483,12 +1574,15 @@
         }
     };
 
-    sc_consensus_subspace::start_subspace_archiver(
+    <span class="kw">let </span>subspace_archiver = sc_consensus_subspace::create_subspace_archiver(
         <span class="kw-2">&amp;</span>subspace_link,
         client.clone(),
         telemetry.as_ref().map(|telemetry| telemetry.handle()),
-        <span class="kw-2">&amp;</span>task_manager.spawn_essential_handle(),
     );
+
+    task_manager
+        .spawn_essential_handle()
+        .spawn_essential_blocking(<span class="string">&quot;subspace-archiver&quot;</span>, <span class="prelude-val">None</span>, Box::pin(subspace_archiver));
 
     <span class="kw">if </span>config.sync_from_dsn {
         import_blocks_from_dsn(<span class="kw-2">&amp;</span>node, client.clone(), <span class="kw-2">&amp;mut </span>import_queue, <span class="bool-val">false</span>)
@@ -1498,7 +1592,7 @@
             })<span class="question-mark">?</span>;
     }
 
-    <span class="kw">let </span>(network, system_rpc_tx, tx_handler_controller, network_starter) =
+    <span class="kw">let </span>(network_service, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
         sc_service::build_network(sc_service::BuildNetworkParams {
             config: <span class="kw-2">&amp;</span>config,
             client: client.clone(),
@@ -1509,7 +1603,7 @@
             warp_sync_params: <span class="prelude-val">None</span>,
         })<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>sync_oracle = network.clone();
+    <span class="kw">let </span>sync_oracle = sync_service.clone();
     <span class="kw">let </span>best_hash = client.info().best_hash;
     <span class="kw">let </span><span class="kw-2">mut </span>imported_blocks_stream = client.import_notification_stream();
     task_manager.spawn_handle().spawn(
@@ -1532,7 +1626,7 @@
             <span class="kw-2">&amp;</span>config,
             task_manager.spawn_handle(),
             client.clone(),
-            network.clone(),
+            network_service.clone(),
         );
     }
 
@@ -1541,7 +1635,7 @@
 
     <span class="kw">let </span>new_slot_notification_stream = subspace_link.new_slot_notification_stream();
     <span class="kw">let </span>reward_signing_notification_stream = subspace_link.reward_signing_notification_stream();
-    <span class="kw">let </span>imported_block_notification_stream = subspace_link.imported_block_notification_stream();
+    <span class="kw">let </span>block_importing_notification_stream = subspace_link.block_importing_notification_stream();
     <span class="kw">let </span>archived_segment_notification_stream = subspace_link.archived_segment_notification_stream();
 
     <span class="kw">if </span>config.role.is_authority() || config.force_new_slot_notifications {
@@ -1558,8 +1652,8 @@
             select_chain: select_chain.clone(),
             env: proposer_factory,
             block_import,
-            sync_oracle: network.clone(),
-            justification_sync_link: network.clone(),
+            sync_oracle: sync_service.clone(),
+            justification_sync_link: sync_service.clone(),
             create_inherent_data_providers: {
                 <span class="kw">let </span>client = client.clone();
                 <span class="kw">let </span>subspace_link = subspace_link.clone();
@@ -1608,9 +1702,9 @@
     }
 
     <span class="kw">let </span>rpc_handlers = sc_service::spawn_tasks(SpawnTasksParams {
-        network: network.clone(),
+        network: network_service.clone(),
         client: client.clone(),
-        keystore: keystore_container.sync_keystore(),
+        keystore: keystore_container.keystore(),
         task_manager: <span class="kw-2">&amp;mut </span>task_manager,
         transaction_pool: transaction_pool.clone(),
         rpc_builder: <span class="kw">if </span>enable_rpc_extensions {
@@ -1647,22 +1741,23 @@
         config: config.into(),
         telemetry: telemetry.as_mut(),
         tx_handler_controller,
+        sync_service: sync_service.clone(),
     })<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(NewFull {
         task_manager,
         client,
         select_chain,
-        network,
+        network_service,
+        sync_service,
         rpc_handlers,
         backend,
         new_slot_notification_stream,
         reward_signing_notification_stream,
-        imported_block_notification_stream,
+        block_importing_notification_stream,
         archived_segment_notification_stream,
         network_starter,
         transaction_pool,
     })
 }
-</code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="subspace_service" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0-nightly (afaf3e07a 2023-01-14)" data-search-js="search-181581080540673f.js" data-settings-js="settings-a2afdefbb7c817f1.js" data-settings-css="settings-84508a86fe805444.css" ></div></body></html>
+</code></pre></div></section></main></body></html>
