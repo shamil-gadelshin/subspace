@@ -8,8 +8,8 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
+use std::time::Instant;
 use std::{fs, io, thread};
-use std::time::{Duration, Instant};
 use subspace_core_primitives::SegmentIndex;
 use subspace_farmer::utils::farmer_piece_cache::FarmerPieceCache;
 use subspace_farmer::utils::farmer_provider_record_processor::FarmerProviderRecordProcessor;
@@ -19,12 +19,18 @@ use subspace_farmer::utils::readers_and_pieces::ReadersAndPieces;
 use subspace_farmer::{NodeClient, NodeRpcClient};
 use subspace_farmer_components::piece_caching::PieceMemoryCache;
 use subspace_networking::libp2p::identity::Keypair;
+use subspace_networking::libp2p::kad::ProviderRecord;
 use subspace_networking::libp2p::multiaddr::Protocol;
 use subspace_networking::utils::multihash::ToMultihash;
-use subspace_networking::{create, peer_id, Config, NetworkingParametersManager, Node, NodeRunner, ParityDbProviderStorage, PieceByHashRequest, PieceByHashRequestHandler, PieceByHashResponse, SegmentHeaderBySegmentIndexesRequestHandler, SegmentHeaderRequest, SegmentHeaderResponse, PieceAnnouncementRequestHandler, PieceAnnouncementResponse, ProviderStorage};
+use subspace_networking::{
+    create, peer_id, Config, NetworkingParametersManager, Node, NodeRunner,
+    ParityDbProviderStorage, PieceAnnouncementRequestHandler, PieceAnnouncementResponse,
+    PieceByHashRequest, PieceByHashRequestHandler, PieceByHashResponse, ProviderStorage,
+    SegmentHeaderBySegmentIndexesRequestHandler, SegmentHeaderRequest, SegmentHeaderResponse,
+    KADEMLIA_PROVIDER_TTL_IN_SECS,
+};
 use tokio::runtime::Handle;
-use tracing::{debug, error, info, Instrument, Span, trace};
-use subspace_networking::libp2p::kad::ProviderRecord;
+use tracing::{debug, error, info, trace, Instrument, Span};
 
 const MAX_CONCURRENT_ANNOUNCEMENTS_QUEUE: NonZeroUsize =
     NonZeroUsize::new(2000).expect("Not zero; qed");
@@ -33,9 +39,6 @@ const MAX_CONCURRENT_ANNOUNCEMENTS_PROCESSING: NonZeroUsize =
 const MAX_CONCURRENT_RE_ANNOUNCEMENTS_PROCESSING: NonZeroUsize =
     NonZeroUsize::new(100).expect("Not zero; qed");
 const ROOT_BLOCK_NUMBER_LIMIT: u64 = 1000;
-
-// Defines an expiration interval for item providers in Kademlia network.
-const KADEMLIA_PROVIDER_TTL_IN_SECS: Option<Duration> = Some(Duration::from_secs(86400)); /* 1 day */
 
 #[allow(clippy::type_complexity)]
 pub(super) fn configure_dsn(

@@ -15,10 +15,11 @@ use futures::{FutureExt, StreamExt};
 use libp2p::core::ConnectedPoint;
 use libp2p::gossipsub::{Event as GossipsubEvent, TopicHash};
 use libp2p::identify::Event as IdentifyEvent;
+use libp2p::kad::store::RecordStore;
 use libp2p::kad::{
-    AddProviderError, AddProviderOk, GetClosestPeersError, GetClosestPeersOk, GetProvidersError,
-    GetProvidersOk, GetRecordError, GetRecordOk, InboundRequest, Kademlia, KademliaEvent,
-    PeerRecord, ProgressStep, PutRecordOk, QueryId, QueryResult, Quorum, Record,
+    GetClosestPeersError, GetClosestPeersOk, GetProvidersError, GetProvidersOk, GetRecordError,
+    GetRecordOk, InboundRequest, Kademlia, KademliaEvent, PeerRecord, ProgressStep, ProviderRecord,
+    PutRecordOk, QueryId, QueryResult, Quorum, Record,
 };
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::swarm::dial_opts::DialOpts;
@@ -33,7 +34,7 @@ use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Weak};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::watch;
 use tokio::time::Sleep;
 use tracing::{debug, error, info, trace, warn};
@@ -43,6 +44,9 @@ use tracing::{debug, error, info, trace, warn};
 /// 1 means boosting starts with second peer.
 const CONCURRENT_TASKS_BOOST_PEERS_THRESHOLD: NonZeroUsize =
     NonZeroUsize::new(5).expect("Not zero; qed");
+
+// Defines an expiration interval for item providers in Kademlia network.
+pub const KADEMLIA_PROVIDER_TTL_IN_SECS: Option<Duration> = Some(Duration::from_secs(86400)); /* 1 day */
 
 enum QueryResultSender {
     Value {
@@ -57,11 +61,6 @@ enum QueryResultSender {
     },
     Providers {
         sender: mpsc::UnboundedSender<PeerId>,
-        // Just holding onto permit while data structure is not dropped
-        _permit: ResizableSemaphorePermit,
-    },
-    Announce {
-        sender: mpsc::UnboundedSender<()>,
         // Just holding onto permit while data structure is not dropped
         _permit: ResizableSemaphorePermit,
     },
@@ -820,43 +819,6 @@ where
             KademliaEvent::OutboundQueryProgressed {
                 step: ProgressStep { last, .. },
                 id,
-                result: QueryResult::StartProviding(result),
-                stats,
-            } => {
-                let mut cancelled = false;
-                trace!("Start providing stats: {:?}", stats);
-
-                if let Some(QueryResultSender::Announce { sender, .. }) =
-                    self.query_id_receivers.get_mut(&id)
-                {
-                    match result {
-                        Ok(AddProviderOk { key }) => {
-                            trace!("Start providing query for {} succeeded", hex::encode(&key));
-
-                            cancelled = Self::unbounded_send_and_cancel_on_error(
-                                &mut self.swarm.behaviour_mut().kademlia,
-                                sender,
-                                (),
-                                "AddProviderOk",
-                                &id,
-                            ) || cancelled;
-                        }
-                        Err(error) => {
-                            let AddProviderError::Timeout { key } = error;
-
-                            debug!("Start providing query for {} failed.", hex::encode(&key));
-                        }
-                    }
-                }
-
-                if last || cancelled {
-                    // There will be no more progress
-                    self.query_id_receivers.remove(&id);
-                }
-            }
-            KademliaEvent::OutboundQueryProgressed {
-                step: ProgressStep { last, .. },
-                id,
                 result: QueryResult::PutRecord(result),
                 ..
             } => {
@@ -1123,39 +1085,38 @@ where
 
                 let _ = result_sender.send(kademlia_connection_initiated);
             }
-            Command::StartAnnouncing {
-                key,
-                result_sender,
-                permit,
-            } => {
+            Command::StartLocalAnnouncing { key, result_sender } => {
+                let local_peer_id = *self.swarm.local_peer_id();
+                let provider_record = ProviderRecord {
+                    provider: local_peer_id,
+                    key: key.clone(),
+                    addresses: Vec::new(), // TODO: add address hints
+                    expires: KADEMLIA_PROVIDER_TTL_IN_SECS.map(|ttl| Instant::now() + ttl),
+                };
+
                 let res = self
                     .swarm
                     .behaviour_mut()
                     .kademlia
-                    .start_providing(key.clone());
+                    .store_mut()
+                    .add_provider(provider_record);
 
-                match res {
-                    Ok(query_id) => {
-                        self.query_id_receivers.insert(
-                            query_id,
-                            QueryResultSender::Announce {
-                                sender: result_sender,
-                                _permit: permit,
-                            },
-                        );
-                    }
-                    Err(error) => {
-                        error!(?key, ?error, "Failed to announce a piece.");
-                    }
+                if let Err(error) = &res {
+                    error!(?key, ?error, "Failed to announce a piece.");
                 }
+
+                let _ = result_sender.send(res.is_ok());
             }
-            Command::StopAnnouncing { key, result_sender } => {
+            Command::StopLocalAnnouncing { key, result_sender } => {
+                let local_peer_id = *self.swarm.local_peer_id();
+
                 self.swarm
                     .behaviour_mut()
                     .kademlia
-                    .stop_providing(&key.into());
+                    .store_mut()
+                    .remove_provider(&key.into(), &local_peer_id);
 
-                let _ = result_sender.send(true);
+                let _ = result_sender.send(());
             }
             Command::GetProviders {
                 key,

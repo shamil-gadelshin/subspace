@@ -66,14 +66,13 @@ pub(crate) enum Command {
     CheckConnectedPeers {
         result_sender: oneshot::Sender<bool>,
     },
-    StartAnnouncing {
+    StartLocalAnnouncing {
         key: Key,
-        result_sender: mpsc::UnboundedSender<()>,
-        permit: ResizableSemaphorePermit,
-    },
-    StopAnnouncing {
-        key: Multihash,
         result_sender: oneshot::Sender<bool>,
+    },
+    StopLocalAnnouncing {
+        key: Multihash,
+        result_sender: oneshot::Sender<()>,
     },
     GetProviders {
         key: Multihash,

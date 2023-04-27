@@ -14,7 +14,7 @@ use sp_core::traits::SpawnNamed;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use subspace_archiving::archiver::NewArchivedSegment;
 use subspace_core_primitives::{PieceIndex, SegmentHeader, SegmentIndex};
 use subspace_networking::libp2p::kad::ProviderRecord;
@@ -26,6 +26,7 @@ use subspace_networking::{
     ParityDbError, ParityDbProviderStorage, PieceAnnouncementRequestHandler,
     PieceAnnouncementResponse, PieceByHashRequestHandler, PieceByHashResponse, ProviderStorage,
     SegmentHeaderBySegmentIndexesRequestHandler, SegmentHeaderRequest, SegmentHeaderResponse,
+    KADEMLIA_PROVIDER_TTL_IN_SECS,
 };
 use thiserror::Error;
 use tokio::sync::Semaphore;
@@ -35,9 +36,6 @@ use tracing::{debug, error, info, trace, warn, Instrument};
 const MAX_PROVIDER_RECORDS_LIMIT: usize = 100000; // ~ 10 MB
 
 const ROOT_BLOCK_NUMBER_LIMIT: u64 = 100;
-
-// Defines an expiration interval for item providers in Kademlia network.
-const KADEMLIA_PROVIDER_TTL_IN_SECS: Option<Duration> = Some(Duration::from_secs(86400)); /* 1 day */
 
 /// Errors that might happen during DSN configuration.
 #[derive(Debug, Error)]

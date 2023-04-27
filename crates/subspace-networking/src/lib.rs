@@ -36,12 +36,11 @@ pub use crate::behavior::persistent_parameters::{
     BootstrappedNetworkingParameters, NetworkParametersPersistenceError,
     NetworkingParametersManager, ParityDbError,
 };
-pub use crate::node::piece_announcement::announce_key;
 pub use crate::node::{
     CircuitRelayClientError, GetClosestPeersError, Node, SendRequestError, SubscribeError,
     TopicSubscription,
 };
-pub use crate::node_runner::NodeRunner;
+pub use crate::node_runner::{NodeRunner, KADEMLIA_PROVIDER_TTL_IN_SECS};
 pub use behavior::provider_storage::{
     MemoryProviderStorage, ParityDbProviderStorage, ProviderStorage, VoidProviderStorage,
 };
@@ -66,5 +65,6 @@ pub use request_handlers::pieces_by_range::{
 pub use request_handlers::segment_header::{
     SegmentHeaderBySegmentIndexesRequestHandler, SegmentHeaderRequest, SegmentHeaderResponse,
 };
+pub use utils::piece_announcement::announce_key;
 pub use utils::prometheus::start_prometheus_metrics_server;
 pub use utils::unique_record_binary_heap::UniqueRecordBinaryHeap;

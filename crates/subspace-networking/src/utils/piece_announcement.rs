@@ -6,11 +6,14 @@ use futures::StreamExt;
 use libp2p::core::multihash::Multihash;
 use std::collections::HashSet;
 use std::error::Error;
-use tracing::{debug, trace, warn};
+use tracing::{debug, info, trace, warn};
 
 const TARGET_PEERS_TO_ACKNOWLEDGE: usize = 3;
 
-pub async fn announce_key(node: Node, key: Multihash) -> Result<bool, Box<dyn Error>> {
+pub async fn announce_key(
+    node: &Node,
+    key: Multihash,
+) -> Result<bool, Box<dyn Error + Send + Sync + 'static>> {
     let get_peers_result = node.get_closest_peers(key).await;
 
     let mut get_peers_stream = match get_peers_result {
@@ -53,8 +56,6 @@ pub async fn announce_key(node: Node, key: Multihash) -> Result<bool, Box<dyn Er
             }
             Err(error) => {
                 debug!(%peer_id, ?key, ?error, "Last root block request failed.");
-
-                return Err(error.into());
             }
         }
 
