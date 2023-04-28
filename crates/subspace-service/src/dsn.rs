@@ -16,10 +16,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use subspace_archiving::archiver::NewArchivedSegment;
-use subspace_core_primitives::{PieceIndex, SegmentHeader, SegmentIndex};
+use subspace_core_primitives::{PieceIndex, PieceIndexHash, SegmentHeader, SegmentIndex};
 use subspace_networking::libp2p::kad::ProviderRecord;
 use subspace_networking::libp2p::{identity, Multiaddr};
-use subspace_networking::utils::piece_announcement::announce_single_piece_index_with_backoff;
+use subspace_networking::utils::piece_announcement::announce_piece;
 use subspace_networking::{
     peer_id, BootstrappedNetworkingParameters, CreationError, MemoryProviderStorage,
     NetworkParametersPersistenceError, NetworkingParametersManager, Node, NodeRunner,
@@ -336,7 +336,7 @@ pub(crate) async fn publish_pieces(
     let pieces_indexes = (first_piece_index..).take(archived_segment.pieces.len());
 
     let mut pieces_publishing_futures = pieces_indexes
-        .map(|piece_index| announce_single_piece_index_with_backoff(piece_index, node))
+        .map(|piece_index| announce_piece(PieceIndexHash::from_index(piece_index), node))
         .collect::<FuturesUnordered<_>>();
 
     while pieces_publishing_futures.next().await.is_some() {
