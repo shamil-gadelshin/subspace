@@ -543,6 +543,10 @@ where
 
     async fn handle_identify_event(&mut self, event: IdentifyEvent) {
         let local_peer_id = *self.swarm.local_peer_id();
+        println!(
+            "External addresses: {:?}",
+            self.swarm.external_addresses().cloned().collect::<Vec<_>>()
+        );
 
         if let IdentifyEvent::Received { peer_id, mut info } = event {
             // Check for network partition
@@ -631,29 +635,7 @@ where
             KademliaEvent::InboundRequest {
                 request: InboundRequest::AddProvider { record, .. },
             } => {
-                warn!("Unexpected AddProvider request received: {:?}", record);
-
-                //TODO: remove
-                // if let (Some(record), Some(guard)) = (record, guard) {
-                //     if let Err(err) = self
-                //         .swarm
-                //         .behaviour_mut()
-                //         .kademlia
-                //         .store_mut()
-                //         .add_provider(record.clone())
-                //     {
-                //         error!(?err, "Failed to add provider record: {:?}", record);
-                //     }
-                //
-                //     let shared = match self.shared_weak.upgrade() {
-                //         Some(shared) => shared,
-                //         None => {
-                //             return;
-                //         }
-                //     };
-                //
-                //     shared.handlers.announcement.call_simple(&record, &guard);
-                // }
+                debug!("Unexpected AddProvider request received: {:?}", record);
             }
             KademliaEvent::OutboundQueryProgressed {
                 step: ProgressStep { last, .. },
@@ -1087,10 +1069,12 @@ where
             }
             Command::StartLocalAnnouncing { key, result_sender } => {
                 let local_peer_id = *self.swarm.local_peer_id();
+                let addresses = self.swarm.external_addresses().map(|rec| rec.addr.clone()).collect::<Vec<_>>();
+
                 let provider_record = ProviderRecord {
                     provider: local_peer_id,
                     key: key.clone(),
-                    addresses: Vec::new(), // TODO: add address hints
+                    addresses,
                     expires: KADEMLIA_PROVIDER_TTL_IN_SECS.map(|ttl| Instant::now() + ttl),
                 };
 

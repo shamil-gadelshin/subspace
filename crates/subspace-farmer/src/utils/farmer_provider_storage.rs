@@ -109,7 +109,7 @@ where
                 key: piece_index_hash.to_multihash().into(),
                 provider: self.local_peer_id,
                 expires: None,
-                addresses: Vec::new(), // TODO: add address hints
+                addresses: Vec::new(), // Kademlia adds addresses for local providers
             });
         }
 
@@ -148,7 +148,7 @@ where
                     key,
                     provider: self.local_peer_id,
                     expires: None,
-                    addresses: Vec::new(), // TODO: add address hints
+                    addresses: Vec::new(), // Kademlia adds addresses for local providers
                 }
             })
             .map(Cow::Owned)
