@@ -16,8 +16,8 @@ use subspace_core_primitives::crypto::kzg::{Commitment, Kzg};
 use subspace_core_primitives::crypto::{Scalar, ScalarLegacy};
 use subspace_core_primitives::sector_codec::{SectorCodec, SectorCodecError};
 use subspace_core_primitives::{
-    ArchivedHistorySegment, LegacySectorId, Piece, PieceIndex, PieceIndexHash, PublicKey,
-    SectorIndex, PLOT_SECTOR_SIZE,
+    ArchivedHistorySegment, LegacySectorId, Piece, PieceIndex, PublicKey, SectorIndex,
+    PLOT_SECTOR_SIZE,
 };
 use thiserror::Error;
 use tracing::{info, warn};
@@ -308,7 +308,7 @@ async fn download_pieces_in_batches_non_blocking<PG: PieceGetter>(
             )
         }));
 
-        piece_memory_cache.add_piece(PieceIndexHash::from_index(piece_index), piece);
+        piece_memory_cache.add_piece(piece_index.into(), piece);
     }
 
     info!(%sector_index, "Plotting was successful.");

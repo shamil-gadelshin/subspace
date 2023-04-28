@@ -26,11 +26,11 @@ use subspace_farmer::{Identity, NodeClient, NodeRpcClient};
 use subspace_farmer_components::piece_caching::PieceMemoryCache;
 use subspace_networking::libp2p::identity::{ed25519, Keypair};
 use subspace_networking::utils::online_status_informer;
+use subspace_networking::utils::piece_announcement::announce_piece;
 use subspace_networking::utils::piece_provider::PieceProvider;
 use tokio::sync::broadcast;
 use tracing::{debug, error, info};
 use zeroize::Zeroizing;
-use subspace_networking::utils::piece_announcement::announce_piece;
 
 const RECORDS_ROOTS_CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(1_000_000).expect("Not zero; qed");
 
@@ -205,7 +205,7 @@ pub(crate) async fn farm_multi_disk(
                     plotted_sector.piece_indexes.into_iter().enumerate().map(
                         move |(piece_offset, piece_index)| {
                             (
-                                PieceIndexHash::from_index(piece_index),
+                                PieceIndexHash::from(piece_index),
                                 PieceDetails {
                                     plot_offset,
                                     sector_index: plotted_sector.sector_index,
@@ -260,7 +260,7 @@ pub(crate) async fn farm_multi_disk(
                                 // Skip pieces that are already plotted and thus were announced
                                 // before
                                 !readers_and_pieces
-                                    .contains_piece(&PieceIndexHash::from_index(piece_index))
+                                    .contains_piece(&PieceIndexHash::from(piece_index))
                             })
                             .copied()
                             .collect::<Vec<_>>();
@@ -273,7 +273,7 @@ pub(crate) async fn farm_multi_disk(
                                 .enumerate()
                                 .map(|(piece_offset, piece_index)| {
                                     (
-                                        PieceIndexHash::from_index(piece_index),
+                                        PieceIndexHash::from(piece_index),
                                         PieceDetails {
                                             plot_offset,
                                             sector_index,
@@ -296,7 +296,7 @@ pub(crate) async fn farm_multi_disk(
                         let mut pieces_publishing_futures = new_pieces
                             .into_iter()
                             .map(|piece_index| {
-                                announce_piece(PieceIndexHash::from_index(piece_index), &node)
+                                announce_piece(piece_index, &node)
                             })
                             .collect::<FuturesUnordered<_>>();
 

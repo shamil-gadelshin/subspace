@@ -1,16 +1,16 @@
 use crate::node::Node;
-use crate::utils::multihash::ToMultihash;
-use backoff::future::retry;
-use backoff::ExponentialBackoff;
-use std::error::Error;
-use std::time::Duration;
-use subspace_core_primitives::{ PieceIndexHash};
 use crate::request_handlers::piece_announcement::{
     PieceAnnouncementRequest, PieceAnnouncementResponse,
 };
+use crate::utils::multihash::ToMultihash;
+use backoff::future::retry;
+use backoff::ExponentialBackoff;
 use futures::StreamExt;
 use libp2p::core::multihash::Multihash;
 use std::collections::HashSet;
+use std::error::Error;
+use std::time::Duration;
+use subspace_core_primitives::PieceIndexHash;
 use tracing::{debug, trace, warn};
 
 const TARGET_PEERS_TO_ACKNOWLEDGE: usize = 3;
@@ -30,67 +30,85 @@ fn default_backoff() -> ExponentialBackoff {
     }
 }
 
-pub async fn announce_piece(
-    piece_index_hash: PieceIndexHash,
+pub async fn announce_piece<Pid: Into<PieceIndexHash>>(
+    piece_id: Pid,
     node: &Node,
 ) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
-    retry(default_backoff(), || {
-        announce_single_piece_index_hash(piece_index_hash, node)
-    })
-    .await
-}
-
-pub async fn announce_single_piece_index_hash(
-    piece_index_hash: PieceIndexHash,
-    node: &Node,
-) -> Result<(), backoff::Error<Box<dyn Error + Send + Sync + 'static>>> {
+    let piece_index_hash = piece_id.into();
     let key = piece_index_hash.to_multihash();
 
-    let local_announcing_result = node.start_local_announcing(key.into()).await;
-    match local_announcing_result {
-        Err(error) => {
-            debug!(
-                ?error,
-                ?piece_index_hash,
-                ?key,
-                "Local piece publishing for a sector returned an error"
-            );
+    retry(default_backoff(), || async {
+        let local_announcing_result = node.start_local_announcing(key.into()).await;
+        match local_announcing_result {
+            Err(error) => {
+                debug!(
+                    ?error,
+                    ?piece_index_hash,
+                    ?key,
+                    "Local piece publishing for a sector returned an error"
+                );
 
-            return Err(backoff::Error::transient("Local piece publishing failed".into()))
-        }
-        Ok(false) => {
-            debug!(?piece_index_hash, ?key, "Local piece publishing for a sector failed");
+                return Err(backoff::Error::transient(
+                    "Local piece publishing failed".into(),
+                ));
+            }
+            Ok(false) => {
+                debug!(
+                    ?piece_index_hash,
+                    ?key,
+                    "Local piece publishing for a sector failed"
+                );
 
-            return Err(backoff::Error::transient("Local piece publishing was unsuccessful".into()))
-        }
-        Ok(true) => {
-            trace!(?piece_index_hash, ?key, "Local piece publishing for a sector succeeded");
-        }
-    };
+                return Err(backoff::Error::transient(
+                    "Local piece publishing was unsuccessful".into(),
+                ));
+            }
+            Ok(true) => {
+                trace!(
+                    ?piece_index_hash,
+                    ?key,
+                    "Local piece publishing for a sector succeeded"
+                );
+            }
+        };
 
-    let public_announce_result = announce_key(node, key).await;
-    match public_announce_result {
-        Err(error) => {
-            debug!(
-                ?error,
-                ?piece_index_hash,
-                ?key,
-                "Public piece publishing for a sector returned an error"
-            );
+        let public_announce_result = announce_key(node, key).await;
+        match public_announce_result {
+            Err(error) => {
+                debug!(
+                    ?error,
+                    ?piece_index_hash,
+                    ?key,
+                    "Public piece publishing for a sector returned an error"
+                );
 
-            Err(backoff::Error::transient("Public piece publishing failed".into()))
-        }
-        Ok(false) => {
-            debug!(?piece_index_hash, ?key, "Public piece publishing for a sector failed");
+                Err(backoff::Error::transient(
+                    "Public piece publishing failed".into(),
+                ))
+            }
+            Ok(false) => {
+                debug!(
+                    ?piece_index_hash,
+                    ?key,
+                    "Public piece publishing for a sector failed"
+                );
 
-            Err(backoff::Error::transient("Public piece publishing was unsuccessful".into()))
-        }
-        Ok(true) => {
-            trace!(?piece_index_hash, ?key, "Public piece publishing for a sector succeeded");
+                Err(backoff::Error::transient(
+                    "Public piece publishing was unsuccessful".into(),
+                ))
+            }
+            Ok(true) => {
+                trace!(
+                    ?piece_index_hash,
+                    ?key,
+                    "Public piece publishing for a sector succeeded"
+                );
 
-            Ok(())
+                Ok(())
+            }
         }
-    }
+    })
+    .await
 }
 
 async fn announce_key(
