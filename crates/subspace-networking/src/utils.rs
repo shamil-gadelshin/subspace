@@ -1,7 +1,6 @@
 pub mod multihash;
-pub(crate) mod piece_announcement;
+pub mod piece_announcement;
 pub mod piece_provider;
-pub mod pieces;
 pub(crate) mod prometheus;
 #[cfg(test)]
 mod tests;
