@@ -9,7 +9,6 @@ use futures::channel::{mpsc, oneshot};
 use libp2p::core::multihash::Multihash;
 use libp2p::gossipsub::error::{PublishError, SubscriptionError};
 use libp2p::gossipsub::Sha256Topic;
-use libp2p::kad::handler::InboundStreamEventGuard;
 use libp2p::kad::record::Key;
 use libp2p::kad::{PeerRecord, ProviderRecord};
 use libp2p::{Multiaddr, PeerId};
@@ -88,14 +87,12 @@ pub(crate) enum Command {
 }
 
 pub(crate) type HandlerFn<A> = Arc<dyn Fn(&A) + Send + Sync + 'static>;
-pub(crate) type HandlerFn2<A, B> = Arc<dyn Fn(&A, &B) + Send + Sync + 'static>;
 type Handler<A> = Bag<HandlerFn<A>, A>;
-type Handler2<A, B> = Bag<HandlerFn2<A, B>, A, B>;
 
 #[derive(Default, Debug)]
 pub(crate) struct Handlers {
     pub(crate) new_listener: Handler<Multiaddr>,
-    pub(crate) announcement: Handler2<ProviderRecord, Arc<InboundStreamEventGuard>>,
+    pub(crate) announcement: Handler<ProviderRecord>,
 }
 
 #[derive(Debug)]

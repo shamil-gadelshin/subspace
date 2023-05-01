@@ -4,7 +4,6 @@ use parking_lot::Mutex;
 use std::num::NonZeroUsize;
 use std::sync::{Arc, Weak};
 use subspace_core_primitives::{Blake2b256Hash, Piece, PieceIndexHash, BLAKE2B_256_HASH_SIZE};
-use subspace_networking::libp2p::kad::handler::InboundStreamEventGuard;
 use subspace_networking::libp2p::kad::ProviderRecord;
 use subspace_networking::libp2p::multihash::Multihash;
 use subspace_networking::libp2p::PeerId;
@@ -12,7 +11,7 @@ use subspace_networking::utils::multihash::MultihashCode;
 use subspace_networking::utils::piece_announcement::announce_piece;
 use subspace_networking::{Node, PieceByHashRequest, PieceByHashResponse};
 use tokio::sync::Semaphore;
-use tracing::{debug, trace, warn};
+use tracing::{debug, info, trace, warn};
 
 pub struct FarmerProviderRecordProcessor<PC> {
     node: Node,
@@ -45,12 +44,8 @@ where
         }
     }
 
-    pub async fn process_provider_record(
-        &mut self,
-        provider_record: ProviderRecord,
-        guard: Arc<InboundStreamEventGuard>,
-    ) {
-        trace!(?provider_record.key, "Starting processing provider record...");
+    pub async fn process_provider_record(&mut self, provider_record: ProviderRecord) {
+        info!(?provider_record.key, "Starting processing provider record...");
 
         let multihash = match Multihash::from_bytes(provider_record.key.as_ref()) {
             Ok(multihash) => multihash,
@@ -155,7 +150,6 @@ where
             }
 
             drop(permit);
-            drop(guard);
         });
     }
 }

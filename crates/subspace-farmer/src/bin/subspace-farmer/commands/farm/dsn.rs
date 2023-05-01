@@ -3,7 +3,7 @@ use anyhow::Context;
 use event_listener_primitives::HandlerId;
 use futures::channel::mpsc;
 use futures::StreamExt;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -21,7 +21,6 @@ use subspace_farmer_components::piece_caching::PieceMemoryCache;
 use subspace_networking::libp2p::identity::Keypair;
 use subspace_networking::libp2p::kad::ProviderRecord;
 use subspace_networking::libp2p::multiaddr::Protocol;
-use subspace_networking::libp2p::Multiaddr;
 use subspace_networking::utils::multihash::ToMultihash;
 use subspace_networking::{
     create, peer_id, Config, NetworkingParametersManager, Node, NodeRunner,
@@ -161,6 +160,8 @@ pub(super) fn configure_dsn(
         }
     });
 
+    let provider_record_announcer: Arc<RwLock<Option<NodeProviderRecordAnnouncer>>> =
+        Arc::new(RwLock::new(None));
     let default_config = Config::new(protocol_prefix, keypair, farmer_provider_storage.clone());
     let config = Config {
         reserved_peers,
@@ -169,10 +170,13 @@ pub(super) fn configure_dsn(
         networking_parameters_registry,
         request_response_protocols: vec![
             PieceAnnouncementRequestHandler::create({
+                let provider_record_announcer = provider_record_announcer.clone();
+
                 move |peer_id, req| {
                     trace!(?req, %peer_id, "Piece announcement request received.");
 
                     let mut provider_storage = farmer_provider_storage.clone();
+                    let provider_record_announcer = provider_record_announcer.clone();
                     let req = req.clone();
 
                     async move {
@@ -197,7 +201,8 @@ pub(super) fn configure_dsn(
                             addresses: req.converted_addresses(),
                             expires: KADEMLIA_PROVIDER_TTL_IN_SECS.map(|ttl| Instant::now() + ttl),
                         };
-                        if let Err(error) = provider_storage.add_provider(provider_record) {
+
+                        if let Err(error) = provider_storage.add_provider(provider_record.clone()) {
                             error!(
                                 %error,
                                 %peer_id,
@@ -206,6 +211,12 @@ pub(super) fn configure_dsn(
                             );
 
                             return None;
+                        }
+
+                        if let Some(provider_record_announcer) =
+                            provider_record_announcer.read().as_ref()
+                        {
+                            provider_record_announcer.announce(&provider_record);
                         }
 
                         Some(PieceAnnouncementResponse)
@@ -342,6 +353,7 @@ pub(super) fn configure_dsn(
 
     create(config)
         .map(|(node, node_runner)| {
+            let provider_record_announcer = provider_record_announcer.clone();
             node.on_new_listener(Arc::new({
                 let node = node.clone();
 
@@ -353,6 +365,10 @@ pub(super) fn configure_dsn(
                 }
             }))
             .detach();
+
+            provider_record_announcer
+                .write()
+                .replace(NodeProviderRecordAnnouncer::new(node.clone()));
 
             (node, node_runner, piece_cache)
         })
@@ -372,16 +388,13 @@ pub(crate) fn start_announcements_processor(
     let handler_id = node.on_announcement(Arc::new({
         let provider_records_sender = Mutex::new(provider_records_sender);
 
-        move |record, guard| {
-            if let Err(error) = provider_records_sender
-                .lock()
-                .try_send((record.clone(), Arc::clone(guard)))
-            {
+        move |record| {
+            if let Err(error) = provider_records_sender.lock().try_send(record.clone()) {
                 if error.is_disconnected() {
                     // Receiver exited, nothing left to be done
                     return;
                 }
-                let (record, _guard) = error.into_inner();
+                let record = error.into_inner();
                 // TODO: This should be made a warning, but due to
                 //  https://github.com/libp2p/rust-libp2p/discussions/3411 it'll take us some time
                 //  to resolve
@@ -409,13 +422,13 @@ pub(crate) fn start_announcements_processor(
         .name("ann-processor".to_string())
         .spawn(move || {
             let processor_fut = async {
-                while let Some((provider_record, guard)) = provider_records_receiver.next().await {
+                while let Some(provider_record) = provider_records_receiver.next().await {
                     if weak_readers_and_pieces.upgrade().is_none() {
                         // `ReadersAndPieces` was dropped, nothing left to be done
                         return;
                     }
                     provider_record_processor
-                        .process_provider_record(provider_record, guard)
+                        .process_provider_record(provider_record)
                         .await;
                 }
             };
@@ -424,4 +437,20 @@ pub(crate) fn start_announcements_processor(
         })?;
 
     Ok(handler_id)
+}
+
+// TODO: Remove provider record announcement from Node
+/// Provider record announcement helper.
+pub struct NodeProviderRecordAnnouncer {
+    node: Node,
+}
+
+impl NodeProviderRecordAnnouncer {
+    pub fn new(node: Node) -> Self {
+        Self { node }
+    }
+
+    pub fn announce(&self, provider_record: &ProviderRecord) {
+        self.node.announce(provider_record);
+    }
 }
