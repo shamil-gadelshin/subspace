@@ -13,7 +13,7 @@ use std::time::Duration;
 use subspace_core_primitives::PieceIndexHash;
 use tracing::{debug, trace, warn};
 
-const TARGET_PEERS_TO_ACKNOWLEDGE: usize = 3;
+const MAX_PEERS_TO_ACKNOWLEDGE: usize = 20; // Similar to Kademlia
 
 /// Defines initial duration between put_piece calls.
 const PUT_PIECE_INITIAL_INTERVAL: Duration = Duration::from_secs(1);
@@ -128,7 +128,11 @@ async fn announce_key(
 
     let mut contacted_peers = HashSet::new();
     let mut acknowledged_peers = HashSet::new();
-
+    let external_addresses: Vec<Vec<u8>> = node
+        .external_addresses()
+        .iter()
+        .map(|addr| addr.to_vec())
+        .collect();
     while let Some(peer_id) = get_peers_stream.next().await {
         trace!(?key, %peer_id, "get_closest_peers returned an item");
 
@@ -143,6 +147,7 @@ async fn announce_key(
                 peer_id,
                 PieceAnnouncementRequest {
                     piece_key: key.to_bytes(),
+                    addresses: external_addresses.clone(),
                 },
             )
             .await;
@@ -163,7 +168,7 @@ async fn announce_key(
         acknowledged_peers.insert(peer_id);
 
         // we hit the target peer number
-        if acknowledged_peers.len() >= TARGET_PEERS_TO_ACKNOWLEDGE {
+        if acknowledged_peers.len() >= MAX_PEERS_TO_ACKNOWLEDGE {
             return Ok(true);
         }
     }

@@ -21,6 +21,7 @@ use subspace_farmer_components::piece_caching::PieceMemoryCache;
 use subspace_networking::libp2p::identity::Keypair;
 use subspace_networking::libp2p::kad::ProviderRecord;
 use subspace_networking::libp2p::multiaddr::Protocol;
+use subspace_networking::libp2p::Multiaddr;
 use subspace_networking::utils::multihash::ToMultihash;
 use subspace_networking::{
     create, peer_id, Config, NetworkingParametersManager, Node, NodeRunner,
@@ -190,12 +191,13 @@ pub(super) fn configure_dsn(
                             }
                         };
 
-                        if let Err(error) = provider_storage.add_provider(ProviderRecord {
+                        let provider_record = ProviderRecord {
                             provider: peer_id,
                             key,
-                            addresses: Vec::new(), // TODO: add address hints
+                            addresses: req.converted_addresses(),
                             expires: KADEMLIA_PROVIDER_TTL_IN_SECS.map(|ttl| Instant::now() + ttl),
-                        }) {
+                        };
+                        if let Err(error) = provider_storage.add_provider(provider_record) {
                             error!(
                                 %error,
                                 %peer_id,

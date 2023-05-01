@@ -169,12 +169,14 @@ where
                             }
                         };
 
-                        if let Err(error) = provider_storage.add_provider(ProviderRecord {
+                        let provider_record = ProviderRecord {
                             provider: peer_id,
                             key,
-                            addresses: Vec::new(), // TODO: add address hints
+                            addresses: req.converted_addresses(),
                             expires: KADEMLIA_PROVIDER_TTL_IN_SECS.map(|ttl| Instant::now() + ttl),
-                        }) {
+                        };
+
+                        if let Err(error) = provider_storage.add_provider(provider_record) {
                             error!(
                                 %error,
                                 %peer_id,

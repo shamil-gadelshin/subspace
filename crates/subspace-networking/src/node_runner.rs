@@ -313,6 +313,21 @@ where
             self.networking_parameters_registry
                 .start_over_address_batching()
         }
+
+        // Renew known external addresses.
+        let mut external_addresses = self
+            .swarm
+            .external_addresses()
+            .cloned()
+            .map(|item| item.addr)
+            .collect::<Vec<_>>();
+
+        if let Some(shared) = self.shared_weak.upgrade() {
+            debug!(?external_addresses, "Renew external addresses.",);
+            let mut addresses = shared.external_addresses.lock();
+            addresses.clear();
+            addresses.append(&mut external_addresses);
+        }
     }
 
     fn dial_peer(&mut self, peer_id: PeerId, addr: Multiaddr) {
@@ -543,10 +558,6 @@ where
 
     async fn handle_identify_event(&mut self, event: IdentifyEvent) {
         let local_peer_id = *self.swarm.local_peer_id();
-        println!(
-            "External addresses: {:?}",
-            self.swarm.external_addresses().cloned().collect::<Vec<_>>()
-        );
 
         if let IdentifyEvent::Received { peer_id, mut info } = event {
             // Check for network partition
@@ -1069,7 +1080,11 @@ where
             }
             Command::StartLocalAnnouncing { key, result_sender } => {
                 let local_peer_id = *self.swarm.local_peer_id();
-                let addresses = self.swarm.external_addresses().map(|rec| rec.addr.clone()).collect::<Vec<_>>();
+                let addresses = self
+                    .swarm
+                    .external_addresses()
+                    .map(|rec| rec.addr.clone())
+                    .collect::<Vec<_>>();
 
                 let provider_record = ProviderRecord {
                     provider: local_peer_id,

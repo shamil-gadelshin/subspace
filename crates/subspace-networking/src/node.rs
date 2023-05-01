@@ -537,6 +537,11 @@ impl Node {
         self.shared.listeners.lock().clone()
     }
 
+    /// Node's own addresses observed remotely.
+    pub fn external_addresses(&self) -> Vec<Multiaddr> {
+        self.shared.external_addresses.lock().clone()
+    }
+
     /// Callback is called when node starts listening on new address.
     pub fn on_new_listener(&self, callback: HandlerFn<Multiaddr>) -> HandlerId {
         self.shared.handlers.new_listener.add(callback)
