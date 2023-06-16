@@ -21,6 +21,7 @@ mod behavior;
 mod create;
 mod node;
 mod node_runner;
+mod peer_info;
 mod request_handlers;
 mod request_responses;
 mod reserved_peers;
