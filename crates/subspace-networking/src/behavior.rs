@@ -22,6 +22,7 @@ use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::PeerId;
 use void::Void as VoidEvent;
+use crate::peer_info::{Behaviour as PeerInfoBehaviour, Config as PeerInfoConfig, Event as PeerInfoEvent, PeerInfo};
 
 type BlockListBehaviour = AllowBlockListBehaviour<BlockedPeers>;
 
@@ -42,6 +43,8 @@ pub(crate) struct BehaviorConfig<RecordStore> {
     pub(crate) connection_limits: ConnectionLimits,
     /// The configuration for the [`ReservedPeersBehaviour`].
     pub(crate) reserved_peers: ReservedPeersConfig,
+
+    pub(crate) peer_info: PeerInfo,
 }
 
 #[derive(NetworkBehaviour)]
@@ -56,6 +59,7 @@ pub(crate) struct Behavior<RecordStore> {
     pub(crate) connection_limits: ConnectionLimitsBehaviour,
     pub(crate) block_list: BlockListBehaviour,
     pub(crate) reserved_peers: ReservedPeersBehaviour,
+    pub(crate) peer_info: PeerInfoBehaviour,
 }
 
 impl<RecordStore> Behavior<RecordStore>
@@ -94,6 +98,7 @@ where
             connection_limits: ConnectionLimitsBehaviour::new(config.connection_limits),
             block_list: BlockListBehaviour::default(),
             reserved_peers: ReservedPeersBehaviour::new(config.reserved_peers),
+            peer_info: PeerInfoBehaviour::new(PeerInfoConfig::new().with_peer_info(config.peer_info),)
         }
     }
 }
@@ -108,4 +113,5 @@ pub(crate) enum Event {
     /// Event stub for connection limits and block list behaviours. We won't receive such events.
     VoidEventStub(VoidEvent),
     ReservedPeers(ReservedPeersEvent),
+    PeerInfo(PeerInfoEvent),
 }

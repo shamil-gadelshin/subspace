@@ -43,6 +43,7 @@ use std::{fmt, io, iter};
 use subspace_core_primitives::{crypto, Piece};
 use thiserror::Error;
 use tracing::{debug, error, info};
+use crate::peer_info::PeerInfo;
 
 const DEFAULT_NETWORK_PROTOCOL_VERSION: &str = "dev";
 const KADEMLIA_PROTOCOL: &[u8] = b"/subspace/kad/0.1.0";
@@ -229,6 +230,8 @@ pub struct Config<ProviderStorage> {
     pub metrics: Option<Metrics>,
     /// Defines protocol version for the network peers. Affects network partition.
     pub protocol_version: String,
+
+    pub peer_info: PeerInfo,
 }
 
 impl<ProviderStorage> fmt::Debug for Config<ProviderStorage> {
@@ -331,6 +334,7 @@ where
             temporary_ban_backoff,
             metrics: None,
             protocol_version,
+            peer_info: PeerInfo::default(),
         }
     }
 }
@@ -392,6 +396,7 @@ where
         temporary_ban_backoff,
         metrics,
         protocol_version,
+        peer_info,
     } = config;
     let local_peer_id = peer_id(&keypair);
 
@@ -435,6 +440,7 @@ where
             reserved_peers: reserved_peers.clone(),
             protocol_name: RESERVED_PEERS_PROTOCOL_NAME,
         },
+        peer_info
     });
 
     let mut swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, local_peer_id)
