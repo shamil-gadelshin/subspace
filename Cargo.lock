@@ -11037,7 +11037,6 @@ dependencies = [
  "either",
  "event-listener-primitives",
  "futures",
- "futures-timer",
  "hex",
  "libp2p 0.51.3",
  "lru 0.10.0",

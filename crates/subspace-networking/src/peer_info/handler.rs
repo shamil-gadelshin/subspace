@@ -1,7 +1,6 @@
 use crate::peer_info::{protocol, PeerInfo, PROTOCOL_NAME};
 use futures::future::BoxFuture;
 use futures::prelude::*;
-use futures_timer::Delay;
 use libp2p::core::upgrade::{NegotiationError, ReadyUpgrade};
 use libp2p::core::UpgradeError;
 use libp2p::swarm::handler::{
@@ -89,9 +88,6 @@ impl Error for PeerInfoError {}
 pub struct Config {
     /// The timeout of an outbound ping.
     timeout: Duration,
-    /// The duration between the last successful outbound or inbound ping
-    /// and the next outbound ping.
-    interval: Duration,
     /// Whether the connection should generally be kept alive.
     keep_alive: bool,
 
@@ -101,7 +97,6 @@ pub struct Config {
 impl Config {
     /// Creates a new [`Config`] with the following default settings:
     ///
-    ///   * [`Config::with_interval`] 15s
     ///   * [`Config::with_timeout`] 20s
     ///   * [`Config::with_max_failures`] 1
     ///   * [`Config::with_keep_alive`] false
@@ -119,7 +114,6 @@ impl Config {
     pub fn new() -> Self {
         Self {
             timeout: Duration::from_secs(20),
-            interval: Duration::from_secs(15),
             keep_alive: false,
             peer_info: PeerInfo::default(),
         }
@@ -128,12 +122,6 @@ impl Config {
     /// Sets the ping timeout.
     pub fn with_timeout(mut self, d: Duration) -> Self {
         self.timeout = d;
-        self
-    }
-
-    /// Sets the ping interval.
-    pub fn with_interval(mut self, d: Duration) -> Self {
-        self.interval = d;
         self
     }
 
@@ -220,9 +208,6 @@ impl Error for Failure {
 pub struct Handler {
     /// Configuration options.
     config: Config,
-    /// The timer used for the delay to the next ping as well as
-    /// the ping timeout.
-    timer: Delay,
     /// Outbound ping failures that are pending to be processed by `poll()`.
     pending_errors: VecDeque<Failure>,
     /// The outbound ping state.
@@ -253,7 +238,6 @@ impl Handler {
     pub fn new(config: Config) -> Self {
         Handler {
             config,
-            timer: Delay::new(Duration::new(0, 0)),
             pending_errors: VecDeque::with_capacity(2),
             outbound: None,
             inbound: None,
@@ -302,12 +286,7 @@ impl ConnectionHandler for Handler {
     fn on_behaviour_event(&mut self, _: Void) {}
 
     fn connection_keep_alive(&self) -> KeepAlive {
-        // if self.config.keep_alive {
-        //     KeepAlive::Yes
-        // } else {
-        //     KeepAlive::No
-        // }
-        KeepAlive::Yes
+        KeepAlive::No
     }
 
     fn poll(
@@ -315,6 +294,30 @@ impl ConnectionHandler for Handler {
         cx: &mut Context<'_>,
     ) -> Poll<ConnectionHandlerEvent<ReadyUpgrade<&'static [u8]>, (), super::Result, Self::Error>>
     {
+        // // Check for outbound ping failures.
+        // if let Some(error) = self.pending_errors.pop_back() {
+        //     log::debug!("Ping failure: {:?}", error);
+        //
+        //     self.failures += 1;
+        //
+        //     // Note: For backward-compatibility, with configured
+        //     // `max_failures == 1`, the first failure is always "free"
+        //     // and silent. This allows peers who still use a new substream
+        //     // for each ping to have successful ping exchanges with peers
+        //     // that use a single substream, since every successful ping
+        //     // resets `failures` to `0`, while at the same time emitting
+        //     // events only for `max_failures - 1` failures, as before.
+        //     if self.failures > 1 || self.config.max_failures.get() > 1 {
+        //         if self.failures >= self.config.max_failures.get() {
+        //             log::debug!("Too many failures ({}). Closing connection.", self.failures);
+        //             return Poll::Ready(ConnectionHandlerEvent::Close(error));
+        //         }
+        //
+        //         return Poll::Ready(ConnectionHandlerEvent::Custom(Err(error)));
+        //     }
+        // }
+
+
         match self.state {
             State::Inactive { reported: true } => {
                 return Poll::Pending; // nothing to do on this connection
@@ -335,7 +338,7 @@ impl ConnectionHandler for Handler {
                     self.inbound = None;
                 }
                 Poll::Ready(Ok((stream, peer_info))) => {
-                    info!(?peer_info, "Inbound peer info");
+                    info!(?peer_info, "Inbound peer info"); // TODO:
                     // A ping from a remote peer has been answered, wait for the next.
                     self.inbound =
                         Some(protocol::recv(stream, self.config.peer_info.clone()).boxed());
@@ -349,16 +352,11 @@ impl ConnectionHandler for Handler {
             match self.outbound.take() {
                 Some(OutboundState::Ping(mut ping)) => match ping.poll_unpin(cx) {
                     Poll::Pending => {
-                        if self.timer.poll_unpin(cx).is_ready() {
-                            self.pending_errors.push_front(Failure::Timeout);
-                        } else {
-                            self.outbound = Some(OutboundState::Ping(ping));
-                            break;
-                        }
+                        self.outbound = Some(OutboundState::Ping(ping));
+                        break;
                     }
                     Poll::Ready(Ok((stream, peer_info))) => {
-                        info!(?peer_info, "Outbound peer info");
-                        self.timer.reset(self.config.interval);
+                        info!(?peer_info, "Outbound peer info"); // TODO:
                         self.outbound = Some(OutboundState::Idle(stream));
                         return Poll::Ready(ConnectionHandlerEvent::Custom(Ok(Success::Ping {})));
                     }
@@ -367,17 +365,18 @@ impl ConnectionHandler for Handler {
                             .push_front(Failure::Other { error: Box::new(e) });
                     }
                 },
-                Some(OutboundState::Idle(stream)) => match self.timer.poll_unpin(cx) {
-                    Poll::Pending => {
-                        self.outbound = Some(OutboundState::Idle(stream));
-                        break;
-                    }
-                    Poll::Ready(()) => {
-                        self.timer.reset(self.config.timeout);
-                        self.outbound = Some(OutboundState::Ping(
-                            protocol::send(stream, self.config.peer_info.clone()).boxed(),
-                        ));
-                    }
+                Some(OutboundState::Idle(stream)) =>  {
+                    // Poll::Pending => {
+                    //     self.outbound = Some(OutboundState::Idle(stream));
+                    //     break;
+                    // }
+                    // Poll::Ready(()) => {
+                    //     self.outbound = Some(OutboundState::Ping(
+                    //         protocol::send(stream, self.config.peer_info.clone()).boxed(),
+                    //     ));
+                    // }
+                    self.outbound = Some(OutboundState::OpenStream);
+                    break;
                 },
                 Some(OutboundState::OpenStream) => {
                     self.outbound = Some(OutboundState::OpenStream);
@@ -417,7 +416,6 @@ impl ConnectionHandler for Handler {
                 protocol: stream,
                 ..
             }) => {
-                self.timer.reset(self.config.timeout);
                 self.outbound = Some(OutboundState::Ping(
                     protocol::send(stream, self.config.peer_info.clone()).boxed(),
                 ));
