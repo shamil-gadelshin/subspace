@@ -25,7 +25,6 @@ use tracing::{debug, info};
 pub struct Config {
     /// The timeout of an outbound ping.
     timeout: Duration,
-    peer_info: PeerInfo,
 }
 
 impl Config {
@@ -48,18 +47,12 @@ impl Config {
     pub fn new() -> Self {
         Self {
             timeout: Duration::from_secs(20),
-            peer_info: PeerInfo::default(),
         }
     }
 
     /// Sets the protocol timeout.
     pub fn with_timeout(mut self, d: Duration) -> Self {
         self.timeout = d;
-        self
-    }
-
-    pub fn with_peer_info(mut self, pi: PeerInfo) -> Self {
-        self.peer_info = pi;
         self
     }
 }
@@ -140,8 +133,10 @@ impl Handler {
 }
 
 /// Marker struct for outbound peer-info pushes.
-#[derive(Debug, Clone, Copy)]
-pub struct HandlerInEvent;
+#[derive(Debug, Clone)]
+pub struct HandlerInEvent {
+    pub peer_info: PeerInfo,
+}
 
 impl ConnectionHandler for Handler {
     type InEvent = HandlerInEvent;
@@ -149,7 +144,7 @@ impl ConnectionHandler for Handler {
     type Error = PeerInfoError;
     type InboundProtocol = ReadyUpgrade<&'static [u8]>;
     type OutboundProtocol = ReadyUpgrade<&'static [u8]>;
-    type OutboundOpenInfo = ();
+    type OutboundOpenInfo = PeerInfo;
     type InboundOpenInfo = ();
 
     fn listen_protocol(&self) -> SubstreamProtocol<ReadyUpgrade<&'static [u8]>, ()> {
@@ -157,14 +152,12 @@ impl ConnectionHandler for Handler {
     }
 
     fn on_behaviour_event(&mut self, event: Self::InEvent) {
-        info!(?event, "Peer-info push"); // TODO:
-
         if let Some(OutboundState::Idle(stream)) = self.outbound.take() {
             self.outbound = Some(OutboundState::InProgress(
-                protocol::send(stream, self.config.peer_info.clone()).boxed(),
+                protocol::send(stream, event.peer_info).boxed(),
             ));
         } else {
-            self.outbound = Some(OutboundState::RequestNewStream);
+            self.outbound = Some(OutboundState::RequestNewStream(event.peer_info));
         }
     }
 
@@ -175,8 +168,14 @@ impl ConnectionHandler for Handler {
     fn poll(
         &mut self,
         cx: &mut Context<'_>,
-    ) -> Poll<ConnectionHandlerEvent<ReadyUpgrade<&'static [u8]>, (), super::Result, Self::Error>>
-    {
+    ) -> Poll<
+        ConnectionHandlerEvent<
+            ReadyUpgrade<&'static [u8]>,
+            Self::OutboundOpenInfo,
+            super::Result,
+            Self::Error,
+        >,
+    > {
         if let Some(error) = self.error.take() {
             return Poll::Ready(ConnectionHandlerEvent::Close(error));
         }
@@ -229,9 +228,9 @@ impl ConnectionHandler for Handler {
             Some(OutboundState::NegotiatingStream) => {
                 self.outbound = Some(OutboundState::NegotiatingStream);
             }
-            Some(OutboundState::RequestNewStream) => {
+            Some(OutboundState::RequestNewStream(peer_info)) => {
                 self.outbound = Some(OutboundState::NegotiatingStream);
-                let protocol = SubstreamProtocol::new(ReadyUpgrade::new(PROTOCOL_NAME), ())
+                let protocol = SubstreamProtocol::new(ReadyUpgrade::new(PROTOCOL_NAME), peer_info)
                     .with_timeout(self.config.timeout);
                 return Poll::Ready(ConnectionHandlerEvent::OutboundSubstreamRequest { protocol });
             }
@@ -261,10 +260,10 @@ impl ConnectionHandler for Handler {
             }
             ConnectionEvent::FullyNegotiatedOutbound(FullyNegotiatedOutbound {
                 protocol: stream,
-                ..
+                info,
             }) => {
                 self.outbound = Some(OutboundState::InProgress(
-                    protocol::send(stream, self.config.peer_info.clone()).boxed(),
+                    protocol::send(stream, info).boxed(),
                 ));
             }
             ConnectionEvent::DialUpgradeError(DialUpgradeError { error, .. }) => {
@@ -292,7 +291,7 @@ type OutPeerInfoFuture = BoxFuture<'static, Result<NegotiatedSubstream, io::Erro
 
 /// The current state w.r.t. outbound peer info requests.
 enum OutboundState {
-    RequestNewStream,
+    RequestNewStream(PeerInfo),
     /// A new substream is being negotiated for the protocol.
     NegotiatingStream,
     /// A peer info request is being sent and the response awaited.

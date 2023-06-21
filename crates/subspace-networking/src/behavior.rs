@@ -100,9 +100,7 @@ where
             connection_limits: ConnectionLimitsBehaviour::new(config.connection_limits),
             block_list: BlockListBehaviour::default(),
             reserved_peers: ReservedPeersBehaviour::new(config.reserved_peers),
-            peer_info: PeerInfoBehaviour::new(
-                PeerInfoConfig::new().with_peer_info(config.peer_info),
-            ),
+            peer_info: PeerInfoBehaviour::new(PeerInfoConfig::new(), config.peer_info),
         }
     }
 }

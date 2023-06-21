@@ -70,6 +70,8 @@ pub struct Behaviour {
     events: VecDeque<Event>,
 
     requests: Vec<Request>,
+
+    peer_info: PeerInfo,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -88,9 +90,10 @@ pub struct Event {
 
 impl Behaviour {
     /// Creates a new `Ping` network behaviour with the given configuration.
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: Config, peer_info: PeerInfo) -> Self {
         Self {
             config,
+            peer_info,
             events: VecDeque::new(),
             requests: Vec::new(),
         }
@@ -99,7 +102,7 @@ impl Behaviour {
 
 impl Default for Behaviour {
     fn default() -> Self {
-        Self::new(Config::new())
+        Self::new(Config::new(), PeerInfo::default())
     }
 }
 
@@ -158,7 +161,9 @@ impl NetworkBehaviour for Behaviour {
             return Poll::Ready(ToSwarm::NotifyHandler {
                 peer_id,
                 handler: NotifyHandler::Any,
-                event: HandlerInEvent,
+                event: HandlerInEvent {
+                    peer_info: self.peer_info.clone(),
+                },
             });
         }
 
