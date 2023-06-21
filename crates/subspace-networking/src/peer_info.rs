@@ -2,7 +2,7 @@ mod handler;
 mod protocol;
 
 use handler::Handler;
-pub use handler::{Config, Failure, Success};
+pub use handler::{Config, PeerInfoError, Success};
 use libp2p::core::{Endpoint, Multiaddr};
 use libp2p::swarm::behaviour::FromSwarm;
 use libp2p::swarm::{
@@ -56,7 +56,7 @@ pub enum PeerRole {
 // }
 
 /// The result of an inbound or outbound ping.
-pub type Result = std::result::Result<Success, Failure>;
+pub type Result = std::result::Result<Success, PeerInfoError>;
 
 /// A [`NetworkBehaviour`] that responds to inbound pings and
 /// periodically sends outbound pings on every established connection.

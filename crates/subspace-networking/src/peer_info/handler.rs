@@ -11,86 +11,21 @@ use libp2p::swarm::{
     NegotiatedSubstream, SubstreamProtocol,
 };
 use std::collections::VecDeque;
-use std::error::Error;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use std::{fmt, io};
+use std::error::Error;
 use tracing::{debug, info};
 use void::Void;
 
 // TODO: comments - #![warn(missing_docs)]
 // TODO: logs
 
-// pub struct Handler {
-//     /// Protocol name.
-//     protocol_name: &'static [u8],
-// }
-//
-// impl Handler {
-//     /// Builds a new [`Handler`].
-//     pub fn new(protocol_name: &'static [u8]) -> Self {
-//         Handler { protocol_name }
-//     }
-// }
-
-#[derive(Debug)]
-pub struct PeerInfoError;
-
-impl fmt::Display for PeerInfoError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Peer info error.")
-    }
-}
-
-impl Error for PeerInfoError {}
-
-// impl ConnectionHandler for Handler {
-//     type InEvent = Void;
-//     type OutEvent = ();
-//     type Error = PeerInfoError;
-//     type InboundProtocol = ReadyUpgrade<&'static [u8]>;
-//     type OutboundProtocol = ReadyUpgrade<&'static [u8]>;
-//     type OutboundOpenInfo = ();
-//     type InboundOpenInfo = ();
-//
-//     fn listen_protocol(&self) -> SubstreamProtocol<ReadyUpgrade<&'static [u8]>, ()> {
-//         SubstreamProtocol::new(ReadyUpgrade::new(self.protocol_name), ())
-//     }
-//
-//     fn on_behaviour_event(&mut self, _: Void) {}
-//
-//     fn connection_keep_alive(&self) -> KeepAlive {
-//         //TODO:
-//         KeepAlive::No
-//     }
-//
-//     fn poll(
-//         &mut self,
-//         _: &mut Context<'_>,
-//     ) -> Poll<ConnectionHandlerEvent<ReadyUpgrade<&'static [u8]>, (), (), Self::Error>> {
-//         Poll::Pending
-//     }
-//
-//     fn on_connection_event(
-//         &mut self,
-//         _: ConnectionEvent<
-//             Self::InboundProtocol,
-//             Self::OutboundProtocol,
-//             Self::InboundOpenInfo,
-//             Self::OutboundOpenInfo,
-//         >,
-//     ) {
-//     }
-// }
-
 /// The configuration for outbound pings.
 #[derive(Debug, Clone)]
 pub struct Config {
     /// The timeout of an outbound ping.
     timeout: Duration,
-    /// Whether the connection should generally be kept alive.
-    keep_alive: bool,
-
     peer_info: PeerInfo,
 }
 
@@ -114,12 +49,11 @@ impl Config {
     pub fn new() -> Self {
         Self {
             timeout: Duration::from_secs(20),
-            keep_alive: false,
             peer_info: PeerInfo::default(),
         }
     }
 
-    /// Sets the ping timeout.
+    /// Sets the protocol timeout.
     pub fn with_timeout(mut self, d: Duration) -> Self {
         self.timeout = d;
         self
@@ -129,25 +63,6 @@ impl Config {
         self.peer_info = pi;
         self
     }
-
-    // /// Sets whether the ping protocol itself should keep the connection alive,
-    // /// apart from the maximum allowed failures.
-    // ///
-    // /// By default, the ping protocol itself allows the connection to be closed
-    // /// at any time, i.e. in the absence of ping failures the connection lifetime
-    // /// is determined by other protocol handlers.
-    // ///
-    // /// If the maximum number of allowed ping failures is reached, the
-    // /// connection is always terminated as a result of [`ConnectionHandler::poll`]
-    // /// returning an error, regardless of the keep-alive setting.
-    // #[deprecated(
-    //     since = "0.40.0",
-    //     note = "Use `libp2p::swarm::behaviour::KeepAlive` if you need to keep connections alive unconditionally."
-    // )]
-    // pub fn with_keep_alive(mut self, b: bool) -> Self {
-    //     self.keep_alive = b;
-    //     self
-    // }
 }
 
 impl Default for Config {
@@ -167,36 +82,31 @@ pub enum Success {
     Ping,
 }
 
-/// An outbound ping failure.
+/// A peer info protocol failure.
 #[derive(Debug)]
-pub enum Failure {
-    /// The ping timed out, i.e. no response was received within the
-    /// configured ping timeout.
-    Timeout,
-    /// The peer does not support the ping protocol.
+pub enum PeerInfoError {
+    /// The peer does not support the peer info protocol.
     Unsupported,
-    /// The ping failed for reasons other than a timeout.
+    /// The peer info request failed.
     Other {
-        error: Box<dyn std::error::Error + Send + 'static>,
+        error: Box<dyn Error + Send + 'static>,
     },
 }
 
-impl fmt::Display for Failure {
+impl fmt::Display for PeerInfoError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Failure::Timeout => f.write_str("Ping timeout"),
-            Failure::Other { error } => write!(f, "Ping error: {error}"),
-            Failure::Unsupported => write!(f, "Ping protocol not supported"),
+            PeerInfoError::Other { error } => write!(f, "Peer info error: {error}"),
+            PeerInfoError::Unsupported => write!(f, "Peer info protocol not supported"),
         }
     }
 }
 
-impl Error for Failure {
+impl Error for PeerInfoError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Failure::Timeout => None,
-            Failure::Other { error } => Some(&**error),
-            Failure::Unsupported => None,
+            PeerInfoError::Other { error } => Some(&**error),
+            PeerInfoError::Unsupported => None,
         }
     }
 }
@@ -209,13 +119,13 @@ pub struct Handler {
     /// Configuration options.
     config: Config,
     /// Outbound ping failures that are pending to be processed by `poll()`.
-    pending_errors: VecDeque<Failure>,
+    pending_errors: VecDeque<PeerInfoError>,
     /// The outbound ping state.
     outbound: Option<OutboundState>,
     /// The inbound pong handler, i.e. if there is an inbound
     /// substream, this is always a future that waits for the
     /// next inbound ping to be answered.
-    inbound: Option<PingFuture>,
+    inbound: Option<PeerInfoFuture>,
     /// Tracks the state of our handler.
     state: State,
 }
@@ -261,9 +171,7 @@ impl Handler {
                 self.state = State::Inactive { reported: false };
                 return;
             }
-            // Note: This timeout only covers protocol negotiation.
-            ConnectionHandlerUpgrErr::Timeout => Failure::Timeout,
-            e => Failure::Other { error: Box::new(e) },
+            e => PeerInfoError::Other { error: Box::new(e) },
         };
 
         self.pending_errors.push_front(error);
@@ -273,7 +181,7 @@ impl Handler {
 impl ConnectionHandler for Handler {
     type InEvent = Void;
     type OutEvent = super::Result;
-    type Error = Failure;
+    type Error = PeerInfoError;
     type InboundProtocol = ReadyUpgrade<&'static [u8]>;
     type OutboundProtocol = ReadyUpgrade<&'static [u8]>;
     type OutboundOpenInfo = ();
@@ -324,7 +232,7 @@ impl ConnectionHandler for Handler {
             }
             State::Inactive { reported: false } => {
                 self.state = State::Inactive { reported: true };
-                return Poll::Ready(ConnectionHandlerEvent::Custom(Err(Failure::Unsupported)));
+                return Poll::Ready(ConnectionHandlerEvent::Custom(Err(PeerInfoError::Unsupported)));
             }
             State::Active => {}
         }
@@ -334,8 +242,8 @@ impl ConnectionHandler for Handler {
             match fut.poll_unpin(cx) {
                 Poll::Pending => {}
                 Poll::Ready(Err(e)) => {
-                    debug!("Inbound ping error: {:?}", e);
-                    self.inbound = None;
+                    debug!("Inbound peer info error: {:?}", e);
+                    self.inbound = None; // TODO:
                 }
                 Poll::Ready(Ok((stream, peer_info))) => {
                     info!(?peer_info, "Inbound peer info"); // TODO:
@@ -350,9 +258,9 @@ impl ConnectionHandler for Handler {
         loop {
             // Continue outbound pings.
             match self.outbound.take() {
-                Some(OutboundState::Ping(mut ping)) => match ping.poll_unpin(cx) {
+                Some(OutboundState::PeerInfo(mut ping)) => match ping.poll_unpin(cx) {
                     Poll::Pending => {
-                        self.outbound = Some(OutboundState::Ping(ping));
+                        self.outbound = Some(OutboundState::PeerInfo(ping));
                         break;
                     }
                     Poll::Ready(Ok((stream, peer_info))) => {
@@ -362,20 +270,11 @@ impl ConnectionHandler for Handler {
                     }
                     Poll::Ready(Err(e)) => {
                         self.pending_errors
-                            .push_front(Failure::Other { error: Box::new(e) });
+                            .push_front(PeerInfoError::Other { error: Box::new(e) });
                     }
                 },
                 Some(OutboundState::Idle(stream)) =>  {
-                    // Poll::Pending => {
-                    //     self.outbound = Some(OutboundState::Idle(stream));
-                    //     break;
-                    // }
-                    // Poll::Ready(()) => {
-                    //     self.outbound = Some(OutboundState::Ping(
-                    //         protocol::send(stream, self.config.peer_info.clone()).boxed(),
-                    //     ));
-                    // }
-                    self.outbound = Some(OutboundState::OpenStream);
+                    self.outbound = Some(OutboundState::Idle(stream));
                     break;
                 },
                 Some(OutboundState::OpenStream) => {
@@ -416,7 +315,7 @@ impl ConnectionHandler for Handler {
                 protocol: stream,
                 ..
             }) => {
-                self.outbound = Some(OutboundState::Ping(
+                self.outbound = Some(OutboundState::PeerInfo(
                     protocol::send(stream, self.config.peer_info.clone()).boxed(),
                 ));
             }
@@ -428,14 +327,14 @@ impl ConnectionHandler for Handler {
     }
 }
 
-type PingFuture = BoxFuture<'static, Result<(NegotiatedSubstream, PeerInfo), io::Error>>;
+type PeerInfoFuture = BoxFuture<'static, Result<(NegotiatedSubstream, PeerInfo), io::Error>>;
 
-/// The current state w.r.t. outbound pings.
+/// The current state w.r.t. outbound peer info requests.
 enum OutboundState {
-    /// A new substream is being negotiated for the ping protocol.
+    /// A new substream is being negotiated for the protocol.
     OpenStream,
-    /// The substream is idle, waiting to send the next ping.
+    /// The substream is idle, waiting to send the next peer info request.
     Idle(NegotiatedSubstream),
-    /// A ping is being sent and the response awaited.
-    Ping(PingFuture),
+    /// A peer info request is being sent and the response awaited.
+    PeerInfo(PeerInfoFuture),
 }

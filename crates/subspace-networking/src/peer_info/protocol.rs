@@ -20,7 +20,7 @@ where
     let mut rec_len_bytes = [0u8; 4];
     stream.read_exact(&mut rec_len_bytes).await?;
     let rec_len = u32::from_le_bytes(rec_len_bytes) as usize;
-    let mut rec_data = vec![0; rec_len as usize];
+    let mut rec_data = vec![0; rec_len];
 
     let _received = stream.read_exact(&mut rec_data).await; //TODO
 
@@ -37,7 +37,7 @@ where
     let mut rec_len_bytes = [0u8; 4];
     stream.read_exact(&mut rec_len_bytes).await?;
     let rec_len = u32::from_le_bytes(rec_len_bytes) as usize;
-    let mut rec_data = vec![0; rec_len as usize];
+    let mut rec_data = vec![0; rec_len];
 
     let _received = stream.read_exact(&mut rec_data).await; //TODO
     let received_peer_info = PeerInfo::decode(&mut &*rec_data).unwrap(); //TODO
