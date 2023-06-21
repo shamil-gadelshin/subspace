@@ -20,7 +20,7 @@ where
     Ok(stream)
 }
 
-pub async fn recv<S>(mut stream: S,) -> io::Result<(S, PeerInfo)>
+pub async fn recv<S>(mut stream: S) -> io::Result<(S, PeerInfo)>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {

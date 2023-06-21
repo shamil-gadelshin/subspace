@@ -10,6 +10,7 @@ use crate::create::temporary_bans::TemporaryBans;
 use crate::create::transport::build_transport;
 use crate::node::{CircuitRelayClientError, Node};
 use crate::node_runner::{NodeRunner, NodeRunnerConfig};
+use crate::peer_info::PeerInfo;
 use crate::request_responses::RequestHandler;
 use crate::reserved_peers::Config as ReservedPeersConfig;
 use crate::shared::Shared;
@@ -43,7 +44,6 @@ use std::{fmt, io, iter};
 use subspace_core_primitives::{crypto, Piece};
 use thiserror::Error;
 use tracing::{debug, error, info};
-use crate::peer_info::PeerInfo;
 
 const DEFAULT_NETWORK_PROTOCOL_VERSION: &str = "dev";
 const KADEMLIA_PROTOCOL: &[u8] = b"/subspace/kad/0.1.0";
@@ -440,7 +440,7 @@ where
             reserved_peers: reserved_peers.clone(),
             protocol_name: RESERVED_PEERS_PROTOCOL_NAME,
         },
-        peer_info
+        peer_info,
     });
 
     let mut swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, local_peer_id)

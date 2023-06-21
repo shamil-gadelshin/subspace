@@ -3,17 +3,19 @@ use futures::future::BoxFuture;
 use futures::prelude::*;
 use libp2p::core::upgrade::{NegotiationError, ReadyUpgrade};
 use libp2p::core::UpgradeError;
-use libp2p::swarm::handler::{ConnectionEvent, DialUpgradeError, FullyNegotiatedInbound, FullyNegotiatedOutbound, ListenUpgradeError};
+use libp2p::swarm::handler::{
+    ConnectionEvent, DialUpgradeError, FullyNegotiatedInbound, FullyNegotiatedOutbound,
+    ListenUpgradeError,
+};
 use libp2p::swarm::{
     ConnectionHandler, ConnectionHandlerEvent, ConnectionHandlerUpgrErr, KeepAlive,
     NegotiatedSubstream, SubstreamProtocol,
 };
+use std::error::Error;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use std::{fmt, io};
-use std::error::Error;
 use tracing::{debug, info};
-use void::Void;
 
 // TODO: comments - #![warn(missing_docs)]
 // TODO: logs
@@ -137,8 +139,12 @@ impl Handler {
     }
 }
 
+/// Marker struct for outbound peer-info pushes.
+#[derive(Debug, Clone, Copy)]
+pub struct HandlerInEvent;
+
 impl ConnectionHandler for Handler {
-    type InEvent = Void;
+    type InEvent = HandlerInEvent;
     type OutEvent = super::Result;
     type Error = PeerInfoError;
     type InboundProtocol = ReadyUpgrade<&'static [u8]>;
@@ -150,7 +156,17 @@ impl ConnectionHandler for Handler {
         SubstreamProtocol::new(ReadyUpgrade::new(PROTOCOL_NAME), ())
     }
 
-    fn on_behaviour_event(&mut self, _: Void) {}
+    fn on_behaviour_event(&mut self, event: Self::InEvent) {
+        info!(?event, "Peer-info push"); // TODO:
+
+        if let Some(OutboundState::Idle(stream)) = self.outbound.take() {
+            self.outbound = Some(OutboundState::InProgress(
+                protocol::send(stream, self.config.peer_info.clone()).boxed(),
+            ));
+        } else {
+            self.outbound = Some(OutboundState::RequestNewStream);
+        }
+    }
 
     fn connection_keep_alive(&self) -> KeepAlive {
         KeepAlive::No
@@ -172,27 +188,25 @@ impl ConnectionHandler for Handler {
                 Poll::Ready(Err(err)) => {
                     debug!(?err, "Inbound peer info error.");
 
-                    return Poll::Ready(ConnectionHandlerEvent::Close(PeerInfoError::Other {error: Box::new(err)}));
+                    return Poll::Ready(ConnectionHandlerEvent::Close(PeerInfoError::Other {
+                        error: Box::new(err),
+                    }));
                 }
                 Poll::Ready(Ok((stream, peer_info))) => {
                     info!(?peer_info, "Inbound peer info"); // TODO:
-                    // A ping from a remote peer has been answered, wait for the next.
-                    self.inbound =
-                        Some(protocol::recv(stream).boxed());
+                                                            // A ping from a remote peer has been answered, wait for the next.
+                    self.inbound = Some(protocol::recv(stream).boxed());
                     return Poll::Ready(ConnectionHandlerEvent::Custom(Ok(Success::Pong)));
                 }
             }
         }
 
-        // TODO: Remove this directive after adding "push peer-info" feature.
-        #[allow(clippy::never_loop)]
-        loop {
-            // Outbound requests.
-            match self.outbound.take() {
-                Some(OutboundState::InProgress(mut peer_info_fut)) => match peer_info_fut.poll_unpin(cx) {
+        // Outbound requests.
+        match self.outbound.take() {
+            Some(OutboundState::InProgress(mut peer_info_fut)) => {
+                match peer_info_fut.poll_unpin(cx) {
                     Poll::Pending => {
                         self.outbound = Some(OutboundState::InProgress(peer_info_fut));
-                        break;
                     }
                     Poll::Ready(Ok(stream)) => {
                         self.outbound = Some(OutboundState::Idle(stream));
@@ -202,26 +216,27 @@ impl ConnectionHandler for Handler {
                     Poll::Ready(Err(error)) => {
                         info!(?error, "Peer info error.",); // TODO:
 
-                        self.error = Some(PeerInfoError::Other{error: Box::new(error)});
-                        break;
+                        self.error = Some(PeerInfoError::Other {
+                            error: Box::new(error),
+                        });
                     }
-                },
-                Some(OutboundState::Idle(stream)) =>  {
-                    self.outbound = Some(OutboundState::Idle(stream));
-                    break;
-                },
-                Some(OutboundState::OpenStream) => {
-                    self.outbound = Some(OutboundState::OpenStream);
-                    break;
                 }
-                None => {
-                    self.outbound = Some(OutboundState::OpenStream);
-                    let protocol = SubstreamProtocol::new(ReadyUpgrade::new(PROTOCOL_NAME), ())
-                        .with_timeout(self.config.timeout);
-                    return Poll::Ready(ConnectionHandlerEvent::OutboundSubstreamRequest {
-                        protocol,
-                    });
-                }
+            }
+            Some(OutboundState::Idle(stream)) => {
+                // Nothing to do but we have a negotiated stream.
+                self.outbound = Some(OutboundState::Idle(stream));
+            }
+            Some(OutboundState::NegotiatingStream) => {
+                self.outbound = Some(OutboundState::NegotiatingStream);
+            }
+            Some(OutboundState::RequestNewStream) => {
+                self.outbound = Some(OutboundState::NegotiatingStream);
+                let protocol = SubstreamProtocol::new(ReadyUpgrade::new(PROTOCOL_NAME), ())
+                    .with_timeout(self.config.timeout);
+                return Poll::Ready(ConnectionHandlerEvent::OutboundSubstreamRequest { protocol });
+            }
+            None => {
+                // Not initialized yet.
             }
         }
 
@@ -242,7 +257,7 @@ impl ConnectionHandler for Handler {
                 protocol: stream,
                 ..
             }) => {
-                self.inbound = Some(protocol::recv(stream, ).boxed());
+                self.inbound = Some(protocol::recv(stream).boxed());
             }
             ConnectionEvent::FullyNegotiatedOutbound(FullyNegotiatedOutbound {
                 protocol: stream,
@@ -252,18 +267,20 @@ impl ConnectionHandler for Handler {
                     protocol::send(stream, self.config.peer_info.clone()).boxed(),
                 ));
             }
-            ConnectionEvent::DialUpgradeError(DialUpgradeError{ error, ..}) => {
+            ConnectionEvent::DialUpgradeError(DialUpgradeError { error, .. }) => {
                 let error = match error {
-                    ConnectionHandlerUpgrErr::Upgrade(UpgradeError::Select(NegotiationError::Failed)) => {
-                        PeerInfoError::Unsupported
-                    }
+                    ConnectionHandlerUpgrErr::Upgrade(UpgradeError::Select(
+                        NegotiationError::Failed,
+                    )) => PeerInfoError::Unsupported,
                     e => PeerInfoError::Other { error: Box::new(e) },
                 };
 
                 self.error = Some(error);
             }
-            ConnectionEvent::ListenUpgradeError(ListenUpgradeError{error, ..}) => {
-                self.error = Some(PeerInfoError::Other{error: Box::new(error)});
+            ConnectionEvent::ListenUpgradeError(ListenUpgradeError { error, .. }) => {
+                self.error = Some(PeerInfoError::Other {
+                    error: Box::new(error),
+                });
             }
             ConnectionEvent::AddressChange(_) => {}
         }
@@ -275,10 +292,11 @@ type OutPeerInfoFuture = BoxFuture<'static, Result<NegotiatedSubstream, io::Erro
 
 /// The current state w.r.t. outbound peer info requests.
 enum OutboundState {
+    RequestNewStream,
     /// A new substream is being negotiated for the protocol.
-    OpenStream,
-    /// The substream is idle, waiting to send the next peer info request.
-    Idle(NegotiatedSubstream),
+    NegotiatingStream,
     /// A peer info request is being sent and the response awaited.
     InProgress(OutPeerInfoFuture),
+    /// The substream is idle, waiting to send the next peer info request.
+    Idle(NegotiatedSubstream),
 }

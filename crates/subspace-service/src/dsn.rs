@@ -13,7 +13,14 @@ use std::time::Instant;
 use subspace_core_primitives::{SegmentHeader, SegmentIndex};
 use subspace_networking::libp2p::kad::ProviderRecord;
 use subspace_networking::libp2p::{identity, Multiaddr};
-use subspace_networking::{peer_id, BootstrappedNetworkingParameters, CreationError, MemoryProviderStorage, NetworkParametersPersistenceError, NetworkingParametersManager, Node, NodeRunner, ParityDbError, ParityDbProviderStorage, PieceAnnouncementRequestHandler, PieceAnnouncementResponse, PieceByHashRequestHandler, PieceByHashResponse, ProviderStorage, SegmentHeaderBySegmentIndexesRequestHandler, SegmentHeaderRequest, SegmentHeaderResponse, KADEMLIA_PROVIDER_TTL_IN_SECS, PeerInfo, PeerRole};
+use subspace_networking::{
+    peer_id, BootstrappedNetworkingParameters, CreationError, MemoryProviderStorage,
+    NetworkParametersPersistenceError, NetworkingParametersManager, Node, NodeRunner,
+    ParityDbError, ParityDbProviderStorage, PeerInfo, PeerRole, PieceAnnouncementRequestHandler,
+    PieceAnnouncementResponse, PieceByHashRequestHandler, PieceByHashResponse, ProviderStorage,
+    SegmentHeaderBySegmentIndexesRequestHandler, SegmentHeaderRequest, SegmentHeaderResponse,
+    KADEMLIA_PROVIDER_TTL_IN_SECS,
+};
 use thiserror::Error;
 use tracing::{debug, error, trace};
 
@@ -226,8 +233,8 @@ where
         max_pending_outgoing_connections: dsn_config.max_pending_out_connections,
         target_connections: dsn_config.target_connections,
         reserved_peers: dsn_config.reserved_peers,
-        peer_info: PeerInfo{
-            role: PeerRole::Node
+        peer_info: PeerInfo {
+            role: PeerRole::Node,
         },
 
         ..default_networking_config

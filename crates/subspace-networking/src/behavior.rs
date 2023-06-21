@@ -3,6 +3,9 @@ pub(crate) mod provider_storage;
 #[cfg(test)]
 mod tests;
 
+use crate::peer_info::{
+    Behaviour as PeerInfoBehaviour, Config as PeerInfoConfig, Event as PeerInfoEvent, PeerInfo,
+};
 use crate::request_responses::{
     Event as RequestResponseEvent, RequestHandler, RequestResponsesBehaviour,
 };
@@ -22,7 +25,6 @@ use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::PeerId;
 use void::Void as VoidEvent;
-use crate::peer_info::{Behaviour as PeerInfoBehaviour, Config as PeerInfoConfig, Event as PeerInfoEvent, PeerInfo};
 
 type BlockListBehaviour = AllowBlockListBehaviour<BlockedPeers>;
 
@@ -98,7 +100,9 @@ where
             connection_limits: ConnectionLimitsBehaviour::new(config.connection_limits),
             block_list: BlockListBehaviour::default(),
             reserved_peers: ReservedPeersBehaviour::new(config.reserved_peers),
-            peer_info: PeerInfoBehaviour::new(PeerInfoConfig::new().with_peer_info(config.peer_info),)
+            peer_info: PeerInfoBehaviour::new(
+                PeerInfoConfig::new().with_peer_info(config.peer_info),
+            ),
         }
     }
 }

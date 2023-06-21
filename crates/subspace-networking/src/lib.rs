@@ -37,6 +37,7 @@ pub use crate::node::{
     TopicSubscription,
 };
 pub use crate::node_runner::{NodeRunner, KADEMLIA_PROVIDER_TTL_IN_SECS};
+pub use crate::peer_info::{Config as PeerInfoConfig, PeerInfo, PeerRole};
 pub use behavior::provider_storage::{
     MemoryProviderStorage, ParityDbProviderStorage, ProviderStorage, VoidProviderStorage,
 };
@@ -60,4 +61,3 @@ pub use request_handlers::segment_header::{
 };
 pub use utils::prometheus::start_prometheus_metrics_server;
 pub use utils::unique_record_binary_heap::UniqueRecordBinaryHeap;
-pub use crate::peer_info::{PeerInfo, PeerRole, Config as PeerInfoConfig, };
