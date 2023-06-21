@@ -3,14 +3,11 @@ use futures::future::BoxFuture;
 use futures::prelude::*;
 use libp2p::core::upgrade::{NegotiationError, ReadyUpgrade};
 use libp2p::core::UpgradeError;
-use libp2p::swarm::handler::{
-    ConnectionEvent, DialUpgradeError, FullyNegotiatedInbound, FullyNegotiatedOutbound,
-};
+use libp2p::swarm::handler::{ConnectionEvent, DialUpgradeError, FullyNegotiatedInbound, FullyNegotiatedOutbound, ListenUpgradeError};
 use libp2p::swarm::{
     ConnectionHandler, ConnectionHandlerEvent, ConnectionHandlerUpgrErr, KeepAlive,
     NegotiatedSubstream, SubstreamProtocol,
 };
-use std::collections::VecDeque;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use std::{fmt, io};
@@ -118,29 +115,14 @@ impl Error for PeerInfoError {
 pub struct Handler {
     /// Configuration options.
     config: Config,
-    /// Outbound ping failures that are pending to be processed by `poll()`.
-    pending_errors: VecDeque<PeerInfoError>,
     /// The outbound ping state.
     outbound: Option<OutboundState>,
     /// The inbound pong handler, i.e. if there is an inbound
     /// substream, this is always a future that waits for the
     /// next inbound ping to be answered.
     inbound: Option<PeerInfoFuture>,
-    /// Tracks the state of our handler.
-    state: State,
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum State {
-    /// We are inactive because the other peer doesn't support ping.
-    Inactive {
-        /// Whether or not we've reported the missing support yet.
-        ///
-        /// This is used to avoid repeated events being emitted for a specific connection.
-        reported: bool,
-    },
-    /// We are actively pinging the other peer.
-    Active,
+    error: Option<PeerInfoError>,
 }
 
 impl Handler {
@@ -148,33 +130,10 @@ impl Handler {
     pub fn new(config: Config) -> Self {
         Handler {
             config,
-            pending_errors: VecDeque::with_capacity(2),
             outbound: None,
             inbound: None,
-            state: State::Active,
+            error: None,
         }
-    }
-
-    fn on_dial_upgrade_error(
-        &mut self,
-        DialUpgradeError { error, .. }: DialUpgradeError<
-            <Self as ConnectionHandler>::OutboundOpenInfo,
-            <Self as ConnectionHandler>::OutboundProtocol,
-        >,
-    ) {
-        self.outbound = None; // Request a new substream on the next `poll`.
-
-        let error = match error {
-            ConnectionHandlerUpgrErr::Upgrade(UpgradeError::Select(NegotiationError::Failed)) => {
-                debug_assert_eq!(self.state, State::Active);
-
-                self.state = State::Inactive { reported: false };
-                return;
-            }
-            e => PeerInfoError::Other { error: Box::new(e) },
-        };
-
-        self.pending_errors.push_front(error);
     }
 }
 
@@ -202,48 +161,18 @@ impl ConnectionHandler for Handler {
         cx: &mut Context<'_>,
     ) -> Poll<ConnectionHandlerEvent<ReadyUpgrade<&'static [u8]>, (), super::Result, Self::Error>>
     {
-        // // Check for outbound ping failures.
-        // if let Some(error) = self.pending_errors.pop_back() {
-        //     log::debug!("Ping failure: {:?}", error);
-        //
-        //     self.failures += 1;
-        //
-        //     // Note: For backward-compatibility, with configured
-        //     // `max_failures == 1`, the first failure is always "free"
-        //     // and silent. This allows peers who still use a new substream
-        //     // for each ping to have successful ping exchanges with peers
-        //     // that use a single substream, since every successful ping
-        //     // resets `failures` to `0`, while at the same time emitting
-        //     // events only for `max_failures - 1` failures, as before.
-        //     if self.failures > 1 || self.config.max_failures.get() > 1 {
-        //         if self.failures >= self.config.max_failures.get() {
-        //             log::debug!("Too many failures ({}). Closing connection.", self.failures);
-        //             return Poll::Ready(ConnectionHandlerEvent::Close(error));
-        //         }
-        //
-        //         return Poll::Ready(ConnectionHandlerEvent::Custom(Err(error)));
-        //     }
-        // }
-
-
-        match self.state {
-            State::Inactive { reported: true } => {
-                return Poll::Pending; // nothing to do on this connection
-            }
-            State::Inactive { reported: false } => {
-                self.state = State::Inactive { reported: true };
-                return Poll::Ready(ConnectionHandlerEvent::Custom(Err(PeerInfoError::Unsupported)));
-            }
-            State::Active => {}
+        if let Some(error) = self.error.take() {
+            return Poll::Ready(ConnectionHandlerEvent::Close(error));
         }
 
-        // Respond to inbound pings.
+        // Respond to inbound requests.
         if let Some(fut) = self.inbound.as_mut() {
             match fut.poll_unpin(cx) {
                 Poll::Pending => {}
-                Poll::Ready(Err(e)) => {
-                    debug!("Inbound peer info error: {:?}", e);
-                    self.inbound = None; // TODO:
+                Poll::Ready(Err(err)) => {
+                    debug!(?err, "Inbound peer info error.");
+
+                    return Poll::Ready(ConnectionHandlerEvent::Close(PeerInfoError::Other {error: Box::new(err)}));
                 }
                 Poll::Ready(Ok((stream, peer_info))) => {
                     info!(?peer_info, "Inbound peer info"); // TODO:
@@ -255,22 +184,27 @@ impl ConnectionHandler for Handler {
             }
         }
 
+        // TODO: Remove this directive after adding "push peer-info" feature.
+        #[allow(clippy::never_loop)]
         loop {
-            // Continue outbound pings.
+            // Outbound requests.
             match self.outbound.take() {
-                Some(OutboundState::PeerInfo(mut ping)) => match ping.poll_unpin(cx) {
+                Some(OutboundState::InProgress(mut peer_info_fut)) => match peer_info_fut.poll_unpin(cx) {
                     Poll::Pending => {
-                        self.outbound = Some(OutboundState::PeerInfo(ping));
+                        self.outbound = Some(OutboundState::InProgress(peer_info_fut));
                         break;
                     }
                     Poll::Ready(Ok((stream, peer_info))) => {
                         info!(?peer_info, "Outbound peer info"); // TODO:
                         self.outbound = Some(OutboundState::Idle(stream));
+
                         return Poll::Ready(ConnectionHandlerEvent::Custom(Ok(Success::Ping {})));
                     }
-                    Poll::Ready(Err(e)) => {
-                        self.pending_errors
-                            .push_front(PeerInfoError::Other { error: Box::new(e) });
+                    Poll::Ready(Err(error)) => {
+                        info!(?error, "Peer info error.",); // TODO:
+
+                        self.error = Some(PeerInfoError::Other{error: Box::new(error)});
+                        break;
                     }
                 },
                 Some(OutboundState::Idle(stream)) =>  {
@@ -315,14 +249,24 @@ impl ConnectionHandler for Handler {
                 protocol: stream,
                 ..
             }) => {
-                self.outbound = Some(OutboundState::PeerInfo(
+                self.outbound = Some(OutboundState::InProgress(
                     protocol::send(stream, self.config.peer_info.clone()).boxed(),
                 ));
             }
-            ConnectionEvent::DialUpgradeError(dial_upgrade_error) => {
-                self.on_dial_upgrade_error(dial_upgrade_error)
+            ConnectionEvent::DialUpgradeError(DialUpgradeError{ error, ..}) => {
+                let error = match error {
+                    ConnectionHandlerUpgrErr::Upgrade(UpgradeError::Select(NegotiationError::Failed)) => {
+                        PeerInfoError::Unsupported
+                    }
+                    e => PeerInfoError::Other { error: Box::new(e) },
+                };
+
+                self.error = Some(error);
             }
-            ConnectionEvent::AddressChange(_) | ConnectionEvent::ListenUpgradeError(_) => {}
+            ConnectionEvent::ListenUpgradeError(ListenUpgradeError{error, ..}) => {
+                self.error = Some(PeerInfoError::Other{error: Box::new(error)});
+            }
+            ConnectionEvent::AddressChange(_) => {}
         }
     }
 }
@@ -336,5 +280,5 @@ enum OutboundState {
     /// The substream is idle, waiting to send the next peer info request.
     Idle(NegotiatedSubstream),
     /// A peer info request is being sent and the response awaited.
-    PeerInfo(PeerInfoFuture),
+    InProgress(PeerInfoFuture),
 }

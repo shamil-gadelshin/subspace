@@ -60,4 +60,4 @@ pub use request_handlers::segment_header::{
 };
 pub use utils::prometheus::start_prometheus_metrics_server;
 pub use utils::unique_record_binary_heap::UniqueRecordBinaryHeap;
-pub use crate::peer_info::{PeerInfo, PeerRole};
+pub use crate::peer_info::{PeerInfo, PeerRole, Config as PeerInfoConfig, };
