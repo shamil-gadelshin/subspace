@@ -120,7 +120,7 @@ pub struct Handler {
     /// The inbound pong handler, i.e. if there is an inbound
     /// substream, this is always a future that waits for the
     /// next inbound ping to be answered.
-    inbound: Option<PeerInfoFuture>,
+    inbound: Option<InPeerInfoFuture>,
 
     error: Option<PeerInfoError>,
 }
@@ -178,7 +178,7 @@ impl ConnectionHandler for Handler {
                     info!(?peer_info, "Inbound peer info"); // TODO:
                     // A ping from a remote peer has been answered, wait for the next.
                     self.inbound =
-                        Some(protocol::recv(stream, self.config.peer_info.clone()).boxed());
+                        Some(protocol::recv(stream).boxed());
                     return Poll::Ready(ConnectionHandlerEvent::Custom(Ok(Success::Pong)));
                 }
             }
@@ -194,8 +194,7 @@ impl ConnectionHandler for Handler {
                         self.outbound = Some(OutboundState::InProgress(peer_info_fut));
                         break;
                     }
-                    Poll::Ready(Ok((stream, peer_info))) => {
-                        info!(?peer_info, "Outbound peer info"); // TODO:
+                    Poll::Ready(Ok(stream)) => {
                         self.outbound = Some(OutboundState::Idle(stream));
 
                         return Poll::Ready(ConnectionHandlerEvent::Custom(Ok(Success::Ping {})));
@@ -243,7 +242,7 @@ impl ConnectionHandler for Handler {
                 protocol: stream,
                 ..
             }) => {
-                self.inbound = Some(protocol::recv(stream, self.config.peer_info.clone()).boxed());
+                self.inbound = Some(protocol::recv(stream, ).boxed());
             }
             ConnectionEvent::FullyNegotiatedOutbound(FullyNegotiatedOutbound {
                 protocol: stream,
@@ -271,7 +270,8 @@ impl ConnectionHandler for Handler {
     }
 }
 
-type PeerInfoFuture = BoxFuture<'static, Result<(NegotiatedSubstream, PeerInfo), io::Error>>;
+type InPeerInfoFuture = BoxFuture<'static, Result<(NegotiatedSubstream, PeerInfo), io::Error>>;
+type OutPeerInfoFuture = BoxFuture<'static, Result<NegotiatedSubstream, io::Error>>;
 
 /// The current state w.r.t. outbound peer info requests.
 enum OutboundState {
@@ -280,5 +280,5 @@ enum OutboundState {
     /// The substream is idle, waiting to send the next peer info request.
     Idle(NegotiatedSubstream),
     /// A peer info request is being sent and the response awaited.
-    InProgress(PeerInfoFuture),
+    InProgress(OutPeerInfoFuture),
 }
