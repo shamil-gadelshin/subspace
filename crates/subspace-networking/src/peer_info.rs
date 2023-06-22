@@ -48,7 +48,7 @@ pub type Result = std::result::Result<PeerInfoSuccess, PeerInfoError>;
 /// periodically sends outbound pings on every established connection.
 ///
 /// See the crate root documentation for more information.
-pub struct Behaviour<PIP: PeerInfoProvider = ConstantPeerInfoProvider> {
+pub struct Behaviour<PeerInfoProvider = ConstantPeerInfoProvider> {
     /// Configuration for outbound pings.
     config: Config,
     /// Queue of events to yield to the swarm.
@@ -56,7 +56,7 @@ pub struct Behaviour<PIP: PeerInfoProvider = ConstantPeerInfoProvider> {
 
     requests: Vec<Request>,
 
-    peer_info_provider: PIP,
+    peer_info_provider: PeerInfoProvider,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -64,7 +64,7 @@ struct Request {
     peer_id: PeerId,
 }
 
-pub trait PeerInfoProvider {
+pub trait PeerInfoProvider: 'static {
     fn peer_info(&self) -> PeerInfo;
 }
 
@@ -105,7 +105,7 @@ impl<PIP: PeerInfoProvider> Behaviour<PIP> {
     }
 }
 
-impl NetworkBehaviour for Behaviour {
+impl<PIP: PeerInfoProvider> NetworkBehaviour for Behaviour<PIP> {
     type ConnectionHandler = Handler;
     type OutEvent = Event;
 
