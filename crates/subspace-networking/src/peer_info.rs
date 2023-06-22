@@ -16,11 +16,8 @@ use std::collections::VecDeque;
 use std::task::{Context, Poll};
 use tracing::debug;
 
-// TODO: comments - #![warn(missing_docs)]
-// TODO: logs
-
-// TODO: peerId, addresses
 #[derive(Clone, Debug, Encode, Decode)]
+/// Peer info data
 pub struct PeerInfo {
     pub role: PeerRole,
 }
@@ -34,6 +31,7 @@ impl Default for PeerInfo {
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
+/// Defines the role of a peer
 pub enum PeerRole {
     Farmer,
     Node,
@@ -41,38 +39,41 @@ pub enum PeerRole {
     Client,
 }
 
-/// The result of an inbound or outbound ping.
+/// The result of an inbound or outbound peer-info requests.
 pub type Result = std::result::Result<PeerInfoSuccess, PeerInfoError>;
 
-/// A [`NetworkBehaviour`] that responds to inbound pings and
-/// periodically sends outbound pings on every established connection.
-///
-/// See the crate root documentation for more information.
+/// A [`NetworkBehaviour`] that handles inbound peer info requests and
+/// sends outbound peer info requests on the first established connection.
 pub struct Behaviour<PeerInfoProvider = ConstantPeerInfoProvider> {
-    /// Configuration for outbound pings.
+    /// Peer info protocol configuration.
     config: Config,
     /// Queue of events to yield to the swarm.
     events: VecDeque<Event>,
-
+    /// Outbound peer info pushes.
     requests: Vec<Request>,
-
+    /// Provides up-to-date peer info.
     peer_info_provider: PeerInfoProvider,
 }
 
 #[derive(Debug, PartialEq, Eq)]
+/// Peer info push request.
 struct Request {
     peer_id: PeerId,
 }
 
+/// Provides the current peer info data.
 pub trait PeerInfoProvider: 'static {
+    /// Returns the current peer info data.
     fn peer_info(&self) -> PeerInfo;
 }
 
+/// Handles constant peer info data.
 pub struct ConstantPeerInfoProvider {
     peer_info: PeerInfo,
 }
 
 impl ConstantPeerInfoProvider {
+    /// Creates a new peer [`ConstantPeerInfoProvider`].
     pub fn new(peer_info: PeerInfo) -> Self {
         Self { peer_info }
     }
@@ -150,9 +151,15 @@ impl<PIP: PeerInfoProvider> NetworkBehaviour for Behaviour<PIP> {
             let Event { result, peer_id } = &e;
 
             match result {
-                Ok(PeerInfoSuccess::DataSent) => debug!(%peer_id,"Peer info sent.", ),
-                Ok(PeerInfoSuccess::Received(_)) => debug!(%peer_id, "Peer info received", ),
-                _ => {} // TODO:
+                Ok(PeerInfoSuccess::DataSent) => {
+                    debug!(%peer_id,"Peer info sent.", )
+                }
+                Ok(PeerInfoSuccess::Received(_)) => {
+                    debug!(%peer_id, "Peer info received", )
+                }
+                Err(err) => {
+                    debug!(%peer_id, ?err, "Peer info error");
+                }
             }
 
             return Poll::Ready(ToSwarm::GenerateEvent(e));

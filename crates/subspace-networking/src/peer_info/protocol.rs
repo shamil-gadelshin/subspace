@@ -1,9 +1,12 @@
+//! This module defines low-level functions for working with inbound and outbound streams.
+
 use crate::peer_info::PeerInfo;
 use futures::prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use std::io;
 use std::io::ErrorKind;
 
+/// Send peer-info data to a remote peer.
 pub async fn send<S>(mut stream: S, pi: PeerInfo) -> io::Result<S>
 where
     S: AsyncRead + AsyncWrite + Unpin,
@@ -18,6 +21,7 @@ where
     Ok(stream)
 }
 
+/// Receive peer-info data from a remote peer.
 pub async fn recv<S>(mut stream: S) -> io::Result<(S, PeerInfo)>
 where
     S: AsyncRead + AsyncWrite + Unpin,

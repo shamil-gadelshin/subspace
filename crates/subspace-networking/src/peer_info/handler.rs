@@ -17,9 +17,6 @@ use std::time::Duration;
 use std::{fmt, io};
 use tracing::{debug, info};
 
-// TODO: comments - #![warn(missing_docs)]
-// TODO: logs
-
 /// The configuration for peer-info protocol.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -163,15 +160,15 @@ impl ConnectionHandler for Handler {
             match fut.poll_unpin(cx) {
                 Poll::Pending => {}
                 Poll::Ready(Err(err)) => {
-                    debug!(?err, "Inbound peer info error.");
+                    debug!(?err, "Peer info handler: inbound peer info error.");
 
                     return Poll::Ready(ConnectionHandlerEvent::Close(PeerInfoError::Other {
                         error: Box::new(err),
                     }));
                 }
                 Poll::Ready(Ok((stream, peer_info))) => {
-                    info!(?peer_info, "Inbound peer info"); // TODO:
-                                                            // A ping from a remote peer has been answered, wait for the next.
+                    info!(?peer_info, "Inbound peer info"); // TODO: downgrade message severity
+
                     self.inbound = Some(protocol::recv(stream).boxed());
                     return Poll::Ready(ConnectionHandlerEvent::Custom(Ok(
                         PeerInfoSuccess::Received(peer_info),
@@ -195,7 +192,7 @@ impl ConnectionHandler for Handler {
                         )));
                     }
                     Poll::Ready(Err(error)) => {
-                        info!(?error, "Peer info error.",); // TODO:
+                        debug!(?error, "Outbound peer info error.",);
 
                         self.error = Some(PeerInfoError::Other {
                             error: Box::new(error),
