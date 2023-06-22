@@ -15,6 +15,7 @@ use crate::request_responses::RequestHandler;
 use crate::reserved_peers::Config as ReservedPeersConfig;
 use crate::shared::Shared;
 use crate::utils::{convert_multiaddresses, ResizableSemaphore};
+use crate::PeerInfoConfig;
 use backoff::{ExponentialBackoff, SystemClock};
 use futures::channel::mpsc;
 use libp2p::connection_limits::ConnectionLimits;
@@ -49,6 +50,7 @@ const DEFAULT_NETWORK_PROTOCOL_VERSION: &str = "dev";
 const KADEMLIA_PROTOCOL: &[u8] = b"/subspace/kad/0.1.0";
 const GOSSIPSUB_PROTOCOL_PREFIX: &str = "subspace/gossipsub";
 const RESERVED_PEERS_PROTOCOL_NAME: &[u8] = b"/subspace/reserved-peers/1.0.0";
+const PEER_INFO_PROTOCOL_NAME: &[u8] = b"/subspace/peer-info/1.0.0";
 
 // Defines max_negotiating_inbound_streams constant for the swarm.
 // It must be set for large plots.
@@ -440,6 +442,7 @@ where
             reserved_peers: reserved_peers.clone(),
             protocol_name: RESERVED_PEERS_PROTOCOL_NAME,
         },
+        peer_info_config: PeerInfoConfig::new(PEER_INFO_PROTOCOL_NAME),
         peer_info,
     });
 

@@ -1,4 +1,4 @@
-use crate::peer_info::{protocol, PeerInfo, PROTOCOL_NAME};
+use crate::peer_info::{protocol, PeerInfo};
 use futures::future::BoxFuture;
 use futures::prelude::*;
 use libp2p::core::upgrade::{NegotiationError, ReadyUpgrade};
@@ -20,33 +20,24 @@ use tracing::{debug, info};
 // TODO: comments - #![warn(missing_docs)]
 // TODO: logs
 
-/// The configuration for outbound pings.
+/// The configuration for peer-info protocol.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// The timeout of an outbound ping.
+    /// Protocol timeout.
     timeout: Duration,
+
+    /// Protocol name.
+    protocol_name: &'static [u8],
 }
 
 impl Config {
     /// Creates a new [`Config`] with the following default settings:
     ///
     ///   * [`Config::with_timeout`] 20s
-    ///   * [`Config::with_max_failures`] 1
-    ///   * [`Config::with_keep_alive`] false
-    ///
-    /// These settings have the following effect:
-    ///
-    ///   * A ping is sent every 15 seconds on a healthy connection.
-    ///   * Every ping sent must yield a response within 20 seconds in order to
-    ///     be successful.
-    ///   * A single ping failure is sufficient for the connection to be subject
-    ///     to being closed.
-    ///   * The connection may be closed at any time as far as the ping protocol
-    ///     is concerned, i.e. the ping protocol itself does not keep the
-    ///     connection alive.
-    pub fn new() -> Self {
+    pub fn new(protocol_name: &'static [u8]) -> Self {
         Self {
             timeout: Duration::from_secs(20),
+            protocol_name,
         }
     }
 
@@ -57,21 +48,11 @@ impl Config {
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// The successful result of processing an inbound or outbound ping.
+/// The successful result of processing an inbound or outbound peer info requests.
 #[derive(Debug)]
-pub enum Success {
-    /// Received a ping and sent back a pong.
-    Pong,
-    /// Sent a ping and received back a pong.
-    ///
-    /// Includes the round-trip time.
-    Ping,
+pub enum PeerInfoSuccess {
+    Received(PeerInfo),
+    DataSent,
 }
 
 /// A peer info protocol failure.
@@ -103,20 +84,17 @@ impl Error for PeerInfoError {
     }
 }
 
-/// Protocol handler that handles pinging the remote at a regular period
-/// and answering ping queries.
+/// Protocol handler that handles peer-info requests.
 ///
-/// If the remote doesn't respond, produces an error that closes the connection.
+/// Any protocol failure produces an error that closes the connection.
 pub struct Handler {
     /// Configuration options.
     config: Config,
-    /// The outbound ping state.
+    /// The outbound request state.
     outbound: Option<OutboundState>,
-    /// The inbound pong handler, i.e. if there is an inbound
-    /// substream, this is always a future that waits for the
-    /// next inbound ping to be answered.
+    /// The inbound request future.
     inbound: Option<InPeerInfoFuture>,
-
+    /// Last peer-info error.
     error: Option<PeerInfoError>,
 }
 
@@ -132,7 +110,7 @@ impl Handler {
     }
 }
 
-/// Marker struct for outbound peer-info pushes.
+/// Marker struct for outbound peer-info requests.
 #[derive(Debug, Clone)]
 pub struct HandlerInEvent {
     pub peer_info: PeerInfo,
@@ -148,12 +126,12 @@ impl ConnectionHandler for Handler {
     type InboundOpenInfo = ();
 
     fn listen_protocol(&self) -> SubstreamProtocol<ReadyUpgrade<&'static [u8]>, ()> {
-        SubstreamProtocol::new(ReadyUpgrade::new(PROTOCOL_NAME), ())
+        SubstreamProtocol::new(ReadyUpgrade::new(self.config.protocol_name), ())
     }
 
     fn on_behaviour_event(&mut self, event: Self::InEvent) {
         if let Some(OutboundState::Idle(stream)) = self.outbound.take() {
-            self.outbound = Some(OutboundState::InProgress(
+            self.outbound = Some(OutboundState::SendingData(
                 protocol::send(stream, event.peer_info).boxed(),
             ));
         } else {
@@ -195,22 +173,26 @@ impl ConnectionHandler for Handler {
                     info!(?peer_info, "Inbound peer info"); // TODO:
                                                             // A ping from a remote peer has been answered, wait for the next.
                     self.inbound = Some(protocol::recv(stream).boxed());
-                    return Poll::Ready(ConnectionHandlerEvent::Custom(Ok(Success::Pong)));
+                    return Poll::Ready(ConnectionHandlerEvent::Custom(Ok(
+                        PeerInfoSuccess::Received(peer_info),
+                    )));
                 }
             }
         }
 
         // Outbound requests.
         match self.outbound.take() {
-            Some(OutboundState::InProgress(mut peer_info_fut)) => {
+            Some(OutboundState::SendingData(mut peer_info_fut)) => {
                 match peer_info_fut.poll_unpin(cx) {
                     Poll::Pending => {
-                        self.outbound = Some(OutboundState::InProgress(peer_info_fut));
+                        self.outbound = Some(OutboundState::SendingData(peer_info_fut));
                     }
                     Poll::Ready(Ok(stream)) => {
                         self.outbound = Some(OutboundState::Idle(stream));
 
-                        return Poll::Ready(ConnectionHandlerEvent::Custom(Ok(Success::Ping {})));
+                        return Poll::Ready(ConnectionHandlerEvent::Custom(Ok(
+                            PeerInfoSuccess::DataSent,
+                        )));
                     }
                     Poll::Ready(Err(error)) => {
                         info!(?error, "Peer info error.",); // TODO:
@@ -230,8 +212,9 @@ impl ConnectionHandler for Handler {
             }
             Some(OutboundState::RequestNewStream(peer_info)) => {
                 self.outbound = Some(OutboundState::NegotiatingStream);
-                let protocol = SubstreamProtocol::new(ReadyUpgrade::new(PROTOCOL_NAME), peer_info)
-                    .with_timeout(self.config.timeout);
+                let protocol =
+                    SubstreamProtocol::new(ReadyUpgrade::new(self.config.protocol_name), peer_info)
+                        .with_timeout(self.config.timeout);
                 return Poll::Ready(ConnectionHandlerEvent::OutboundSubstreamRequest { protocol });
             }
             None => {
@@ -262,7 +245,7 @@ impl ConnectionHandler for Handler {
                 protocol: stream,
                 info,
             }) => {
-                self.outbound = Some(OutboundState::InProgress(
+                self.outbound = Some(OutboundState::SendingData(
                     protocol::send(stream, info).boxed(),
                 ));
             }
@@ -295,7 +278,7 @@ enum OutboundState {
     /// A new substream is being negotiated for the protocol.
     NegotiatingStream,
     /// A peer info request is being sent and the response awaited.
-    InProgress(OutPeerInfoFuture),
+    SendingData(OutPeerInfoFuture),
     /// The substream is idle, waiting to send the next peer info request.
     Idle(NegotiatedSubstream),
 }

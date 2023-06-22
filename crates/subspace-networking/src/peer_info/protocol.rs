@@ -2,9 +2,7 @@ use crate::peer_info::PeerInfo;
 use futures::prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use std::io;
-
-//TODO:
-pub const PROTOCOL_NAME: &[u8] = b"/subspace/peer-info/1.0.0";
+use std::io::ErrorKind;
 
 pub async fn send<S>(mut stream: S, pi: PeerInfo) -> io::Result<S>
 where
@@ -29,8 +27,9 @@ where
     let rec_len = u32::from_le_bytes(rec_len_bytes) as usize;
     let mut rec_data = vec![0; rec_len];
 
-    let _received = stream.read_exact(&mut rec_data).await; //TODO
-    let received_peer_info = PeerInfo::decode(&mut &*rec_data).unwrap(); //TODO
+    stream.read_exact(&mut rec_data).await?;
+    let received_peer_info =
+        PeerInfo::decode(&mut &*rec_data).map_err(|err| io::Error::new(ErrorKind::Other, err))?;
 
     Ok((stream, received_peer_info))
 }

@@ -4,7 +4,8 @@ pub(crate) mod provider_storage;
 mod tests;
 
 use crate::peer_info::{
-    Behaviour as PeerInfoBehaviour, Config as PeerInfoConfig, Event as PeerInfoEvent, PeerInfo,
+    Behaviour as PeerInfoBehaviour, Config as PeerInfoConfig, ConstantPeerInfoProvider,
+    Event as PeerInfoEvent, PeerInfo,
 };
 use crate::request_responses::{
     Event as RequestResponseEvent, RequestHandler, RequestResponsesBehaviour,
@@ -46,6 +47,7 @@ pub(crate) struct BehaviorConfig<RecordStore> {
     /// The configuration for the [`ReservedPeersBehaviour`].
     pub(crate) reserved_peers: ReservedPeersConfig,
 
+    pub(crate) peer_info_config: PeerInfoConfig,
     pub(crate) peer_info: PeerInfo,
 }
 
@@ -100,7 +102,10 @@ where
             connection_limits: ConnectionLimitsBehaviour::new(config.connection_limits),
             block_list: BlockListBehaviour::default(),
             reserved_peers: ReservedPeersBehaviour::new(config.reserved_peers),
-            peer_info: PeerInfoBehaviour::new(PeerInfoConfig::new(), config.peer_info),
+            peer_info: PeerInfoBehaviour::new(
+                config.peer_info_config,
+                ConstantPeerInfoProvider::new(config.peer_info),
+            ),
         }
     }
 }
