@@ -94,6 +94,7 @@ where
         .await
         .map_err(|error| anyhow::anyhow!(error))?;
 
+    // TODO: calculate proper capacity
     let archival_storage_pieces = ArchivalStoragePieces::default();
 
     let (node, mut node_runner, piece_cache) = {
