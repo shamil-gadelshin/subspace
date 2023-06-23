@@ -7,7 +7,6 @@ use subspace_core_primitives::PieceIndex;
 use subspace_networking::{
     Notification, NotificationHandler, PeerInfo, PeerInfoProvider, PeerRole,
 };
-use tracing::info;
 
 type NotificationEventHandler = Bag<NotificationHandler, Notification>;
 

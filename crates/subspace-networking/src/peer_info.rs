@@ -8,16 +8,16 @@ pub use handler::{Config, PeerInfoError, PeerInfoSuccess};
 use libp2p::core::{Endpoint, Multiaddr};
 use libp2p::swarm::behaviour::{ConnectionEstablished, FromSwarm};
 use libp2p::swarm::{
-    ConnectionDenied, ConnectionId, NetworkBehaviour, NotifyHandler, PollParameters, THandler,
-    THandlerInEvent, THandlerOutEvent, ToSwarm,
+    ConnectionClosed, ConnectionDenied, ConnectionId, NetworkBehaviour, NotifyHandler,
+    PollParameters, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
 };
 use libp2p::PeerId;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tracing::{debug, info};
+use tracing::debug;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Notification;
@@ -65,7 +65,12 @@ pub struct Behaviour<PeerInfoProvider = ConstantPeerInfoProvider> {
     peer_info_provider: PeerInfoProvider,
 
     should_notify_handlers: Arc<AtomicBool>,
+
+    /// We just save the handler ID.
+    #[allow(dead_code)]
     notify_handler_id: Option<HandlerId>,
+
+    connected_peers: HashSet<PeerId>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -133,6 +138,7 @@ impl<PIP: PeerInfoProvider> Behaviour<PIP> {
             events: VecDeque::new(),
             requests: Vec::new(),
             should_notify_handlers,
+            connected_peers: HashSet::new(),
         }
     }
 }
@@ -180,6 +186,11 @@ impl<PIP: PeerInfoProvider> NetworkBehaviour for Behaviour<PIP> {
     ) -> Poll<ToSwarm<Self::OutEvent, THandlerInEvent<Self>>> {
         if self.should_notify_handlers.swap(false, Ordering::SeqCst) {
             debug!("Notify peer-info handlers.");
+
+            self.requests.clear();
+            for peer_id in self.connected_peers.iter().cloned() {
+                self.requests.push(Request { peer_id })
+            }
         }
 
         if let Some(e) = self.events.pop_back() {
@@ -221,13 +232,23 @@ impl<PIP: PeerInfoProvider> NetworkBehaviour for Behaviour<PIP> {
                 other_established,
                 ..
             }) => {
+                self.connected_peers.insert(peer_id);
+
                 // Push the peer-info request on the first connection.
                 if other_established == 0 {
                     self.requests.push(Request { peer_id });
                 }
             }
-            FromSwarm::ConnectionClosed(_)
-            | FromSwarm::AddressChange(_)
+            FromSwarm::ConnectionClosed(ConnectionClosed {
+                peer_id,
+                remaining_established,
+                ..
+            }) => {
+                if remaining_established == 0 {
+                    self.connected_peers.remove(&peer_id);
+                }
+            }
+            FromSwarm::AddressChange(_)
             | FromSwarm::DialFailure(_)
             | FromSwarm::ListenFailure(_)
             | FromSwarm::NewListener(_)
