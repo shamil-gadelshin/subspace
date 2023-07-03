@@ -1,24 +1,24 @@
+#![allow(dead_code)] // TODO:
+
 mod handler;
 
+use std::collections::hash_map::Entry;
 use handler::Handler;
 use libp2p::core::{Endpoint, Multiaddr};
 use libp2p::swarm::behaviour::{ConnectionEstablished, FromSwarm};
 use libp2p::swarm::dial_opts::DialOpts;
-use libp2p::swarm::{
-    ConnectionClosed, ConnectionDenied, ConnectionId, DialFailure, NetworkBehaviour,
-    PollParameters, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
-};
+use libp2p::swarm::{ConnectionClosed, ConnectionDenied, ConnectionId, DialFailure, KeepAlive, NetworkBehaviour, PollParameters, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm};
 use libp2p::PeerId;
 use std::collections::HashMap;
 use std::ops::Add;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
-use tracing::{debug, trace, warn};
+use tracing::{debug, warn};
 
 // TODO: remove peer-info
 // TODO: fix comments and other strings
 
-use crate::utils::{convert_multiaddresses, PeerAddress};
+use crate::utils::{ PeerAddress};
 
 pub trait PeerAddressSource {
     fn peer_addresses(&self, batch_size: u32) -> Vec<PeerAddress>;
@@ -136,13 +136,20 @@ impl<PeerSource> Behaviour<PeerSource> {
     /// Create a connection handler for the protocol.
     #[inline]
     fn new_connection_handler(&self, peer_id: &PeerId) -> Handler {
-        let current_decision = if let Some(state) = self.known_peers.get(peer_id) {
-            !matches!(state, PeerDecision::NotInterested)
+        // TODO:
+        let keep_alive = if let Some(state) = self.known_peers.get(peer_id) {
+            if !matches!(state, PeerDecision::NotInterested) {
+                KeepAlive::Yes
+            } else {
+                KeepAlive::No
+            }
         } else {
             warn!(%peer_id, "Connected peers protocol: cannot find peer state.");
-            false
+
+            KeepAlive::No
         };
-        Handler::new(self.config.protocol_name, current_decision)
+        // TODO: KeepAlive::Until
+        Handler::new(self.config.protocol_name, keep_alive)
     }
 
 
@@ -184,10 +191,10 @@ impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<Peer
     fn on_swarm_event(&mut self, event: FromSwarm<Self::ConnectionHandler>) {
         match event {
             FromSwarm::ConnectionEstablished(ConnectionEstablished { peer_id,.. }) => {
-                if !self.known_peers.contains_key(&peer_id) {
-                    self.known_peers.insert(peer_id, PeerDecision::PendingDecision);
+                if let Entry::Vacant(entry) = self.known_peers.entry(peer_id) {
+                    entry.insert(PeerDecision::PendingDecision);
 
-                    // debug!(peer_id=%state.peer_id, "Reserved peer connected."); // TODO
+                    debug!(%peer_id, "Reserved peer connected."); // TODO
                 }
             }
             FromSwarm::ConnectionClosed(ConnectionClosed {
@@ -196,14 +203,14 @@ impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<Peer
                 ..
             }) => {
                 if remaining_established == 0 {
-                    let old_peer = self.known_peers.remove(&peer_id);
+                    let _old_peer = self.known_peers.remove(&peer_id);
 
                     // debug!(%peer_id, "Reserved peer disconnected."); // TODO
                 }
             }
             FromSwarm::DialFailure(DialFailure { peer_id, .. }) => {
                 if let Some(peer_id) = peer_id {
-                    let old_peer = self.known_peers.remove(&peer_id);
+                    let _old_peer = self.known_peers.remove(&peer_id);
 
                     // debug!(%peer_id, "Reserved peer disconnected."); // TODO
                 }
@@ -272,7 +279,7 @@ impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<Peer
                 debug!(%peer_id, "Dialing the reserved peer....");
 
                 let dial_opts =
-                    DialOpts::peer_id(peer_id).addresses(vec![address.clone()]);
+                    DialOpts::peer_id(peer_id).addresses(vec![address]);
 
                 return Poll::Ready(ToSwarm::Dial {
                     opts: dial_opts.build(),
