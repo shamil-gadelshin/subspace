@@ -15,6 +15,9 @@ use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use tracing::{debug, trace, warn};
 
+// TODO: remove peer-info
+// TODO: fix comments and other strings
+
 use crate::utils::{convert_multiaddresses, PeerAddress};
 
 pub trait PeerAddressSource {
@@ -23,7 +26,9 @@ pub trait PeerAddressSource {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum PeerDecision {
-    PendingConnection { state: PeerState },
+    //TODO: add delay for new candidates
+    PendingConnection { peer_address: PeerAddress },
+    //TODO: add timeout for the decision
     PendingDecision,
     PermanentConnection,
     NotInterested,
@@ -139,6 +144,17 @@ impl<PeerSource> Behaviour<PeerSource> {
         };
         Handler::new(self.config.protocol_name, current_decision)
     }
+
+
+    pub fn update_peer_decision(&mut self, peer_id: PeerId, keep_alive: bool) {
+        let decision = if keep_alive {
+            PeerDecision::PermanentConnection
+        }else{
+            PeerDecision::NotInterested
+        };
+
+        self.known_peers.insert(peer_id, decision);
+    }
 }
 
 impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<PeerSource> {
@@ -167,14 +183,11 @@ impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<Peer
 
     fn on_swarm_event(&mut self, event: FromSwarm<Self::ConnectionHandler>) {
         match event {
-            FromSwarm::ConnectionEstablished(ConnectionEstablished { peer_id, .. }) => {
-                if let Some(decision) = self.known_peers.get_mut(&peer_id) {
-                    if let PeerDecision::PendingConnection { state } = decision {
-                        state.connection_status = ConnectionStatus::Connected;
+            FromSwarm::ConnectionEstablished(ConnectionEstablished { peer_id,.. }) => {
+                if !self.known_peers.contains_key(&peer_id) {
+                    self.known_peers.insert(peer_id, PeerDecision::PendingDecision);
 
-                        debug!(peer_id=%state.peer_id, "Reserved peer connected.");
-                        // TODO
-                    }
+                    // debug!(peer_id=%state.peer_id, "Reserved peer connected."); // TODO
                 }
             }
             FromSwarm::ConnectionClosed(ConnectionClosed {
@@ -182,21 +195,17 @@ impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<Peer
                 remaining_established,
                 ..
             }) => {
-                if let Some(decision) = self.known_peers.get_mut(&peer_id) {
-                    if remaining_established == 0 {
-                        *decision = PeerDecision::NotInterested;
+                if remaining_established == 0 {
+                    let old_peer = self.known_peers.remove(&peer_id);
 
-                        debug!(%peer_id, "Reserved peer disconnected."); // TODO
-                    }
+                    // debug!(%peer_id, "Reserved peer disconnected."); // TODO
                 }
             }
             FromSwarm::DialFailure(DialFailure { peer_id, .. }) => {
                 if let Some(peer_id) = peer_id {
-                    if let Some(decision) = self.known_peers.get_mut(&peer_id) {
-                        *decision = PeerDecision::NotInterested;
+                    let old_peer = self.known_peers.remove(&peer_id);
 
-                        debug!(%peer_id, "Reserved peer dialing failed."); // TODO
-                    }
+                    // debug!(%peer_id, "Reserved peer disconnected."); // TODO
                 }
             }
             FromSwarm::AddressChange(_)
@@ -224,62 +233,52 @@ impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<Peer
         _: &mut Context<'_>,
         _: &mut impl PollParameters,
     ) -> Poll<ToSwarm<Self::OutEvent, THandlerInEvent<Self>>> {
-        while let Some(peer_addreess) = self.connection_candidates.pop() {
-            // trace!(?state, "Reserved peer state."); // TODO
-
-            if let ConnectionStatus::NotConnected { scheduled_at } = state.connection_status {
-                if Instant::now() > scheduled_at {
-                    state.connection_status = ConnectionStatus::PendingConnection;
-
-                    debug!(peer_id=%state.peer_id, "Dialing the reserved peer....");
-
-                    let dial_opts =
-                        DialOpts::peer_id(state.peer_id).addresses(vec![state.address.clone()]);
-
-                    return Poll::Ready(ToSwarm::Dial {
-                        opts: dial_opts.build(),
-                    });
-                }
-            }
-        }
-
-        // New dial condiates
-        let connected_peers: u32 = self
-            .known_peers
-            .iter()
-            .filter_map(|(peer_id, state)| {
-                if *state == PeerDecision::PermanentConnection {
-                    Some(1)
-                } else {
-                    None
-                }
-            })
-            .sum();
-
-        if connected_peers < self.config.target_connected_peers{
-            let mut peer_addresses = self.peer_source.peer_addresses(self.config.next_peer_batch_size);
-
-            self.connection_candidates.extend_from_slice(&peer_addresses);
-        }
-
-        // for (_, state) in self.reserved_peers_state.iter_mut() {
-        //     trace!(?state, "Reserved peer state.");
+        // //TODO: add delay for new candidates
+        // while let Some(peer_address) = self.connection_candidates.pop() {
+        //     // trace!(?state, "Reserved peer state."); // TODO
         //
-        //     if let ConnectionStatus::NotConnected { scheduled_at } = state.connection_status {
-        //         if Instant::now() > scheduled_at {
-        //             state.connection_status = ConnectionStatus::PendingConnection;
+        //    if !self.known_peers.contains_key(&peer_address.0){
+        //        let decision = PeerDecision::PendingConnection {peer_address: peer_address.clone(),};
         //
-        //             debug!(peer_id=%state.peer_id, "Dialing the reserved peer....");
-        //
-        //             let dial_opts =
-        //                 DialOpts::peer_id(state.peer_id).addresses(vec![state.address.clone()]);
-        //
-        //             return Poll::Ready(ToSwarm::Dial {
-        //                 opts: dial_opts.build(),
-        //             });
-        //         }
+        //        self.known_peers.insert(peer_address.0, decision);
         //     }
         // }
+        //
+        // // New dial candidates
+        // let connected_peers: u32 = self
+        //     .known_peers
+        //     .iter()
+        //     .filter_map(|(peer_id, state)| {
+        //         if *state == PeerDecision::PermanentConnection {
+        //             Some(1)
+        //         } else {
+        //             None
+        //         }
+        //     })
+        //     .sum();
+        //
+        // if connected_peers < self.config.target_connected_peers{
+        //     let mut peer_addresses = self.peer_source.peer_addresses(self.config.next_peer_batch_size);
+        //
+        //     self.connection_candidates.extend_from_slice(&peer_addresses);
+        // }
+
+        for (_, decision) in self.known_peers.iter_mut() {
+          //  trace!(?state, "Reserved peer state."); // TODO:
+
+            if let PeerDecision::PendingConnection {peer_address: (peer_id, address)} = decision.clone() {
+                *decision = PeerDecision::PendingDecision;
+
+                debug!(%peer_id, "Dialing the reserved peer....");
+
+                let dial_opts =
+                    DialOpts::peer_id(peer_id).addresses(vec![address.clone()]);
+
+                return Poll::Ready(ToSwarm::Dial {
+                    opts: dial_opts.build(),
+                });
+            }
+        }
 
         // TODO: waker
         Poll::Pending

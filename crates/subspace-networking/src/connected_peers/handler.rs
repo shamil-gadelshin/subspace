@@ -36,6 +36,9 @@ impl Handler {
     }
 }
 
+// TODO: remove reserved peers
+// TODO: fix comments and other strings
+
 #[derive(Debug)]
 pub struct ReservedPeersError;
 
