@@ -7,13 +7,13 @@ use handler::Handler;
 use libp2p::core::{Endpoint, Multiaddr};
 use libp2p::swarm::behaviour::{ConnectionEstablished, FromSwarm};
 use libp2p::swarm::dial_opts::DialOpts;
-use libp2p::swarm::{ConnectionClosed, ConnectionDenied, ConnectionId, DialFailure, KeepAlive, NetworkBehaviour, PollParameters, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm};
+use libp2p::swarm::{ConnectionClosed, ConnectionDenied, ConnectionId, DialFailure, KeepAlive, NetworkBehaviour, NotifyHandler, PollParameters, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm};
 use libp2p::PeerId;
 use std::collections::HashMap;
 use std::ops::Add;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 // TODO: remove peer-info
 // TODO: fix comments and other strings
@@ -81,6 +81,15 @@ struct PeerState {
     address: Multiaddr,
 }
 
+//TODO: rename
+/// Defines .....
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PeerDecisionChange {
+    peer_id: PeerId,
+    keep_alive: KeepAlive,
+}
+
+
 /// `Behaviour` controls and maintains the state of connections to a predefined set of peers.
 ///
 /// The `Behaviour` struct is part of our custom protocol that aims to maintain persistent
@@ -119,7 +128,9 @@ pub struct Behaviour<PeerSource> {
 
     peer_source: PeerSource,
 
-    connection_candidates: Vec<PeerAddress>
+    connection_candidates: Vec<PeerAddress>,
+
+    peer_decision_changes: Vec<PeerDecisionChange>,
 }
 
 impl<PeerSource> Behaviour<PeerSource> {
@@ -130,6 +141,7 @@ impl<PeerSource> Behaviour<PeerSource> {
             known_peers: HashMap::new(),
             peer_source,
             connection_candidates: Vec::new(),
+            peer_decision_changes: Vec::new(),
         }
     }
 
@@ -154,13 +166,16 @@ impl<PeerSource> Behaviour<PeerSource> {
 
 
     pub fn update_peer_decision(&mut self, peer_id: PeerId, keep_alive: bool) {
-        let decision = if keep_alive {
-            PeerDecision::PermanentConnection
+        info!(%peer_id, ?keep_alive, "update_peer_decision.");
+        //TODO: remove decision?
+        let (decision, keep_alive) = if keep_alive {
+            (PeerDecision::PermanentConnection, KeepAlive::Yes)
         }else{
-            PeerDecision::NotInterested
+            (PeerDecision::NotInterested, KeepAlive::No)
         };
 
         self.known_peers.insert(peer_id, decision);
+        self.peer_decision_changes.push(PeerDecisionChange {peer_id, keep_alive});
     }
 }
 
@@ -240,6 +255,14 @@ impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<Peer
         _: &mut Context<'_>,
         _: &mut impl PollParameters,
     ) -> Poll<ToSwarm<Self::OutEvent, THandlerInEvent<Self>>> {
+        if let Some(change) = self.peer_decision_changes.pop(){
+            return Poll::Ready(ToSwarm::NotifyHandler {
+                peer_id: change.peer_id,
+                handler: NotifyHandler::Any,
+                event: change.keep_alive,
+            });
+        }
+
         // //TODO: add delay for new candidates
         // while let Some(peer_address) = self.connection_candidates.pop() {
         //     // trace!(?state, "Reserved peer state."); // TODO
