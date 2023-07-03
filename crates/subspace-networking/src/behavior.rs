@@ -12,6 +12,9 @@ use crate::request_responses::{
 use crate::reserved_peers::{
     Behaviour as ReservedPeersBehaviour, Config as ReservedPeersConfig, Event as ReservedPeersEvent,
 };
+use crate::connected_peers::{
+    Behaviour as ConnectedPeersBehaviour, Config as ConnectedPeersConfig, Event as ConnectedPeersEvent,
+};
 use crate::PeerInfoProvider;
 use derive_more::From;
 use libp2p::allow_block_list::{Behaviour as AllowBlockListBehaviour, BlockedPeers};
@@ -29,7 +32,7 @@ use void::Void as VoidEvent;
 
 type BlockListBehaviour = AllowBlockListBehaviour<BlockedPeers>;
 
-pub(crate) struct BehaviorConfig<RecordStore> {
+pub(crate) struct BehaviorConfig<RecordStore, PeerSource> {
     /// Identity keypair of a node used for authenticated connections.
     pub(crate) peer_id: PeerId,
     /// The configuration for the [`Identify`] behaviour.
@@ -50,12 +53,16 @@ pub(crate) struct BehaviorConfig<RecordStore> {
     pub(crate) peer_info_config: PeerInfoConfig,
     /// Provides peer-info for local peer.
     pub(crate) peer_info_provider: PeerInfoProvider,
+    /// The configuration for the [`ConnectedPeers`] protocol.
+    pub(crate) connected_peers_config: ConnectedPeersConfig,
+
+    pub peer_source: PeerSource,
 }
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "Event")]
 #[behaviour(event_process = false)]
-pub(crate) struct Behavior<RecordStore> {
+pub(crate) struct Behavior<RecordStore, PeerSource> {
     pub(crate) identify: Identify,
     pub(crate) kademlia: Kademlia<RecordStore>,
     pub(crate) gossipsub: Toggle<Gossipsub>,
@@ -65,13 +72,14 @@ pub(crate) struct Behavior<RecordStore> {
     pub(crate) block_list: BlockListBehaviour,
     pub(crate) reserved_peers: ReservedPeersBehaviour,
     pub(crate) peer_info: PeerInfoBehaviour,
+    pub(crate) connected_peers: ConnectedPeersBehaviour<PeerSource>,
 }
 
-impl<RecordStore> Behavior<RecordStore>
+impl<RecordStore, PeerSource> Behavior<RecordStore, PeerSource>
 where
     RecordStore: Send + Sync + libp2p::kad::store::RecordStore + 'static,
 {
-    pub(crate) fn new(config: BehaviorConfig<RecordStore>) -> Self {
+    pub(crate) fn new(config: BehaviorConfig<RecordStore, PeerSource>) -> Self {
         let kademlia = Kademlia::<RecordStore>::with_config(
             config.peer_id,
             config.record_store,
@@ -104,6 +112,7 @@ where
             block_list: BlockListBehaviour::default(),
             reserved_peers: ReservedPeersBehaviour::new(config.reserved_peers),
             peer_info: PeerInfoBehaviour::new(config.peer_info_config, config.peer_info_provider),
+            connected_peers: ConnectedPeersBehaviour::new(config.connected_peers_config, config.peer_source), // TODO: ()
         }
     }
 }
@@ -119,4 +128,5 @@ pub(crate) enum Event {
     VoidEventStub(VoidEvent),
     ReservedPeers(ReservedPeersEvent),
     PeerInfo(PeerInfoEvent),
+    ConnectedPeers(ConnectedPeersEvent),
 }

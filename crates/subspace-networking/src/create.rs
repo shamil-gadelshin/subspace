@@ -13,6 +13,7 @@ use crate::node_runner::{NodeRunner, NodeRunnerConfig};
 use crate::peer_info::PeerInfoProvider;
 use crate::request_responses::RequestHandler;
 use crate::reserved_peers::Config as ReservedPeersConfig;
+use crate::connected_peers::Config as ConnectedPeersConfig;
 use crate::shared::Shared;
 use crate::utils::{convert_multiaddresses, ResizableSemaphore};
 use crate::PeerInfoConfig;
@@ -424,6 +425,8 @@ where
         },
         peer_info_config: PeerInfoConfig::new(PEER_INFO_PROTOCOL_NAME),
         peer_info_provider,
+        connected_peers_config: ConnectedPeersConfig::default(),
+        peer_source: (),
     });
 
     let mut swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, local_peer_id)

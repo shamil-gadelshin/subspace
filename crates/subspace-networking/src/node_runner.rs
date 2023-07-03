@@ -79,7 +79,7 @@ where
     /// Should non-global addresses be added to the DHT?
     allow_non_global_addresses_in_dht: bool,
     command_receiver: mpsc::Receiver<Command>,
-    swarm: Swarm<Behavior<ProviderOnlyRecordStore<ProviderStorage>>>,
+    swarm: Swarm<Behavior<ProviderOnlyRecordStore<ProviderStorage>, ()>>,
     shared_weak: Weak<Shared>,
     /// How frequently should random queries be done using Kademlia DHT to populate routing table.
     next_random_query_interval: Duration,
@@ -116,7 +116,7 @@ where
 {
     pub(crate) allow_non_global_addresses_in_dht: bool,
     pub(crate) command_receiver: mpsc::Receiver<Command>,
-    pub(crate) swarm: Swarm<Behavior<ProviderOnlyRecordStore<ProviderStorage>>>,
+    pub(crate) swarm: Swarm<Behavior<ProviderOnlyRecordStore<ProviderStorage>, ()>>,
     pub(crate) shared_weak: Weak<Shared>,
     pub(crate) next_random_query_interval: Duration,
     pub(crate) networking_parameters_registry: Box<dyn NetworkingParametersRegistry>,

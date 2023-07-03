@@ -46,6 +46,19 @@ pub struct Config {
     pub next_peer_batch_size: u32,
 }
 
+const CONNECTED_PEERS_PROTOCOL_NAME: &[u8] = b"/subspace/connected_peers/1.0.0";
+impl Default for Config {
+    fn default() -> Self {
+        Self{
+            protocol_name: CONNECTED_PEERS_PROTOCOL_NAME,
+            dialing_interval: Duration::from_secs(1),
+            target_connected_peers: 0,
+            next_peer_batch_size: 0,
+        }
+    }
+}
+
+
 /// Reserved peer connection status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectionStatus {
@@ -89,6 +102,12 @@ struct PeerDecisionChange {
     keep_alive: KeepAlive,
 }
 
+//TODO: remove
+impl PeerAddressSource for (){
+    fn peer_addresses(&self, _: u32) -> Vec<PeerAddress> {
+        Vec::new()
+    }
+}
 
 /// `Behaviour` controls and maintains the state of connections to a predefined set of peers.
 ///
@@ -164,7 +183,7 @@ impl<PeerSource> Behaviour<PeerSource> {
         Handler::new(self.config.protocol_name, keep_alive)
     }
 
-
+    // TODO: maintain 30 peers only
     pub fn update_peer_decision(&mut self, peer_id: PeerId, keep_alive: bool) {
         info!(%peer_id, ?keep_alive, "update_peer_decision.");
         //TODO: remove decision?
