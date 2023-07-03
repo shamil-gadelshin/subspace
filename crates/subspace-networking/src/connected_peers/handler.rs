@@ -4,7 +4,6 @@ use libp2p::swarm::{ConnectionHandler, ConnectionHandlerEvent, KeepAlive, Substr
 use std::error::Error;
 use std::fmt;
 use std::task::{Context, Poll};
-use void::Void;
 
 /// Connection handler for managing connections within our `reserved peers` protocol.
 ///
@@ -22,22 +21,19 @@ use void::Void;
 pub struct Handler {
     /// Protocol name.
     protocol_name: &'static [u8],
-    /// A boolean flag indicating whether the handler is currently connected to a reserved peer.
-    keep_alive: bool,
+
+    keep_alive: KeepAlive,
 }
 
 impl Handler {
     /// Builds a new [`Handler`].
-    pub fn new(protocol_name: &'static [u8], keep_alive: bool) -> Self {
+    pub fn new(protocol_name: &'static [u8], keep_alive: KeepAlive) -> Self {
         Handler {
             protocol_name,
             keep_alive,
         }
     }
 }
-
-// TODO: remove reserved peers
-// TODO: fix comments and other strings
 
 #[derive(Debug)]
 pub struct ReservedPeersError;
@@ -51,7 +47,7 @@ impl fmt::Display for ReservedPeersError {
 impl Error for ReservedPeersError {}
 
 impl ConnectionHandler for Handler {
-    type InEvent = Void;
+    type InEvent = KeepAlive;
     type OutEvent = ();
     type Error = ReservedPeersError;
     type InboundProtocol = ReadyUpgrade<&'static [u8]>;
@@ -63,14 +59,12 @@ impl ConnectionHandler for Handler {
         SubstreamProtocol::new(ReadyUpgrade::new(self.protocol_name), ())
     }
 
-    fn on_behaviour_event(&mut self, _: Void) {}
+    fn on_behaviour_event(&mut self, keep_alive: KeepAlive) {
+        self.keep_alive = keep_alive;
+    }
 
     fn connection_keep_alive(&self) -> KeepAlive {
-        if self.keep_alive {
-            KeepAlive::Yes
-        } else {
-            KeepAlive::No
-        }
+        self.keep_alive
     }
 
     fn poll(
