@@ -6,6 +6,7 @@ use crate::behavior::persistent_parameters::{
 };
 use crate::behavior::provider_storage::MemoryProviderStorage;
 use crate::behavior::{provider_storage, Behavior, BehaviorConfig};
+use crate::connected_peers::Config as ConnectedPeersConfig;
 use crate::create::temporary_bans::TemporaryBans;
 use crate::create::transport::build_transport;
 use crate::node::Node;
@@ -13,7 +14,6 @@ use crate::node_runner::{NodeRunner, NodeRunnerConfig};
 use crate::peer_info::PeerInfoProvider;
 use crate::request_responses::RequestHandler;
 use crate::reserved_peers::Config as ReservedPeersConfig;
-use crate::connected_peers::Config as ConnectedPeersConfig;
 use crate::shared::Shared;
 use crate::utils::{convert_multiaddresses, ResizableSemaphore};
 use crate::PeerInfoConfig;

@@ -3,6 +3,10 @@ pub(crate) mod provider_storage;
 #[cfg(test)]
 mod tests;
 
+use crate::connected_peers::{
+    Behaviour as ConnectedPeersBehaviour, Config as ConnectedPeersConfig,
+    Event as ConnectedPeersEvent,
+};
 use crate::peer_info::{
     Behaviour as PeerInfoBehaviour, Config as PeerInfoConfig, Event as PeerInfoEvent,
 };
@@ -11,9 +15,6 @@ use crate::request_responses::{
 };
 use crate::reserved_peers::{
     Behaviour as ReservedPeersBehaviour, Config as ReservedPeersConfig, Event as ReservedPeersEvent,
-};
-use crate::connected_peers::{
-    Behaviour as ConnectedPeersBehaviour, Config as ConnectedPeersConfig, Event as ConnectedPeersEvent,
 };
 use crate::PeerInfoProvider;
 use derive_more::From;
@@ -112,7 +113,10 @@ where
             block_list: BlockListBehaviour::default(),
             reserved_peers: ReservedPeersBehaviour::new(config.reserved_peers),
             peer_info: PeerInfoBehaviour::new(config.peer_info_config, config.peer_info_provider),
-            connected_peers: ConnectedPeersBehaviour::new(config.connected_peers_config, config.peer_source), // TODO: ()
+            connected_peers: ConnectedPeersBehaviour::new(
+                config.connected_peers_config,
+                config.peer_source,
+            ),
         }
     }
 }

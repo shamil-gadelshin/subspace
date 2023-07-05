@@ -2,13 +2,16 @@
 
 mod handler;
 
-use std::collections::hash_map::Entry;
 use handler::Handler;
 use libp2p::core::{Endpoint, Multiaddr};
 use libp2p::swarm::behaviour::{ConnectionEstablished, FromSwarm};
 use libp2p::swarm::dial_opts::DialOpts;
-use libp2p::swarm::{ConnectionClosed, ConnectionDenied, ConnectionId, DialFailure, KeepAlive, NetworkBehaviour, NotifyHandler, PollParameters, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm};
+use libp2p::swarm::{
+    ConnectionClosed, ConnectionDenied, ConnectionId, DialFailure, KeepAlive, NetworkBehaviour,
+    NotifyHandler, PollParameters, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
+};
 use libp2p::PeerId;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::ops::Add;
 use std::task::{Context, Poll};
@@ -18,7 +21,7 @@ use tracing::{debug, info, warn};
 // TODO: remove peer-info
 // TODO: fix comments and other strings
 
-use crate::utils::{ PeerAddress};
+use crate::utils::PeerAddress;
 
 pub trait PeerAddressSource {
     fn peer_addresses(&self, batch_size: u32) -> Vec<PeerAddress>;
@@ -44,20 +47,22 @@ pub struct Config {
 
     pub target_connected_peers: u32,
     pub next_peer_batch_size: u32,
+
+    pub initial_keep_alive_interval: Duration,
 }
 
 const CONNECTED_PEERS_PROTOCOL_NAME: &[u8] = b"/subspace/connected_peers/1.0.0";
 impl Default for Config {
     fn default() -> Self {
-        Self{
+        Self {
             protocol_name: CONNECTED_PEERS_PROTOCOL_NAME,
             dialing_interval: Duration::from_secs(1),
             target_connected_peers: 0,
             next_peer_batch_size: 0,
+            initial_keep_alive_interval: Duration::from_secs(10),
         }
     }
 }
-
 
 /// Reserved peer connection status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,7 +108,7 @@ struct PeerDecisionChange {
 }
 
 //TODO: remove
-impl PeerAddressSource for (){
+impl PeerAddressSource for () {
     fn peer_addresses(&self, _: u32) -> Vec<PeerAddress> {
         Vec::new()
     }
@@ -167,19 +172,20 @@ impl<PeerSource> Behaviour<PeerSource> {
     /// Create a connection handler for the protocol.
     #[inline]
     fn new_connection_handler(&self, peer_id: &PeerId) -> Handler {
-        // TODO:
+        // TODO: review
+        let keep_alive_until =
+            KeepAlive::Until(Instant::now().add(self.config.initial_keep_alive_interval));
         let keep_alive = if let Some(state) = self.known_peers.get(peer_id) {
-            if !matches!(state, PeerDecision::NotInterested) {
-                KeepAlive::Yes
-            } else {
-                KeepAlive::No
+            match state {
+                PeerDecision::PendingConnection { .. } => keep_alive_until,
+                PeerDecision::PendingDecision => keep_alive_until,
+                PeerDecision::PermanentConnection => KeepAlive::Yes,
+                PeerDecision::NotInterested => KeepAlive::No,
             }
         } else {
-            warn!(%peer_id, "Connected peers protocol: cannot find peer state.");
-
-            KeepAlive::No
+            keep_alive_until
         };
-        // TODO: KeepAlive::Until
+
         Handler::new(self.config.protocol_name, keep_alive)
     }
 
@@ -189,16 +195,19 @@ impl<PeerSource> Behaviour<PeerSource> {
         //TODO: remove decision?
         let (decision, keep_alive) = if keep_alive {
             (PeerDecision::PermanentConnection, KeepAlive::Yes)
-        }else{
+        } else {
             (PeerDecision::NotInterested, KeepAlive::No)
         };
 
         self.known_peers.insert(peer_id, decision);
-        self.peer_decision_changes.push(PeerDecisionChange {peer_id, keep_alive});
+        self.peer_decision_changes.push(PeerDecisionChange {
+            peer_id,
+            keep_alive,
+        });
     }
 }
 
-impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<PeerSource> {
+impl<PeerSource: PeerAddressSource + 'static> NetworkBehaviour for Behaviour<PeerSource> {
     type ConnectionHandler = Handler;
     type OutEvent = Event;
 
@@ -224,11 +233,11 @@ impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<Peer
 
     fn on_swarm_event(&mut self, event: FromSwarm<Self::ConnectionHandler>) {
         match event {
-            FromSwarm::ConnectionEstablished(ConnectionEstablished { peer_id,.. }) => {
+            FromSwarm::ConnectionEstablished(ConnectionEstablished { peer_id, .. }) => {
                 if let Entry::Vacant(entry) = self.known_peers.entry(peer_id) {
                     entry.insert(PeerDecision::PendingDecision);
 
-                    debug!(%peer_id, "Reserved peer connected."); // TODO
+                    info!(%peer_id, "Pending peer decision..."); // TODO
                 }
             }
             FromSwarm::ConnectionClosed(ConnectionClosed {
@@ -237,16 +246,22 @@ impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<Peer
                 ..
             }) => {
                 if remaining_established == 0 {
-                    let _old_peer = self.known_peers.remove(&peer_id);
+                    let old_peer_decision = self.known_peers.remove(&peer_id);
 
-                    // debug!(%peer_id, "Reserved peer disconnected."); // TODO
+                    if old_peer_decision.is_some() {
+                        info!(%peer_id, ?old_peer_decision, "Known peer disconnected.");
+                        // TODO
+                    }
                 }
             }
             FromSwarm::DialFailure(DialFailure { peer_id, .. }) => {
                 if let Some(peer_id) = peer_id {
-                    let _old_peer = self.known_peers.remove(&peer_id);
+                    let old_peer_decision = self.known_peers.remove(&peer_id);
 
-                    // debug!(%peer_id, "Reserved peer disconnected."); // TODO
+                    if old_peer_decision.is_some() {
+                        info!(%peer_id, ?old_peer_decision, "Dialing error to Known peer.");
+                        // TODO
+                    }
                 }
             }
             FromSwarm::AddressChange(_)
@@ -274,7 +289,7 @@ impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<Peer
         _: &mut Context<'_>,
         _: &mut impl PollParameters,
     ) -> Poll<ToSwarm<Self::OutEvent, THandlerInEvent<Self>>> {
-        if let Some(change) = self.peer_decision_changes.pop(){
+        if let Some(change) = self.peer_decision_changes.pop() {
             return Poll::Ready(ToSwarm::NotifyHandler {
                 peer_id: change.peer_id,
                 handler: NotifyHandler::Any,
@@ -313,15 +328,17 @@ impl<PeerSource: PeerAddressSource +'static> NetworkBehaviour for Behaviour<Peer
         // }
 
         for (_, decision) in self.known_peers.iter_mut() {
-          //  trace!(?state, "Reserved peer state."); // TODO:
+            //  trace!(?state, "Reserved peer state."); // TODO:
 
-            if let PeerDecision::PendingConnection {peer_address: (peer_id, address)} = decision.clone() {
+            if let PeerDecision::PendingConnection {
+                peer_address: (peer_id, address),
+            } = decision.clone()
+            {
                 *decision = PeerDecision::PendingDecision;
 
                 debug!(%peer_id, "Dialing the reserved peer....");
 
-                let dial_opts =
-                    DialOpts::peer_id(peer_id).addresses(vec![address]);
+                let dial_opts = DialOpts::peer_id(peer_id).addresses(vec![address]);
 
                 return Poll::Ready(ToSwarm::Dial {
                     opts: dial_opts.build(),
