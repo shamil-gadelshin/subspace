@@ -2,9 +2,10 @@ use crate::behavior::persistent_parameters::NetworkingParametersRegistry;
 use crate::behavior::{provider_storage, Behavior, Event};
 use crate::create::temporary_bans::TemporaryBans;
 use crate::create::{
-    ProviderOnlyRecordStore, KADEMLIA_CONCURRENT_TASKS_BOOST_PER_PEER,
+    ConnectionDecisionHandler, ProviderOnlyRecordStore, KADEMLIA_CONCURRENT_TASKS_BOOST_PER_PEER,
     REGULAR_CONCURRENT_TASKS_BOOST_PER_PEER,
 };
+use crate::peer_info::{Event as PeerInfoEvent, PeerInfoSuccess};
 use crate::request_responses::{Event as RequestResponseEvent, IfDisconnected};
 use crate::shared::{Command, CreatedSubscription, Shared};
 use crate::utils::{is_global_address_or_dns, ResizableSemaphorePermit};
@@ -107,6 +108,8 @@ where
     established_connections: HashMap<(PeerId, ConnectedPoint), usize>,
     /// Defines protocol version for the network peers. Affects network partition.
     protocol_version: String,
+    /// Defines whether we maintain a persistent connection.
+    connection_decision_handler: ConnectionDecisionHandler,
 }
 
 // Helper struct for NodeRunner configuration (clippy requirement).
@@ -125,6 +128,7 @@ where
     pub(crate) temporary_bans: Arc<Mutex<TemporaryBans>>,
     pub(crate) metrics: Option<Metrics>,
     pub(crate) protocol_version: String,
+    pub(crate) connection_decision_handler: ConnectionDecisionHandler,
 }
 
 impl<ProviderStorage> NodeRunner<ProviderStorage>
@@ -144,6 +148,7 @@ where
             temporary_bans,
             metrics,
             protocol_version,
+            connection_decision_handler,
         }: NodeRunnerConfig<ProviderStorage>,
     ) -> Self {
         Self {
@@ -166,6 +171,7 @@ where
             metrics,
             established_connections: HashMap::new(),
             protocol_version,
+            connection_decision_handler,
         }
     }
 
@@ -338,6 +344,9 @@ where
             }
             SwarmEvent::Behaviour(Event::RequestResponse(event)) => {
                 self.handle_request_response_event(event).await;
+            }
+            SwarmEvent::Behaviour(Event::PeerInfo(event)) => {
+                self.handle_peer_info_event(event).await;
             }
             SwarmEvent::NewListenAddr { address, .. } => {
                 let shared = match self.shared_weak.upgrade() {
@@ -859,6 +868,19 @@ where
     async fn handle_request_response_event(&mut self, event: RequestResponseEvent) {
         // No actions on statistics events.
         trace!("Request response event: {:?}", event);
+    }
+
+    async fn handle_peer_info_event(&mut self, event: PeerInfoEvent) {
+        trace!(?event, "Peer info event.");
+
+        if let Ok(PeerInfoSuccess::Received(peer_info)) = event.result {
+            let keep_alive = (self.connection_decision_handler)(&peer_info);
+
+            self.swarm
+                .behaviour_mut()
+                .connected_peers
+                .update_peer_decision(event.peer_id, keep_alive);
+        }
     }
 
     async fn handle_command(&mut self, command: Command) {

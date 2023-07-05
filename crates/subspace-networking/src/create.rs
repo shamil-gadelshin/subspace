@@ -16,7 +16,7 @@ use crate::request_responses::RequestHandler;
 use crate::reserved_peers::Config as ReservedPeersConfig;
 use crate::shared::Shared;
 use crate::utils::{convert_multiaddresses, ResizableSemaphore};
-use crate::PeerInfoConfig;
+use crate::{PeerInfo, PeerInfoConfig};
 use backoff::{ExponentialBackoff, SystemClock};
 use futures::channel::mpsc;
 use libp2p::connection_limits::ConnectionLimits;
@@ -46,6 +46,9 @@ use std::{fmt, io, iter};
 use subspace_core_primitives::{crypto, Piece};
 use thiserror::Error;
 use tracing::{debug, error, info};
+
+/// Defines whether connection should be maintained permanently.
+pub type ConnectionDecisionHandler = Arc<dyn Fn(&PeerInfo) -> bool + Send + Sync + 'static>;
 
 const DEFAULT_NETWORK_PROTOCOL_VERSION: &str = "dev";
 const KADEMLIA_PROTOCOL: &[u8] = b"/subspace/kad/0.1.0";
@@ -214,6 +217,8 @@ pub struct Config<ProviderStorage> {
     pub protocol_version: String,
     /// Specifies a source for peer information.
     pub peer_info_provider: PeerInfoProvider,
+    /// Defines whether we maintain a persistent connection.
+    pub connection_decision_handler: ConnectionDecisionHandler,
 }
 
 impl<ProviderStorage> fmt::Debug for Config<ProviderStorage> {
@@ -321,6 +326,8 @@ where
             metrics: None,
             protocol_version,
             peer_info_provider,
+            // maintain permanent connections with any peer
+            connection_decision_handler: Arc::new(|_| true),
         }
     }
 }
@@ -380,6 +387,7 @@ where
         metrics,
         protocol_version,
         peer_info_provider,
+        connection_decision_handler,
     } = config;
     let local_peer_id = peer_id(&keypair);
 
@@ -477,6 +485,7 @@ where
         temporary_bans,
         metrics,
         protocol_version,
+        connection_decision_handler,
     });
 
     Ok((node, node_runner))
