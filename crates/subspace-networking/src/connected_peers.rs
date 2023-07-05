@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::ops::Add;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 // TODO: remove peer-info
 // TODO: fix comments and other strings
@@ -189,12 +189,16 @@ impl<PeerSource> Behaviour<PeerSource> {
         Handler::new(self.config.protocol_name, keep_alive)
     }
 
-    // TODO: maintain 30 peers only
     pub fn update_peer_decision(&mut self, peer_id: PeerId, keep_alive: bool) {
+        // TODO: review this
         info!(%peer_id, ?keep_alive, "update_peer_decision.");
         //TODO: remove decision?
         let (decision, keep_alive) = if keep_alive {
-            (PeerDecision::PermanentConnection, KeepAlive::Yes)
+            if self.permanently_connected_peers() < self.config.target_connected_peers {
+                (PeerDecision::PermanentConnection, KeepAlive::Yes)
+            } else {
+                (PeerDecision::NotInterested, KeepAlive::No)
+            }
         } else {
             (PeerDecision::NotInterested, KeepAlive::No)
         };
@@ -204,6 +208,19 @@ impl<PeerSource> Behaviour<PeerSource> {
             peer_id,
             keep_alive,
         });
+    }
+
+    fn permanently_connected_peers(&self) -> u32 {
+        self.known_peers
+            .iter()
+            .filter_map(|(_, state)| {
+                if *state == PeerDecision::PermanentConnection {
+                    Some(1u32)
+                } else {
+                    None
+                }
+            })
+            .sum()
     }
 }
 
@@ -309,18 +326,7 @@ impl<PeerSource: PeerAddressSource + 'static> NetworkBehaviour for Behaviour<Pee
         // }
         //
         // // New dial candidates
-        // let connected_peers: u32 = self
-        //     .known_peers
-        //     .iter()
-        //     .filter_map(|(peer_id, state)| {
-        //         if *state == PeerDecision::PermanentConnection {
-        //             Some(1)
-        //         } else {
-        //             None
-        //         }
-        //     })
-        //     .sum();
-        //
+        // let connected_peers = self.permanently_connected_peers()
         // if connected_peers < self.config.target_connected_peers{
         //     let mut peer_addresses = self.peer_source.peer_addresses(self.config.next_peer_batch_size);
         //
