@@ -33,7 +33,7 @@ enum PeerDecision {
     //TODO: add delay for new candidates
     PendingConnection { peer_address: PeerAddress },
     //TODO: add timeout for the decision
-    PendingDecision,
+    PendingDecision { until: Instant },
     PermanentConnection,
     NotInterested,
 }
@@ -45,14 +45,13 @@ pub struct Config {
     pub protocol_name: &'static [u8],
 
     pub dialing_interval: Duration,
-
     pub target_connected_peers: u32,
     pub next_peer_batch_size: u32,
-
     pub initial_keep_alive_interval: Duration,
+    pub decision_timeout: Duration,
 }
 
-const CONNECTED_PEERS_PROTOCOL_NAME: &[u8] = b"/subspace/connected_peers/1.0.0";
+const CONNECTED_PEERS_PROTOCOL_NAME: &[u8] = b"/subspace/connected-peers/1.0.0";
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -61,6 +60,7 @@ impl Default for Config {
             target_connected_peers: 30,
             next_peer_batch_size: 0,
             initial_keep_alive_interval: Duration::from_secs(10),
+            decision_timeout: Duration::from_secs(10),
         }
     }
 }
@@ -174,17 +174,17 @@ impl<PeerSource> Behaviour<PeerSource> {
     #[inline]
     fn new_connection_handler(&self, peer_id: &PeerId) -> Handler {
         // TODO: review
-        let keep_alive_until =
+        let default_keep_alive_until =
             KeepAlive::Until(Instant::now().add(self.config.initial_keep_alive_interval));
         let keep_alive = if let Some(state) = self.known_peers.get(peer_id) {
             match state {
-                PeerDecision::PendingConnection { .. } => keep_alive_until,
-                PeerDecision::PendingDecision => keep_alive_until,
+                PeerDecision::PendingConnection { .. } => default_keep_alive_until,
+                PeerDecision::PendingDecision { until } => KeepAlive::Until(*until),
                 PeerDecision::PermanentConnection => KeepAlive::Yes,
                 PeerDecision::NotInterested => KeepAlive::No,
             }
         } else {
-            keep_alive_until
+            default_keep_alive_until
         };
 
         Handler::new(self.config.protocol_name, keep_alive)
@@ -255,7 +255,9 @@ impl<PeerSource: PeerAddressSource + 'static> NetworkBehaviour for Behaviour<Pee
         match event {
             FromSwarm::ConnectionEstablished(ConnectionEstablished { peer_id, .. }) => {
                 if let Entry::Vacant(entry) = self.known_peers.entry(peer_id) {
-                    entry.insert(PeerDecision::PendingDecision);
+                    entry.insert(PeerDecision::PendingDecision {
+                        until: Instant::now().add(self.config.decision_timeout),
+                    });
 
                     info!(%peer_id, "Pending peer decision..."); // TODO
                 }
@@ -336,22 +338,33 @@ impl<PeerSource: PeerAddressSource + 'static> NetworkBehaviour for Behaviour<Pee
         //     self.connection_candidates.extend_from_slice(&peer_addresses);
         // }
 
-        for (_, decision) in self.known_peers.iter_mut() {
-            //  trace!(?state, "Reserved peer state."); // TODO:
+        for (peer_id, decision) in self.known_peers.iter_mut() {
+            info!(%peer_id, ?state, "Peer state for connected peers protocol."); // TODO: trace
 
-            if let PeerDecision::PendingConnection {
-                peer_address: (peer_id, address),
-            } = decision.clone()
-            {
-                *decision = PeerDecision::PendingDecision;
+            match decision.clone() {
+                PeerDecision::PendingConnection {
+                    peer_address: (peer_id, address),
+                } => {
+                    *decision = PeerDecision::PendingDecision {
+                        until: Instant::now().add(self.config.decision_timeout),
+                    };
 
-                debug!(%peer_id, "Dialing the reserved peer....");
+                    info!(%peer_id, "Dialing a new peer."); // TODO:
 
-                let dial_opts = DialOpts::peer_id(peer_id).addresses(vec![address]);
+                    let dial_opts = DialOpts::peer_id(peer_id).addresses(vec![address]);
 
-                return Poll::Ready(ToSwarm::Dial {
-                    opts: dial_opts.build(),
-                });
+                    return Poll::Ready(ToSwarm::Dial {
+                        opts: dial_opts.build(),
+                    });
+                }
+                PeerDecision::PendingDecision { until } => {
+                    if until < Instant::now() {
+                        *decision = PeerDecision::NotInterested; // timeout
+                    }
+                }
+                PeerDecision::PermanentConnection | PeerDecision::NotInterested => {
+                    // Decision is made - no action.
+                }
             }
         }
 
