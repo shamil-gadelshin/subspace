@@ -56,8 +56,8 @@ pub(crate) struct BehaviorConfig<RecordStore, PeerSource> {
     pub(crate) peer_info_provider: PeerInfoProvider,
     /// The configuration for the [`ConnectedPeers`] protocol.
     pub(crate) connected_peers_config: ConnectedPeersConfig,
-
-    pub peer_source: PeerSource,
+    /// Peer source for the [`ConnectedPeers`] protocol.
+    pub(crate) peer_source: PeerSource,
 }
 
 #[derive(NetworkBehaviour)]
