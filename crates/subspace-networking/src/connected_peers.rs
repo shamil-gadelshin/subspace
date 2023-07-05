@@ -20,6 +20,7 @@ use tracing::{debug, info};
 
 // TODO: remove peer-info
 // TODO: fix comments and other strings
+// TODO: remove old reconnections
 
 use crate::utils::PeerAddress;
 
@@ -57,7 +58,7 @@ impl Default for Config {
         Self {
             protocol_name: CONNECTED_PEERS_PROTOCOL_NAME,
             dialing_interval: Duration::from_secs(1),
-            target_connected_peers: 0,
+            target_connected_peers: 30,
             next_peer_batch_size: 0,
             initial_keep_alive_interval: Duration::from_secs(10),
         }
@@ -195,8 +196,10 @@ impl<PeerSource> Behaviour<PeerSource> {
         //TODO: remove decision?
         let (decision, keep_alive) = if keep_alive {
             if self.permanently_connected_peers() < self.config.target_connected_peers {
+                info!(%peer_id, %keep_alive, "Insufficient number of connected peers.");
                 (PeerDecision::PermanentConnection, KeepAlive::Yes)
             } else {
+                info!(%peer_id, %keep_alive, "Enough number of connected peers.");
                 (PeerDecision::NotInterested, KeepAlive::No)
             }
         } else {
