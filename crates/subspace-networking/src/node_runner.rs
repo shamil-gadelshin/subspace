@@ -24,7 +24,6 @@ use libp2p::kad::{
     PutRecordOk, QueryId, QueryResult, Quorum, Record,
 };
 use libp2p::metrics::{Metrics, Recorder};
-use libp2p::swarm::dial_opts::DialOpts;
 use libp2p::swarm::{DialError, SwarmEvent};
 use libp2p::{futures, Multiaddr, PeerId, Swarm, TransportError};
 use nohash_hasher::IntMap;
@@ -93,8 +92,8 @@ where
     /// present for the same physical subscription).
     topic_subscription_senders: HashMap<TopicHash, IntMap<usize, mpsc::UnboundedSender<Bytes>>>,
     random_query_timeout: Pin<Box<Fuse<Sleep>>>,
-    /// Defines a timeout between swarm attempts to dial known addresses
-    peer_dialing_timeout: Pin<Box<Fuse<Sleep>>>,
+    /// Defines an interval between periodical tasks.
+    periodical_tasks_interval: Pin<Box<Fuse<Sleep>>>,
     /// Manages the networking parameters like known peers and addresses
     networking_parameters_registry: Box<dyn NetworkingParametersRegistry>,
     /// Defines set of peers with a permanent connection (and reconnection if necessary).
@@ -164,7 +163,7 @@ where
             // We'll make the first query right away and continue at the interval.
             random_query_timeout: Box::pin(tokio::time::sleep(Duration::from_secs(0)).fuse()),
             // We'll make the first dial right away and continue at the interval.
-            peer_dialing_timeout: Box::pin(tokio::time::sleep(Duration::from_secs(0)).fuse()),
+            periodical_tasks_interval: Box::pin(tokio::time::sleep(Duration::from_secs(0)).fuse()),
             networking_parameters_registry,
             reserved_peers,
             target_connections,
@@ -206,87 +205,18 @@ where
                 _ = self.networking_parameters_registry.run().fuse() => {
                     trace!("Network parameters registry runner exited.")
                 },
-                //TODO: consider changing this worker to the reactive approach (using the connection
-                // closing events to maintain established connections set).
-                _ = &mut self.peer_dialing_timeout => {
-                    self.handle_peer_dialing().await;
+                _ = &mut self.periodical_tasks_interval => {
+                    self.handle_periodical_tasks().await;
 
-                    self.peer_dialing_timeout =
+                    self.periodical_tasks_interval =
                         Box::pin(tokio::time::sleep(Duration::from_secs(5)).fuse());
                 },
             }
         }
     }
 
-    // TODO: rename
-    async fn handle_peer_dialing(&mut self) {
-        let local_peer_id = *self.swarm.local_peer_id();
-        let connected_peers = self.swarm.connected_peers().cloned().collect::<Vec<_>>();
-
-        // // Maintain target connection number.
-        // let (total_current_connections, established_connections) = {
-        //     let network_info = self.swarm.network_info();
-        //     let connections = network_info.connection_counters();
-        //
-        //     debug!(
-        //         ?connections,
-        //         target_connections = self.target_connections,
-        //         "Current connections and limits."
-        //     );
-        //
-        //     (
-        //         connections.num_pending_outgoing()
-        //             + connections.num_established_outgoing()
-        //             + connections.num_pending_incoming()
-        //             + connections.num_established_incoming(),
-        //         connections.num_established_outgoing() + connections.num_established_incoming(),
-        //     )
-        // };
-        //
-        // if total_current_connections < self.target_connections {
-        //     debug!(
-        //         %local_peer_id,
-        //         total_current_connections,
-        //         target_connections=self.target_connections,
-        //         connected_peers=connected_peers.len(),
-        //         "Initiate connection to known peers",
-        //     );
-        //
-        //     let allow_non_global_addresses_in_dht = self.allow_non_global_addresses_in_dht;
-        //
-        //     let addresses = self
-        //         .networking_parameters_registry
-        //         .next_known_addresses_batch()
-        //         .await
-        //         .into_iter()
-        //         .filter(|(peer_id, address)| {
-        //             if !allow_non_global_addresses_in_dht && !is_global_address_or_dns(address) {
-        //                 trace!(
-        //                     %local_peer_id,
-        //                     %peer_id,
-        //                     %address,
-        //                     "Ignoring non-global address read from parameters registry.",
-        //                 );
-        //                 false
-        //             } else {
-        //                 true
-        //             }
-        //         });
-        //
-        //     trace!(%local_peer_id, "Processing addresses batch: {:?}", addresses);
-        //
-        //     for (peer_id, addr) in addresses {
-        //         if connected_peers.contains(&peer_id) {
-        //             continue;
-        //         }
-        //
-        //         self.dial_peer(peer_id, addr)
-        //     }
-        // } else if established_connections < self.target_connections {
-        //     self.networking_parameters_registry
-        //         .start_over_address_batching()
-        // }
-
+    /// Handles periodical tasks.
+    async fn handle_periodical_tasks(&mut self) {
         // Renew known external addresses.
         let mut external_addresses = self
             .swarm
@@ -300,25 +230,6 @@ where
             let mut addresses = shared.external_addresses.lock();
             addresses.clear();
             addresses.append(&mut external_addresses);
-        }
-    }
-
-    fn dial_peer(&mut self, peer_id: PeerId, addr: Multiaddr) {
-        let local_peer_id = *self.swarm.local_peer_id();
-        trace!(%local_peer_id, remote_peer_id=%peer_id, %addr, "Dialing address ...");
-
-        let dial_opts = DialOpts::peer_id(peer_id)
-            .addresses(vec![addr.clone()])
-            .build();
-
-        if let Err(err) = self.swarm.dial(dial_opts) {
-            debug!(
-                %err,
-                %local_peer_id,
-                remote_peer_id = %peer_id,
-                %addr,
-                "Dialing error: failed to dial an address."
-            );
         }
     }
 
