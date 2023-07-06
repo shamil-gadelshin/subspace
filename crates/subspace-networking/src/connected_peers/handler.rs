@@ -6,23 +6,21 @@ use std::fmt;
 use std::task::{Context, Poll};
 use tracing::info;
 
-/// Connection handler for managing connections within our `reserved peers` protocol.
+/// Connection handler for managing connections within our `connected peers` protocol.
 ///
-/// This `Handler` is part of our custom protocol designed to maintain persistent connections
-/// with a set of predefined peers.
+/// This `Handler` is part of our custom protocol designed to maintain a target number of persistent
+/// connections. The decision about the connection is specified by handler events from the
+/// protocol [`Behaviour`]
 ///
 /// ## Connection Handling
 ///
 /// The `Handler` manages the lifecycle of a connection to each peer. If it's connected to a
 /// reserved peer, it maintains the connection alive (`KeepAlive::Yes`). If not, it allows the
 /// connection to close (`KeepAlive::No`).
-///
-/// This behavior ensures that connections to reserved peers are maintained persistently,
-/// while connections to non-reserved peers are allowed to close.
 pub struct Handler {
     /// Protocol name.
     protocol_name: &'static [u8],
-
+    /// Specifies whether we should keep the connection alive.
     keep_alive: KeepAlive,
 }
 
@@ -37,20 +35,20 @@ impl Handler {
 }
 
 #[derive(Debug)]
-pub struct ReservedPeersError;
+pub struct ConnectedPeersError;
 
-impl fmt::Display for ReservedPeersError {
+impl fmt::Display for ConnectedPeersError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Reserved peers error.")
+        write!(f, "Connected peers protocol error.")
     }
 }
 
-impl Error for ReservedPeersError {}
+impl Error for ConnectedPeersError {}
 
 impl ConnectionHandler for Handler {
     type InEvent = KeepAlive;
     type OutEvent = ();
-    type Error = ReservedPeersError;
+    type Error = ConnectedPeersError;
     type InboundProtocol = ReadyUpgrade<&'static [u8]>;
     type OutboundProtocol = ReadyUpgrade<&'static [u8]>;
     type OutboundOpenInfo = ();
@@ -61,7 +59,7 @@ impl ConnectionHandler for Handler {
     }
 
     fn on_behaviour_event(&mut self, keep_alive: KeepAlive) {
-        info!(?keep_alive, "Behaviour event arrived.");
+        info!(?keep_alive, "Behaviour event arrived."); // TODO: remove
 
         self.keep_alive = keep_alive;
     }
