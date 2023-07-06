@@ -1,5 +1,3 @@
-#![allow(dead_code)] // TODO:
-
 mod handler;
 
 use futures::FutureExt;
@@ -45,11 +43,14 @@ enum PeerDecision {
 pub struct Config {
     /// Protocol name.
     pub protocol_name: &'static [u8],
-
+    /// Interval between new dialing attempts.
     pub dialing_interval: Duration,
+    /// Number of connected peers that protocol will maintain.
     pub target_connected_peers: u32,
-    pub next_peer_batch_size: u32,
-    pub initial_keep_alive_interval: Duration,
+    /// We dial peers using this batch size.
+    pub dialing_peer_batch_size: u32,
+    /// Time interval reserved for a decision about connections.
+    /// It also affects keep-alive interval.
     pub decision_timeout: Duration,
 }
 
@@ -60,47 +61,17 @@ impl Default for Config {
             protocol_name: CONNECTED_PEERS_PROTOCOL_NAME,
             dialing_interval: Duration::from_secs(3),
             target_connected_peers: 30,
-            next_peer_batch_size: 5,
-            initial_keep_alive_interval: Duration::from_secs(10),
+            dialing_peer_batch_size: 5,
             decision_timeout: Duration::from_secs(10),
         }
     }
 }
 
-/// Reserved peer connection status.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConnectionStatus {
-    /// Reserved peer is not connected. The next connection attempt is scheduled.
-    NotConnected { scheduled_at: Instant },
-    /// Reserved peer dialing is in progress.
-    PendingConnection,
-    /// Reserved peer is connected.
-    Connected,
-}
-
-/// We pause between reserved peers dialing otherwise we could do multiple dials to offline peers
-/// wasting resources and producing a ton of log records.
-const DIALING_INTERVAL_IN_SECS: Duration = Duration::from_secs(1);
-
-/// Helper-function to schedule a connection attempt.
-#[inline]
-fn schedule_connection() -> Instant {
-    Instant::now().add(DIALING_INTERVAL_IN_SECS)
-}
-
-//TODO:
 /// Connected-peers protocol event.
 #[derive(Debug, Clone)]
 pub enum Event {
+    /// We need a new batch of peer addresses from the swarm.
     NewDialingCandidatesRequested,
-}
-
-/// Defines the state of a reserved peer connection state.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct PeerState {
-    connection_status: ConnectionStatus,
-    peer_id: PeerId,
-    address: Multiaddr,
 }
 
 //TODO: rename
@@ -111,47 +82,18 @@ struct PeerDecisionChange {
     keep_alive: KeepAlive,
 }
 
-/// `Behaviour` controls and maintains the state of connections to a predefined set of peers.
-///
-/// The `Behaviour` struct is part of our custom protocol that aims to maintain persistent
-/// connections to a predefined set of peers. It encapsulates the logic of managing the connections,
-/// dialing, and handling various states of these connections.
-///
-/// ## How it works
-///
-/// Each `ReservedPeerState` can be in one of the following states, represented by the
-/// `ConnectionStatus` enum:
-/// 1. `NotConnected`: This state indicates that the peer is currently not connected.
-/// The time for the next connection attempt is scheduled and can be queried.
-/// 2. `PendingConnection`: This state means that a connection attempt to the peer is currently
-/// in progress.
-/// 3. `Connected`: This state signals that the peer is currently connected.
-///
-/// The protocol will attempt to establish a connection to a `NotConnected` peer after a set delay,
-/// specified by `DIALING_INTERVAL_IN_SECS`, to prevent multiple simultaneous connection attempts
-/// to offline peers. This delay not only conserves resources, but also reduces the amount of
-/// log output.
-///
-/// ## Comments
-///
-/// The protocol will establish one or two connections between each pair of reserved peers.
-///
-/// IMPORTANT NOTE: For the maintenance of a persistent connection, both peers should have each
-/// other in their `reserved peers set`. This is necessary because if only one peer has the other
-/// in its `reserved peers set`, regular connection attempts will occur, but these connections will
-/// be dismissed on the other side due to the `KeepAlive` policy.
-///
 #[derive(Debug)]
 pub struct Behaviour {
     config: Config,
 
     known_peers: HashMap<PeerId, PeerDecision>,
 
+    // TODO: remove this one
     connection_candidates: Vec<PeerAddress>,
 
     peer_decision_changes: Vec<PeerDecisionChange>,
 
-    dialing_interval: Delay,
+    dialing_delay: Delay,
 
     peer_source: Vec<PeerAddress>,
 }
@@ -159,13 +101,13 @@ pub struct Behaviour {
 impl Behaviour {
     /// Creates a new `Behaviour`.
     pub fn new(config: Config) -> Self {
-        let delay = Delay::new(config.dialing_interval);
+        let dialing_delay = Delay::new(config.dialing_interval);
         Self {
             config,
             known_peers: HashMap::new(),
             connection_candidates: Vec::new(),
             peer_decision_changes: Vec::new(),
-            dialing_interval: delay,
+            dialing_delay,
             peer_source: Vec::new(),
         }
     }
@@ -175,9 +117,9 @@ impl Behaviour {
     fn new_connection_handler(&self, peer_id: &PeerId) -> Handler {
         // TODO: review
         let default_keep_alive_until =
-            KeepAlive::Until(Instant::now().add(self.config.initial_keep_alive_interval));
-        let keep_alive = if let Some(state) = self.known_peers.get(peer_id) {
-            match state {
+            KeepAlive::Until(Instant::now().add(self.config.decision_timeout));
+        let keep_alive = if let Some(decision) = self.known_peers.get(peer_id) {
+            match decision {
                 PeerDecision::PendingConnection { .. } => default_keep_alive_until,
                 PeerDecision::PendingDecision { until } => KeepAlive::Until(*until),
                 PeerDecision::PermanentConnection => KeepAlive::Yes,
@@ -190,7 +132,8 @@ impl Behaviour {
         Handler::new(self.config.protocol_name, keep_alive)
     }
 
-    pub fn update_peer_decision(&mut self, peer_id: PeerId, keep_alive: bool) {
+    /// Specifies the whether we should keep connections to the peer alive.
+    pub fn update_keep_alive_status(&mut self, peer_id: PeerId, keep_alive: bool) {
         // TODO: review this
         //TODO: remove decision?
         let (decision, keep_alive) = if keep_alive {
@@ -214,6 +157,7 @@ impl Behaviour {
         });
     }
 
+    /// Calculates the current number of permanently connected peers.
     fn permanently_connected_peers(&self) -> u32 {
         self.known_peers
             .iter()
@@ -227,6 +171,8 @@ impl Behaviour {
             .sum()
     }
 
+    /// Adds peer addresses for internal cache. We use these addresses to dial peers for maintaining
+    /// target connection number.
     pub fn add_peers_to_dial(&mut self, peers: Vec<PeerAddress>) {
         self.peer_source.extend_from_slice(&peers);
     }
@@ -281,6 +227,7 @@ impl NetworkBehaviour for Behaviour {
                 }
             }
             FromSwarm::DialFailure(DialFailure { peer_id, .. }) => {
+                // TODO: what will happen with existing connections
                 if let Some(peer_id) = peer_id {
                     let old_peer_decision = self.known_peers.remove(&peer_id);
 
@@ -314,6 +261,7 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut Context<'_>,
         _: &mut impl PollParameters,
     ) -> Poll<ToSwarm<Self::OutEvent, THandlerInEvent<Self>>> {
+        // Notify handlers about received connection decision.
         if let Some(change) = self.peer_decision_changes.pop() {
             return Poll::Ready(ToSwarm::NotifyHandler {
                 peer_id: change.peer_id,
@@ -322,6 +270,7 @@ impl NetworkBehaviour for Behaviour {
             });
         }
 
+        // Check decision statuses.
         for (peer_id, decision) in self.known_peers.iter_mut() {
             trace!(%peer_id, ?decision, "Peer decisions for connected peers protocol.");
 
@@ -353,10 +302,10 @@ impl NetworkBehaviour for Behaviour {
         }
 
         // TODO:  > connection timeout ?
-        match self.dialing_interval.poll_unpin(cx) {
+        match self.dialing_delay.poll_unpin(cx) {
             Poll::Pending => {}
             Poll::Ready(()) => {
-                self.dialing_interval.reset(self.config.dialing_interval);
+                self.dialing_delay.reset(self.config.dialing_interval);
 
                 if self.peer_source.is_empty() {
                     trace!("Requesting new peers for connected-peers protocol....");
@@ -368,8 +317,8 @@ impl NetworkBehaviour for Behaviour {
 
                 // New dial candidates
                 if self.permanently_connected_peers() < self.config.target_connected_peers {
-                    let range =
-                        0..(self.config.next_peer_batch_size as usize).min(self.peer_source.len());
+                    let range = 0..(self.config.dialing_peer_batch_size as usize)
+                        .min(self.peer_source.len());
 
                     let peer_addresses = self.peer_source.drain(range).collect::<Vec<_>>();
 

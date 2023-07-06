@@ -884,7 +884,7 @@ where
             self.swarm
                 .behaviour_mut()
                 .connected_peers
-                .update_peer_decision(event.peer_id, keep_alive);
+                .update_keep_alive_status(event.peer_id, keep_alive);
         }
     }
 
