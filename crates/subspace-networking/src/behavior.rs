@@ -33,7 +33,7 @@ use void::Void as VoidEvent;
 
 type BlockListBehaviour = AllowBlockListBehaviour<BlockedPeers>;
 
-pub(crate) struct BehaviorConfig<RecordStore, PeerSource> {
+pub(crate) struct BehaviorConfig<RecordStore> {
     /// Identity keypair of a node used for authenticated connections.
     pub(crate) peer_id: PeerId,
     /// The configuration for the [`Identify`] behaviour.
@@ -56,14 +56,12 @@ pub(crate) struct BehaviorConfig<RecordStore, PeerSource> {
     pub(crate) peer_info_provider: PeerInfoProvider,
     /// The configuration for the [`ConnectedPeers`] protocol.
     pub(crate) connected_peers_config: ConnectedPeersConfig,
-    /// Peer source for the [`ConnectedPeers`] protocol.
-    pub(crate) peer_source: PeerSource,
 }
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "Event")]
 #[behaviour(event_process = false)]
-pub(crate) struct Behavior<RecordStore, PeerSource> {
+pub(crate) struct Behavior<RecordStore> {
     pub(crate) identify: Identify,
     pub(crate) kademlia: Kademlia<RecordStore>,
     pub(crate) gossipsub: Toggle<Gossipsub>,
@@ -73,14 +71,14 @@ pub(crate) struct Behavior<RecordStore, PeerSource> {
     pub(crate) block_list: BlockListBehaviour,
     pub(crate) reserved_peers: ReservedPeersBehaviour,
     pub(crate) peer_info: PeerInfoBehaviour,
-    pub(crate) connected_peers: ConnectedPeersBehaviour<PeerSource>,
+    pub(crate) connected_peers: ConnectedPeersBehaviour,
 }
 
-impl<RecordStore, PeerSource> Behavior<RecordStore, PeerSource>
+impl<RecordStore> Behavior<RecordStore>
 where
     RecordStore: Send + Sync + libp2p::kad::store::RecordStore + 'static,
 {
-    pub(crate) fn new(config: BehaviorConfig<RecordStore, PeerSource>) -> Self {
+    pub(crate) fn new(config: BehaviorConfig<RecordStore>) -> Self {
         let kademlia = Kademlia::<RecordStore>::with_config(
             config.peer_id,
             config.record_store,
@@ -113,10 +111,7 @@ where
             block_list: BlockListBehaviour::default(),
             reserved_peers: ReservedPeersBehaviour::new(config.reserved_peers),
             peer_info: PeerInfoBehaviour::new(config.peer_info_config, config.peer_info_provider),
-            connected_peers: ConnectedPeersBehaviour::new(
-                config.connected_peers_config,
-                config.peer_source,
-            ),
+            connected_peers: ConnectedPeersBehaviour::new(config.connected_peers_config),
         }
     }
 }

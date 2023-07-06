@@ -1,12 +1,12 @@
 use crate::behavior::persistent_parameters::NetworkingParametersRegistry;
 use crate::behavior::{provider_storage, Behavior, Event};
+use crate::connected_peers::Event as ConnectedPeersEvent;
 use crate::create::temporary_bans::TemporaryBans;
 use crate::create::{
     ConnectionDecisionHandler, ProviderOnlyRecordStore, KADEMLIA_CONCURRENT_TASKS_BOOST_PER_PEER,
     REGULAR_CONCURRENT_TASKS_BOOST_PER_PEER,
 };
 use crate::peer_info::{Event as PeerInfoEvent, PeerInfoSuccess};
-use crate::connected_peers::{Event as ConnectedPeersEvent,};
 use crate::request_responses::{Event as RequestResponseEvent, IfDisconnected};
 use crate::shared::{Command, CreatedSubscription, Shared};
 use crate::utils::{is_global_address_or_dns, PeerAddress, ResizableSemaphorePermit};
@@ -81,7 +81,7 @@ where
     /// Should non-global addresses be added to the DHT?
     allow_non_global_addresses_in_dht: bool,
     command_receiver: mpsc::Receiver<Command>,
-    swarm: Swarm<Behavior<ProviderOnlyRecordStore<ProviderStorage>, ()>>,
+    swarm: Swarm<Behavior<ProviderOnlyRecordStore<ProviderStorage>>>,
     shared_weak: Weak<Shared>,
     /// How frequently should random queries be done using Kademlia DHT to populate routing table.
     next_random_query_interval: Duration,
@@ -120,7 +120,7 @@ where
 {
     pub(crate) allow_non_global_addresses_in_dht: bool,
     pub(crate) command_receiver: mpsc::Receiver<Command>,
-    pub(crate) swarm: Swarm<Behavior<ProviderOnlyRecordStore<ProviderStorage>, ()>>,
+    pub(crate) swarm: Swarm<Behavior<ProviderOnlyRecordStore<ProviderStorage>>>,
     pub(crate) shared_weak: Weak<Shared>,
     pub(crate) next_random_query_interval: Duration,
     pub(crate) networking_parameters_registry: Box<dyn NetworkingParametersRegistry>,
@@ -891,10 +891,13 @@ where
     async fn handle_connected_peers_event(&mut self, event: ConnectedPeersEvent) {
         trace!(?event, "Connected peers event.");
 
-        match event{
+        match event {
             ConnectedPeersEvent::NewDialingCandidatesRequested => {
                 let peers = self.get_peers_to_dial().await;
-                self.swarm.behaviour_mut().connected_peers.add_peers_to_dial(peers);
+                self.swarm
+                    .behaviour_mut()
+                    .connected_peers
+                    .add_peers_to_dial(peers);
             }
         }
     }
@@ -1210,10 +1213,10 @@ where
             let connections = network_info.connection_counters();
 
             debug!(
-                        ?connections,
-                        target_connections = self.target_connections,
-                        "Current connections and limits."
-                    );
+                ?connections,
+                target_connections = self.target_connections,
+                "Current connections and limits."
+            );
 
             (
                 connections.num_pending_outgoing()
@@ -1226,12 +1229,12 @@ where
 
         if total_current_connections < self.target_connections {
             debug!(
-                        %local_peer_id,
-                        total_current_connections,
-                        target_connections=self.target_connections,
-                        connected_peers=connected_peers.len(),
-                        "Initiate connection to known peers",
-                    );
+                %local_peer_id,
+                total_current_connections,
+                target_connections=self.target_connections,
+                connected_peers=connected_peers.len(),
+                "Initiate connection to known peers",
+            );
 
             let allow_non_global_addresses_in_dht = self.allow_non_global_addresses_in_dht;
 
@@ -1243,11 +1246,11 @@ where
                 .filter(|(peer_id, address)| {
                     if !allow_non_global_addresses_in_dht && !is_global_address_or_dns(address) {
                         trace!(
-                                    %local_peer_id,
-                                    %peer_id,
-                                    %address,
-                                    "Ignoring non-global address read from parameters registry.",
-                                );
+                            %local_peer_id,
+                            %peer_id,
+                            %address,
+                            "Ignoring non-global address read from parameters registry.",
+                        );
                         false
                     } else {
                         true
