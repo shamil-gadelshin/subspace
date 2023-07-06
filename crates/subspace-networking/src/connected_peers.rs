@@ -2,6 +2,8 @@
 
 mod handler;
 
+use futures::FutureExt;
+use futures_timer::Delay;
 use handler::Handler;
 use libp2p::core::{Endpoint, Multiaddr};
 use libp2p::swarm::behaviour::{ConnectionEstablished, FromSwarm};
@@ -12,13 +14,11 @@ use libp2p::swarm::{
 };
 use libp2p::PeerId;
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap,};
+use std::collections::HashMap;
 use std::ops::Add;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use tracing::{debug, trace};
-use futures_timer::Delay;
-use futures::FutureExt;
 
 // TODO: remove peer-info
 // TODO: fix comments and other strings
@@ -88,11 +88,11 @@ fn schedule_connection() -> Instant {
     Instant::now().add(DIALING_INTERVAL_IN_SECS)
 }
 
-//TODO: 
+//TODO:
 /// Connected-peers protocol event.
 #[derive(Debug, Clone)]
-pub enum Event{
-    NewDialingCandidatesRequested
+pub enum Event {
+    NewDialingCandidatesRequested,
 }
 
 /// Defines the state of a reserved peer connection state.
@@ -109,13 +109,6 @@ struct PeerState {
 struct PeerDecisionChange {
     peer_id: PeerId,
     keep_alive: KeepAlive,
-}
-
-//TODO: remove
-impl PeerAddressSource for () {
-    fn peer_addresses(&self, _: u32) -> Vec<PeerAddress> {
-        Vec::new()
-    }
 }
 
 /// `Behaviour` controls and maintains the state of connections to a predefined set of peers.
@@ -149,30 +142,27 @@ impl PeerAddressSource for () {
 /// be dismissed on the other side due to the `KeepAlive` policy.
 ///
 #[derive(Debug)]
-pub struct Behaviour<PeerSource> {
+pub struct Behaviour {
     config: Config,
 
     known_peers: HashMap<PeerId, PeerDecision>,
-
-    peer_source2: PeerSource,
 
     connection_candidates: Vec<PeerAddress>,
 
     peer_decision_changes: Vec<PeerDecisionChange>,
 
     dialing_interval: Delay,
-    
+
     peer_source: Vec<PeerAddress>,
 }
 
-impl<PeerSource> Behaviour<PeerSource> {
+impl Behaviour {
     /// Creates a new `Behaviour`.
-    pub fn new(config: Config, peer_source: PeerSource) -> Self {
+    pub fn new(config: Config) -> Self {
         let delay = Delay::new(config.dialing_interval);
         Self {
             config,
             known_peers: HashMap::new(),
-            peer_source2: peer_source, // TODO:
             connection_candidates: Vec::new(),
             peer_decision_changes: Vec::new(),
             dialing_interval: delay,
@@ -237,12 +227,12 @@ impl<PeerSource> Behaviour<PeerSource> {
             .sum()
     }
 
-    pub fn add_peers_to_dial(&mut self, peers: Vec<PeerAddress>){
+    pub fn add_peers_to_dial(&mut self, peers: Vec<PeerAddress>) {
         self.peer_source.extend_from_slice(&peers);
     }
 }
 
-impl<PeerSource: PeerAddressSource + 'static> NetworkBehaviour for Behaviour<PeerSource> {
+impl NetworkBehaviour for Behaviour {
     type ConnectionHandler = Handler;
     type OutEvent = Event;
 
@@ -367,25 +357,31 @@ impl<PeerSource: PeerAddressSource + 'static> NetworkBehaviour for Behaviour<Pee
             Poll::Pending => {}
             Poll::Ready(()) => {
                 self.dialing_interval.reset(self.config.dialing_interval);
-                
+
                 if self.peer_source.is_empty() {
                     trace!("Requesting new peers for connected-peers protocol....");
 
-                    return Poll::Ready(ToSwarm::GenerateEvent(Event::NewDialingCandidatesRequested));
+                    return Poll::Ready(ToSwarm::GenerateEvent(
+                        Event::NewDialingCandidatesRequested,
+                    ));
                 }
 
                 // New dial candidates
-                if self.permanently_connected_peers() < self.config.target_connected_peers{
-                    let range = 0..(self.config.next_peer_batch_size as usize).min(self.peer_source.len());
+                if self.permanently_connected_peers() < self.config.target_connected_peers {
+                    let range =
+                        0..(self.config.next_peer_batch_size as usize).min(self.peer_source.len());
 
                     let peer_addresses = self.peer_source.drain(range).collect::<Vec<_>>();
 
-                    self.connection_candidates.extend_from_slice(&peer_addresses);
+                    self.connection_candidates
+                        .extend_from_slice(&peer_addresses);
                 }
 
                 while let Some(peer_address) = self.connection_candidates.pop() {
                     self.known_peers.entry(peer_address.0).or_insert_with(|| {
-                        PeerDecision::PendingConnection { peer_address: peer_address.clone(), }
+                        PeerDecision::PendingConnection {
+                            peer_address: peer_address.clone(),
+                        }
                     });
                 }
             }

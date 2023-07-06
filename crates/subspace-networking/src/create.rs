@@ -434,7 +434,6 @@ where
         peer_info_config: PeerInfoConfig::new(PEER_INFO_PROTOCOL_NAME),
         peer_info_provider,
         connected_peers_config: ConnectedPeersConfig::default(),
-        peer_source: (),
     });
 
     let mut swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, local_peer_id)
