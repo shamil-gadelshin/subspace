@@ -6,9 +6,10 @@ use crate::create::{
     REGULAR_CONCURRENT_TASKS_BOOST_PER_PEER,
 };
 use crate::peer_info::{Event as PeerInfoEvent, PeerInfoSuccess};
+use crate::connected_peers::{Event as ConnectedPeersEvent,};
 use crate::request_responses::{Event as RequestResponseEvent, IfDisconnected};
 use crate::shared::{Command, CreatedSubscription, Shared};
-use crate::utils::{is_global_address_or_dns, ResizableSemaphorePermit};
+use crate::utils::{is_global_address_or_dns, PeerAddress, ResizableSemaphorePermit};
 use bytes::Bytes;
 use futures::channel::mpsc;
 use futures::future::Fuse;
@@ -217,73 +218,74 @@ where
         }
     }
 
+    // TODO: rename
     async fn handle_peer_dialing(&mut self) {
         let local_peer_id = *self.swarm.local_peer_id();
         let connected_peers = self.swarm.connected_peers().cloned().collect::<Vec<_>>();
 
-        // Maintain target connection number.
-        let (total_current_connections, established_connections) = {
-            let network_info = self.swarm.network_info();
-            let connections = network_info.connection_counters();
-
-            debug!(
-                ?connections,
-                target_connections = self.target_connections,
-                "Current connections and limits."
-            );
-
-            (
-                connections.num_pending_outgoing()
-                    + connections.num_established_outgoing()
-                    + connections.num_pending_incoming()
-                    + connections.num_established_incoming(),
-                connections.num_established_outgoing() + connections.num_established_incoming(),
-            )
-        };
-
-        if total_current_connections < self.target_connections {
-            debug!(
-                %local_peer_id,
-                total_current_connections,
-                target_connections=self.target_connections,
-                connected_peers=connected_peers.len(),
-                "Initiate connection to known peers",
-            );
-
-            let allow_non_global_addresses_in_dht = self.allow_non_global_addresses_in_dht;
-
-            let addresses = self
-                .networking_parameters_registry
-                .next_known_addresses_batch()
-                .await
-                .into_iter()
-                .filter(|(peer_id, address)| {
-                    if !allow_non_global_addresses_in_dht && !is_global_address_or_dns(address) {
-                        trace!(
-                            %local_peer_id,
-                            %peer_id,
-                            %address,
-                            "Ignoring non-global address read from parameters registry.",
-                        );
-                        false
-                    } else {
-                        true
-                    }
-                });
-
-            trace!(%local_peer_id, "Processing addresses batch: {:?}", addresses);
-
-            for (peer_id, addr) in addresses {
-                if connected_peers.contains(&peer_id) {
-                    continue;
-                }
-
-                self.dial_peer(peer_id, addr)
-            }
-        } else if established_connections < self.target_connections {
-            self.networking_parameters_registry
-                .start_over_address_batching()
-        }
+        // // Maintain target connection number.
+        // let (total_current_connections, established_connections) = {
+        //     let network_info = self.swarm.network_info();
+        //     let connections = network_info.connection_counters();
+        //
+        //     debug!(
+        //         ?connections,
+        //         target_connections = self.target_connections,
+        //         "Current connections and limits."
+        //     );
+        //
+        //     (
+        //         connections.num_pending_outgoing()
+        //             + connections.num_established_outgoing()
+        //             + connections.num_pending_incoming()
+        //             + connections.num_established_incoming(),
+        //         connections.num_established_outgoing() + connections.num_established_incoming(),
+        //     )
+        // };
+        //
+        // if total_current_connections < self.target_connections {
+        //     debug!(
+        //         %local_peer_id,
+        //         total_current_connections,
+        //         target_connections=self.target_connections,
+        //         connected_peers=connected_peers.len(),
+        //         "Initiate connection to known peers",
+        //     );
+        //
+        //     let allow_non_global_addresses_in_dht = self.allow_non_global_addresses_in_dht;
+        //
+        //     let addresses = self
+        //         .networking_parameters_registry
+        //         .next_known_addresses_batch()
+        //         .await
+        //         .into_iter()
+        //         .filter(|(peer_id, address)| {
+        //             if !allow_non_global_addresses_in_dht && !is_global_address_or_dns(address) {
+        //                 trace!(
+        //                     %local_peer_id,
+        //                     %peer_id,
+        //                     %address,
+        //                     "Ignoring non-global address read from parameters registry.",
+        //                 );
+        //                 false
+        //             } else {
+        //                 true
+        //             }
+        //         });
+        //
+        //     trace!(%local_peer_id, "Processing addresses batch: {:?}", addresses);
+        //
+        //     for (peer_id, addr) in addresses {
+        //         if connected_peers.contains(&peer_id) {
+        //             continue;
+        //         }
+        //
+        //         self.dial_peer(peer_id, addr)
+        //     }
+        // } else if established_connections < self.target_connections {
+        //     self.networking_parameters_registry
+        //         .start_over_address_batching()
+        // }
 
         // Renew known external addresses.
         let mut external_addresses = self
@@ -347,6 +349,9 @@ where
             }
             SwarmEvent::Behaviour(Event::PeerInfo(event)) => {
                 self.handle_peer_info_event(event).await;
+            }
+            SwarmEvent::Behaviour(Event::ConnectedPeers(event)) => {
+                self.handle_connected_peers_event(event).await;
             }
             SwarmEvent::NewListenAddr { address, .. } => {
                 let shared = match self.shared_weak.upgrade() {
@@ -883,6 +888,17 @@ where
         }
     }
 
+    async fn handle_connected_peers_event(&mut self, event: ConnectedPeersEvent) {
+        trace!(?event, "Connected peers event.");
+
+        match event{
+            ConnectedPeersEvent::NewDialingCandidatesRequested => {
+                let peers = self.get_peers_to_dial().await;
+                self.swarm.behaviour_mut().connected_peers.add_peers_to_dial(peers);
+            }
+        }
+    }
+
     async fn handle_command(&mut self, command: Command) {
         match command {
             Command::GetValue {
@@ -1180,5 +1196,78 @@ where
                 }
             }
         }
+    }
+
+    async fn get_peers_to_dial(&mut self) -> Vec<PeerAddress> {
+        let mut result_peers = Vec::new();
+
+        let local_peer_id = *self.swarm.local_peer_id();
+        let connected_peers = self.swarm.connected_peers().cloned().collect::<Vec<_>>();
+
+        // Maintain target connection number.
+        let (total_current_connections, established_connections) = {
+            let network_info = self.swarm.network_info();
+            let connections = network_info.connection_counters();
+
+            debug!(
+                        ?connections,
+                        target_connections = self.target_connections,
+                        "Current connections and limits."
+                    );
+
+            (
+                connections.num_pending_outgoing()
+                    + connections.num_established_outgoing()
+                    + connections.num_pending_incoming()
+                    + connections.num_established_incoming(),
+                connections.num_established_outgoing() + connections.num_established_incoming(),
+            )
+        };
+
+        if total_current_connections < self.target_connections {
+            debug!(
+                        %local_peer_id,
+                        total_current_connections,
+                        target_connections=self.target_connections,
+                        connected_peers=connected_peers.len(),
+                        "Initiate connection to known peers",
+                    );
+
+            let allow_non_global_addresses_in_dht = self.allow_non_global_addresses_in_dht;
+
+            let addresses = self
+                .networking_parameters_registry
+                .next_known_addresses_batch()
+                .await
+                .into_iter()
+                .filter(|(peer_id, address)| {
+                    if !allow_non_global_addresses_in_dht && !is_global_address_or_dns(address) {
+                        trace!(
+                                    %local_peer_id,
+                                    %peer_id,
+                                    %address,
+                                    "Ignoring non-global address read from parameters registry.",
+                                );
+                        false
+                    } else {
+                        true
+                    }
+                });
+
+            trace!(%local_peer_id, "Processing addresses batch: {:?}", addresses);
+
+            for (peer_id, addr) in addresses {
+                if connected_peers.contains(&peer_id) {
+                    continue;
+                }
+
+                result_peers.push((peer_id, addr))
+            }
+        } else if established_connections < self.target_connections {
+            self.networking_parameters_registry
+                .start_over_address_batching()
+        }
+
+        result_peers
     }
 }
