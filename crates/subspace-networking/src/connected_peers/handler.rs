@@ -4,7 +4,7 @@ use libp2p::swarm::{ConnectionHandler, ConnectionHandlerEvent, KeepAlive, Substr
 use std::error::Error;
 use std::fmt;
 use std::task::{Context, Poll};
-use tracing::info;
+use tracing::trace;
 
 /// Connection handler for managing connections within our `connected peers` protocol.
 ///
@@ -59,7 +59,7 @@ impl ConnectionHandler for Handler {
     }
 
     fn on_behaviour_event(&mut self, keep_alive: KeepAlive) {
-        info!(?keep_alive, "Behaviour event arrived."); // TODO: remove
+        trace!(?keep_alive, "Behaviour event arrived.");
 
         self.keep_alive = keep_alive;
     }
