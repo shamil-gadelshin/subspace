@@ -1,3 +1,26 @@
+//! # 'Connected peers' protocol
+//!
+//! This module contains a `connected peers` protocol. The main
+//! purpose of the protocol is to manage and maintain connections with peers in a
+//! distributed network, with a focus on managing permanent connections.
+//!
+//! The heart of the module is the `PeerDecision` enum, which represents different states
+//! of a peer's permanent connection decision. These states include:
+//!
+//! * `PendingConnection` - Indicates that a connection attempt to a peer is in progress.
+//! * `PendingDecision` - A state when we're waiting for a decision for a certain period of time.
+//!   If no decision is made within this period, we consider the decision to be `NotInterested`.
+//! * `PermanentConnection` - Indicates that the decision has been made to maintain a permanent
+//!   connection with the peer. No further decision-making is required for this state.
+//! * `NotInterested` - Shows that the system has decided not to connect with the peer.
+//!   No further decision-making is required for this state.
+//!
+//! The module includes configuration, event handling, and connection management. It provides
+//! capabilities for dialing peers, sending signals about changes in connection states.
+//!
+//! The protocol strives to maintain a certain target number of peers, handles delay between dialing
+//! attempts, and manages a cache for candidates for permanent connections.
+
 mod handler;
 
 use crate::utils::PeerAddress;
@@ -18,8 +41,6 @@ use std::ops::Add;
 use std::task::{Context, Poll, Waker};
 use std::time::{Duration, Instant};
 use tracing::{debug, trace};
-
-// TODO: fix comments and other strings
 
 /// Represents different states of a peer permanent connection.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -252,6 +273,7 @@ impl NetworkBehaviour for Behaviour {
     fn on_swarm_event(&mut self, event: FromSwarm<Self::ConnectionHandler>) {
         match event {
             FromSwarm::ConnectionEstablished(ConnectionEstablished { peer_id, .. }) => {
+                // Connection was established without dialing from this protocol
                 if let Entry::Vacant(entry) = self.known_peers.entry(peer_id) {
                     entry.insert(PeerDecision::PendingDecision {
                         until: Instant::now().add(self.config.decision_timeout),
@@ -266,6 +288,9 @@ impl NetworkBehaviour for Behaviour {
                 remaining_established,
                 ..
             }) => {
+                // No established connections left, one of the reasons - the other side chose to not
+                // keep the connection alive. We remove information from the local state and
+                // possibly will try to reconnect later.
                 if remaining_established == 0 {
                     let old_peer_decision = self.known_peers.remove(&peer_id);
 
@@ -276,14 +301,21 @@ impl NetworkBehaviour for Behaviour {
                 }
             }
             FromSwarm::DialFailure(DialFailure { peer_id, .. }) => {
-                // TODO: what will happen with existing connections
                 if let Some(peer_id) = peer_id {
                     let old_peer_decision = self.known_peers.remove(&peer_id);
 
+                    // For those rare cases when we have a dialing error and existing connection
+                    // we notify the existing handler about connection closing to avoid connection
+                    // leakages. If we're interested in this peer we'll reconnect at some point later.
+                    self.peer_decision_changes.push(PeerDecisionChange {
+                        peer_id,
+                        keep_alive: KeepAlive::No,
+                    });
+
                     if old_peer_decision.is_some() {
                         debug!(%peer_id, ?old_peer_decision, "Dialing error to known peer.");
-                        self.wake();
                     }
+                    self.wake();
                 }
             }
             FromSwarm::AddressChange(_)
