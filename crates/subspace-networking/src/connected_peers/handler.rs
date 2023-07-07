@@ -15,8 +15,8 @@ use tracing::info;
 /// ## Connection Handling
 ///
 /// The `Handler` manages the lifecycle of a connection to each peer. If it's connected to a
-/// reserved peer, it maintains the connection alive (`KeepAlive::Yes`). If not, it allows the
-/// connection to close (`KeepAlive::No`).
+/// peer with positive keep-alive decision (we are interested in this connection), it maintains the
+/// connection alive (`KeepAlive::Yes`). If not, it allows the connection to close (`KeepAlive::No`).
 pub struct Handler {
     /// Protocol name.
     protocol_name: &'static [u8],

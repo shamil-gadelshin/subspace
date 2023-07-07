@@ -1,5 +1,6 @@
 mod handler;
 
+use crate::utils::PeerAddress;
 use futures::FutureExt;
 use futures_timer::Delay;
 use handler::Handler;
@@ -14,31 +15,23 @@ use libp2p::PeerId;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::ops::Add;
-use std::task::{Context, Poll};
+use std::task::{Context, Poll, Waker};
 use std::time::{Duration, Instant};
 use tracing::{debug, trace};
 
-// TODO: remove peer-info
 // TODO: fix comments and other strings
-// TODO: remove old reconnections
-
-use crate::utils::PeerAddress;
-
-pub trait PeerAddressSource {
-    fn peer_addresses(&self, batch_size: u32) -> Vec<PeerAddress>;
-}
+// TODO: clean NotInterested status
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum PeerDecision {
     //TODO: add delay for new candidates
     PendingConnection { peer_address: PeerAddress },
-    //TODO: add timeout for the decision
     PendingDecision { until: Instant },
     PermanentConnection,
     NotInterested,
 }
 
-/// Reserved peers protocol configuration.
+/// Connected peers protocol configuration.
 #[derive(Debug, Clone)]
 pub struct Config {
     /// Protocol name.
@@ -88,14 +81,14 @@ pub struct Behaviour {
 
     known_peers: HashMap<PeerId, PeerDecision>,
 
-    // TODO: remove this one
-    connection_candidates: Vec<PeerAddress>,
-
     peer_decision_changes: Vec<PeerDecisionChange>,
 
     dialing_delay: Delay,
 
     peer_source: Vec<PeerAddress>,
+
+    /// Future waker.
+    waker: Option<Waker>,
 }
 
 impl Behaviour {
@@ -105,22 +98,28 @@ impl Behaviour {
         Self {
             config,
             known_peers: HashMap::new(),
-            connection_candidates: Vec::new(),
             peer_decision_changes: Vec::new(),
             dialing_delay,
             peer_source: Vec::new(),
+            waker: None,
         }
     }
 
     /// Create a connection handler for the protocol.
     #[inline]
-    fn new_connection_handler(&self, peer_id: &PeerId) -> Handler {
-        // TODO: review
-        let default_keep_alive_until =
-            KeepAlive::Until(Instant::now().add(self.config.decision_timeout));
-        let keep_alive = if let Some(decision) = self.known_peers.get(peer_id) {
+    fn new_connection_handler(&mut self, peer_id: &PeerId) -> Handler {
+        let default_until = Instant::now().add(self.config.decision_timeout);
+        let default_keep_alive_until = KeepAlive::Until(default_until);
+        let keep_alive = if let Some(decision) = self.known_peers.get_mut(peer_id) {
             match decision {
-                PeerDecision::PendingConnection { .. } => default_keep_alive_until,
+                PeerDecision::PendingConnection { .. } => {
+                    // Connection attempt was successful.
+                    *decision = PeerDecision::PendingDecision {
+                        until: default_until,
+                    };
+
+                    default_keep_alive_until
+                }
                 PeerDecision::PendingDecision { until } => KeepAlive::Until(*until),
                 PeerDecision::PermanentConnection => KeepAlive::Yes,
                 PeerDecision::NotInterested => KeepAlive::No,
@@ -129,10 +128,22 @@ impl Behaviour {
             default_keep_alive_until
         };
 
+        // Connection from other protocols.
+        if !self.known_peers.contains_key(peer_id) {
+            self.known_peers.insert(
+                *peer_id,
+                PeerDecision::PendingDecision {
+                    until: default_until,
+                },
+            );
+        }
+
+        self.wake();
         Handler::new(self.config.protocol_name, keep_alive)
     }
 
     /// Specifies the whether we should keep connections to the peer alive.
+    /// Note: in rare cases, it could override decision timeout and keep connection alive.
     pub fn update_keep_alive_status(&mut self, peer_id: PeerId, keep_alive: bool) {
         // TODO: review this
         //TODO: remove decision?
@@ -155,14 +166,35 @@ impl Behaviour {
             peer_id,
             keep_alive,
         });
+        self.wake();
     }
 
     /// Calculates the current number of permanently connected peers.
     fn permanently_connected_peers(&self) -> u32 {
         self.known_peers
             .iter()
-            .filter_map(|(_, state)| {
-                if *state == PeerDecision::PermanentConnection {
+            .filter_map(|(_, decision)| {
+                if *decision == PeerDecision::PermanentConnection {
+                    Some(1u32)
+                } else {
+                    None
+                }
+            })
+            .sum()
+    }
+
+    /// Calculates the current number of peers with permanent connections, pending connections or
+    /// pending decisions.
+    fn active_peers(&self) -> u32 {
+        self.known_peers
+            .iter()
+            .filter_map(|(_, decision)| {
+                if matches!(
+                    *decision,
+                    PeerDecision::PermanentConnection
+                        | PeerDecision::PendingConnection { .. }
+                        | PeerDecision::PendingDecision { .. }
+                ) {
                     Some(1u32)
                 } else {
                     None
@@ -175,6 +207,13 @@ impl Behaviour {
     /// target connection number.
     pub fn add_peers_to_dial(&mut self, peers: Vec<PeerAddress>) {
         self.peer_source.extend_from_slice(&peers);
+        self.wake();
+    }
+
+    fn wake(&self) {
+        if let Some(waker) = &self.waker {
+            waker.wake_by_ref()
+        }
     }
 }
 
@@ -211,6 +250,7 @@ impl NetworkBehaviour for Behaviour {
                     });
 
                     trace!(%peer_id, "Pending peer decision...");
+                    self.wake();
                 }
             }
             FromSwarm::ConnectionClosed(ConnectionClosed {
@@ -223,6 +263,7 @@ impl NetworkBehaviour for Behaviour {
 
                     if old_peer_decision.is_some() {
                         trace!(%peer_id, ?old_peer_decision, "Known peer disconnected.");
+                        self.wake();
                     }
                 }
             }
@@ -233,6 +274,7 @@ impl NetworkBehaviour for Behaviour {
 
                     if old_peer_decision.is_some() {
                         debug!(%peer_id, ?old_peer_decision, "Dialing error to known peer.");
+                        self.wake();
                     }
                 }
             }
@@ -277,6 +319,7 @@ impl NetworkBehaviour for Behaviour {
             match decision.clone() {
                 PeerDecision::PendingConnection {
                     peer_address: (peer_id, address),
+                    ..
                 } => {
                     *decision = PeerDecision::PendingDecision {
                         until: Instant::now().add(self.config.decision_timeout),
@@ -301,7 +344,6 @@ impl NetworkBehaviour for Behaviour {
             }
         }
 
-        // TODO:  > connection timeout ?
         match self.dialing_delay.poll_unpin(cx) {
             Poll::Pending => {}
             Poll::Ready(()) => {
@@ -315,28 +357,25 @@ impl NetworkBehaviour for Behaviour {
                     ));
                 }
 
-                // New dial candidates
-                if self.permanently_connected_peers() < self.config.target_connected_peers {
+                // New dial candidates.
+                if self.active_peers() < self.config.target_connected_peers {
                     let range = 0..(self.config.dialing_peer_batch_size as usize)
                         .min(self.peer_source.len());
 
                     let peer_addresses = self.peer_source.drain(range).collect::<Vec<_>>();
 
-                    self.connection_candidates
-                        .extend_from_slice(&peer_addresses);
-                }
-
-                while let Some(peer_address) = self.connection_candidates.pop() {
-                    self.known_peers.entry(peer_address.0).or_insert_with(|| {
-                        PeerDecision::PendingConnection {
-                            peer_address: peer_address.clone(),
-                        }
-                    });
+                    for peer_address in peer_addresses {
+                        self.known_peers.entry(peer_address.0).or_insert_with(|| {
+                            PeerDecision::PendingConnection {
+                                peer_address: peer_address.clone(),
+                            }
+                        });
+                    }
                 }
             }
         }
 
-        // TODO: waker
+        self.waker.replace(cx.waker().clone());
         Poll::Pending
     }
 }
