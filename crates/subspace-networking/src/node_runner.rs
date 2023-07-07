@@ -29,15 +29,21 @@ use libp2p::{futures, Multiaddr, PeerId, Swarm, TransportError};
 use nohash_hasher::IntMap;
 use parking_lot::Mutex;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
+use rand::rngs::StdRng;
+use rand::seq::SliceRandom;
+use rand::{SeedableRng};
 use tokio::time::Sleep;
 use tracing::{debug, error, trace, warn};
+
+// Defines a batch size for peer addresses from Kademlia buckets.
+const KADEMLIA_PEERS_ADDRESSES_BATCH_SIZE: usize = 20;
 
 /// How many peers should node be connected to before boosting turns on.
 ///
@@ -110,6 +116,8 @@ where
     protocol_version: String,
     /// Defines whether we maintain a persistent connection.
     connection_decision_handler: ConnectionDecisionHandler,
+    /// Randomness generator used for choosing Kademlia addresses.
+    rng: StdRng,
 }
 
 // Helper struct for NodeRunner configuration (clippy requirement).
@@ -172,6 +180,7 @@ where
             established_connections: HashMap::new(),
             protocol_version,
             connection_decision_handler,
+            rng: StdRng::seed_from_u64(KADEMLIA_PEERS_ADDRESSES_BATCH_SIZE as u64), // any seed
         }
     }
 
@@ -217,6 +226,12 @@ where
 
     /// Handles periodical tasks.
     async fn handle_periodical_tasks(&mut self) {
+        // Log current connections.
+        let network_info = self.swarm.network_info();
+        let connections = network_info.connection_counters();
+
+        debug!(?connections, "Current connections and limits.");
+
         // Renew known external addresses.
         let mut external_addresses = self
             .swarm
@@ -805,6 +820,7 @@ where
         match event {
             ConnectedPeersEvent::NewDialingCandidatesRequested => {
                 let peers = self.get_peers_to_dial().await;
+
                 self.swarm
                     .behaviour_mut()
                     .connected_peers
@@ -1115,71 +1131,65 @@ where
     async fn get_peers_to_dial(&mut self) -> Vec<PeerAddress> {
         let mut result_peers = Vec::new();
 
-        let local_peer_id = *self.swarm.local_peer_id();
-        let connected_peers = self.swarm.connected_peers().cloned().collect::<Vec<_>>();
+        // Get addresses from Kademlia buckets
+        let mut kademlia_addresses = Vec::new();
+        let mut kademlia_peers = HashSet::new();
+        for kbucket in self.swarm.behaviour_mut().kademlia.kbuckets(){
+            for entry in kbucket.iter(){
+                let peer_id = *entry.node.key.preimage();
+                let addresses = entry.node.value.clone().into_vec();
 
-        // Maintain target connection number.
-        let (total_current_connections, established_connections) = {
-            let network_info = self.swarm.network_info();
-            let connections = network_info.connection_counters();
-
-            debug!(
-                ?connections,
-                target_connections = self.target_connections,
-                "Current connections and limits."
-            );
-
-            (
-                connections.num_pending_outgoing()
-                    + connections.num_established_outgoing()
-                    + connections.num_pending_incoming()
-                    + connections.num_established_incoming(),
-                connections.num_established_outgoing() + connections.num_established_incoming(),
-            )
-        };
-
-        if total_current_connections < self.target_connections {
-            debug!(
-                %local_peer_id,
-                total_current_connections,
-                target_connections=self.target_connections,
-                connected_peers=connected_peers.len(),
-                "Initiate connection to known peers",
-            );
-
-            let allow_non_global_addresses_in_dht = self.allow_non_global_addresses_in_dht;
-
-            let addresses = self
-                .networking_parameters_registry
-                .next_known_addresses_batch()
-                .await
-                .into_iter()
-                .filter(|(peer_id, address)| {
-                    if !allow_non_global_addresses_in_dht && !is_global_address_or_dns(address) {
-                        trace!(
-                            %local_peer_id,
-                            %peer_id,
-                            %address,
-                            "Ignoring non-global address read from parameters registry.",
-                        );
-                        false
-                    } else {
-                        true
-                    }
-                });
-
-            trace!(%local_peer_id, "Processing addresses batch: {:?}", addresses);
-
-            for (peer_id, addr) in addresses {
-                if connected_peers.contains(&peer_id) {
-                    continue;
+                for address in addresses{
+                    kademlia_addresses.push((peer_id, address));
                 }
-
-                result_peers.push((peer_id, addr))
             }
-        } else if established_connections < self.target_connections {
-            self.networking_parameters_registry
-                .start_over_address_batching()
+        }
+
+        // Take random batch from kademlia addresses.
+        kademlia_addresses.shuffle(&mut self.rng); // O(n) complexity
+
+        for _ in 0..KADEMLIA_PEERS_ADDRESSES_BATCH_SIZE{
+            match kademlia_addresses.pop() {
+                Some((peer_id, peer_address)) => {
+                    result_peers.push((peer_id, peer_address));
+                    kademlia_peers.insert(peer_id);
+                }
+                None => break,
+            }
+        }
+
+        // Get peer batch from the known peers registry
+        let connected_peers = self.swarm.connected_peers().cloned().collect::<Vec<_>>();
+        let local_peer_id = *self.swarm.local_peer_id();
+        let allow_non_global_addresses_in_dht = self.allow_non_global_addresses_in_dht;
+
+        let addresses = self
+            .networking_parameters_registry
+            .next_known_addresses_batch()
+            .await
+            .into_iter()
+            .filter(|(peer_id, address)| {
+                if !allow_non_global_addresses_in_dht && !is_global_address_or_dns(address) {
+                    trace!(
+                        %local_peer_id,
+                        %peer_id,
+                        %address,
+                        "Ignoring non-global address read from parameters registry.",
+                    );
+                    false
+                } else {
+                    true
+                }
+            });
+
+        trace!(%local_peer_id, "Processing addresses batch: {:?}", addresses);
+
+        for (peer_id, addr) in addresses {
+            if connected_peers.contains(&peer_id) || kademlia_peers.contains(&peer_id){
+                continue;
+            }
+
+            result_peers.push((peer_id, addr))
         }
 
         result_peers
