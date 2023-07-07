@@ -20,11 +20,9 @@ use std::time::{Duration, Instant};
 use tracing::{debug, trace};
 
 // TODO: fix comments and other strings
-// TODO: clean NotInterested status
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum PeerDecision {
-    //TODO: add delay for new candidates
     PendingConnection { peer_address: PeerAddress },
     PendingDecision { until: Instant },
     PermanentConnection,
@@ -183,18 +181,13 @@ impl Behaviour {
             .sum()
     }
 
-    /// Calculates the current number of peers with permanent connections, pending connections or
-    /// pending decisions.
+    /// Calculates the current number of peers with all connections except connections with
+    /// decision PeerDecision::NotInterested.
     fn active_peers(&self) -> u32 {
         self.known_peers
             .iter()
             .filter_map(|(_, decision)| {
-                if matches!(
-                    *decision,
-                    PeerDecision::PermanentConnection
-                        | PeerDecision::PendingConnection { .. }
-                        | PeerDecision::PendingDecision { .. }
-                ) {
+                if !matches!(*decision, PeerDecision::NotInterested) {
                     Some(1u32)
                 } else {
                     None
