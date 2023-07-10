@@ -97,10 +97,9 @@ pub enum Event {
     NewDialingCandidatesRequested,
 }
 
-//TODO: rename
-/// Defines .....
+/// Defines a possible change for the connection status.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct PeerDecisionChange {
+struct PeerConnectionDecisionUpdate {
     peer_id: PeerId,
     keep_alive: KeepAlive,
 }
@@ -115,7 +114,7 @@ pub struct Behaviour {
     known_peers: HashMap<PeerId, PeerDecision>,
 
     /// Pending 'signals' to connection handlers about recent changes.
-    peer_decision_changes: Vec<PeerDecisionChange>,
+    peer_decision_changes: Vec<PeerConnectionDecisionUpdate>,
 
     /// Delay between dialing attempts.
     dialing_delay: Delay,
@@ -196,10 +195,11 @@ impl Behaviour {
         };
 
         self.known_peers.insert(peer_id, decision);
-        self.peer_decision_changes.push(PeerDecisionChange {
-            peer_id,
-            keep_alive,
-        });
+        self.peer_decision_changes
+            .push(PeerConnectionDecisionUpdate {
+                peer_id,
+                keep_alive,
+            });
         self.wake();
     }
 
@@ -304,13 +304,14 @@ impl NetworkBehaviour for Behaviour {
                 if let Some(peer_id) = peer_id {
                     let old_peer_decision = self.known_peers.remove(&peer_id);
 
-                    // For those rare cases when we have a dialing error and existing connection
+                    // For those rare cases when we have a dialing error and existing connection -
                     // we notify the existing handler about connection closing to avoid connection
                     // leakages. If we're interested in this peer we'll reconnect at some point later.
-                    self.peer_decision_changes.push(PeerDecisionChange {
-                        peer_id,
-                        keep_alive: KeepAlive::No,
-                    });
+                    self.peer_decision_changes
+                        .push(PeerConnectionDecisionUpdate {
+                            peer_id,
+                            keep_alive: KeepAlive::No,
+                        });
 
                     if old_peer_decision.is_some() {
                         debug!(%peer_id, ?old_peer_decision, "Dialing error to known peer.");
