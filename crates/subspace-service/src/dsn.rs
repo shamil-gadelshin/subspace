@@ -235,7 +235,8 @@ where
         max_established_outgoing_connections: dsn_config.max_out_connections,
         max_pending_incoming_connections: dsn_config.max_pending_in_connections,
         max_pending_outgoing_connections: dsn_config.max_pending_out_connections,
-        target_connections: dsn_config.target_connections,
+        general_target_connections: dsn_config.target_connections,
+        special_target_connections: 0,
         reserved_peers: dsn_config.reserved_peers,
 
         ..default_networking_config
