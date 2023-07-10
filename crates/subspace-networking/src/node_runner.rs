@@ -28,6 +28,8 @@ use libp2p::swarm::{DialError, SwarmEvent};
 use libp2p::{futures, Multiaddr, PeerId, Swarm, TransportError};
 use nohash_hasher::IntMap;
 use parking_lot::Mutex;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -36,9 +38,6 @@ use std::pin::Pin;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
-use rand::rngs::StdRng;
-use rand::seq::SliceRandom;
-use rand::{SeedableRng};
 use tokio::time::Sleep;
 use tracing::{debug, error, trace, warn};
 
@@ -104,8 +103,6 @@ where
     networking_parameters_registry: Box<dyn NetworkingParametersRegistry>,
     /// Defines set of peers with a permanent connection (and reconnection if necessary).
     reserved_peers: HashMap<PeerId, Multiaddr>,
-    /// Defines target total (in and out) connection number that should be maintained.
-    target_connections: u32,
     /// Temporarily banned peers.
     temporary_bans: Arc<Mutex<TemporaryBans>>,
     /// Prometheus metrics.
@@ -132,7 +129,6 @@ where
     pub(crate) next_random_query_interval: Duration,
     pub(crate) networking_parameters_registry: Box<dyn NetworkingParametersRegistry>,
     pub(crate) reserved_peers: HashMap<PeerId, Multiaddr>,
-    pub(crate) target_connections: u32,
     pub(crate) temporary_bans: Arc<Mutex<TemporaryBans>>,
     pub(crate) metrics: Option<Metrics>,
     pub(crate) protocol_version: String,
@@ -152,7 +148,6 @@ where
             next_random_query_interval,
             networking_parameters_registry,
             reserved_peers,
-            target_connections,
             temporary_bans,
             metrics,
             protocol_version,
@@ -174,7 +169,6 @@ where
             periodical_tasks_interval: Box::pin(tokio::time::sleep(Duration::from_secs(0)).fuse()),
             networking_parameters_registry,
             reserved_peers,
-            target_connections,
             temporary_bans,
             metrics,
             established_connections: HashMap::new(),
@@ -1134,28 +1128,27 @@ where
         // Get addresses from Kademlia buckets
         let mut kademlia_addresses = Vec::new();
         let mut kademlia_peers = HashSet::new();
-        for kbucket in self.swarm.behaviour_mut().kademlia.kbuckets(){
-            for entry in kbucket.iter(){
+        for kbucket in self.swarm.behaviour_mut().kademlia.kbuckets() {
+            for entry in kbucket.iter() {
                 let peer_id = *entry.node.key.preimage();
                 let addresses = entry.node.value.clone().into_vec();
 
-                for address in addresses{
+                for address in addresses {
                     kademlia_addresses.push((peer_id, address));
                 }
             }
         }
 
         // Take random batch from kademlia addresses.
-        kademlia_addresses.shuffle(&mut self.rng); // O(n) complexity
-
-        for _ in 0..KADEMLIA_PEERS_ADDRESSES_BATCH_SIZE{
-            match kademlia_addresses.pop() {
-                Some((peer_id, peer_address)) => {
-                    result_peers.push((peer_id, peer_address));
-                    kademlia_peers.insert(peer_id);
-                }
-                None => break,
+        for _ in 0..KADEMLIA_PEERS_ADDRESSES_BATCH_SIZE {
+            if kademlia_addresses.is_empty() {
+                break;
             }
+            let random_index = self.rng.gen_range(0..kademlia_addresses.len());
+
+            let (peer_id, peer_address) = kademlia_addresses.swap_remove(random_index);
+            result_peers.push((peer_id, peer_address));
+            kademlia_peers.insert(peer_id);
         }
 
         // Get peer batch from the known peers registry
@@ -1185,7 +1178,7 @@ where
         trace!(%local_peer_id, "Processing addresses batch: {:?}", addresses);
 
         for (peer_id, addr) in addresses {
-            if connected_peers.contains(&peer_id) || kademlia_peers.contains(&peer_id){
+            if connected_peers.contains(&peer_id) || kademlia_peers.contains(&peer_id) {
                 continue;
             }
 

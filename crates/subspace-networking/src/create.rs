@@ -436,6 +436,7 @@ where
         peer_info_provider,
         connected_peers_config: ConnectedPeersConfig {
             protocol_name: CONNECTED_PEERS_PROTOCOL_NAME,
+            target_connected_peers: target_connections,
             ..ConnectedPeersConfig::default()
         },
     });
@@ -484,7 +485,6 @@ where
         next_random_query_interval: initial_random_query_interval,
         networking_parameters_registry,
         reserved_peers: convert_multiaddresses(reserved_peers).into_iter().collect(),
-        target_connections,
         temporary_bans,
         metrics,
         protocol_version,
