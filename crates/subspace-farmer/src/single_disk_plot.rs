@@ -42,7 +42,7 @@ use subspace_proof_of_space::Table;
 use subspace_rpc_primitives::{FarmerAppInfo, SlotInfo, SolutionResponse};
 use thiserror::Error;
 use tokio::runtime::Handle;
-use tokio::sync::{broadcast, OwnedSemaphorePermit};
+use tokio::sync::broadcast;
 use tracing::{debug, error, info, info_span, trace, warn, Instrument, Span};
 use ulid::Ulid;
 
@@ -292,8 +292,6 @@ pub struct SingleDiskPlotOptions<NC, PG> {
     pub kzg: Kzg,
     /// Erasure coding instance to use.
     pub erasure_coding: ErasureCoding,
-    /// Semaphore to limit concurrency of plotting process.
-    pub concurrent_plotting_semaphore: Arc<tokio::sync::Semaphore>,
     /// Additional memory cache for pieces from archival storage
     pub piece_memory_cache: PieceMemoryCache,
 }
@@ -451,7 +449,7 @@ type Handler<A> = Bag<HandlerFn<A>, A>;
 
 #[derive(Default, Debug)]
 struct Handlers {
-    sector_plotted: Handler<(usize, PlottedSector, Arc<OwnedSemaphorePermit>)>,
+    sector_plotted: Handler<(usize, PlottedSector)>,
     solution: Handler<SolutionResponse>,
 }
 
@@ -518,7 +516,6 @@ impl SingleDiskPlot {
             piece_getter,
             kzg,
             erasure_coding,
-            concurrent_plotting_semaphore,
             piece_memory_cache,
         } = options;
         fs::create_dir_all(&directory)?;
@@ -768,19 +765,6 @@ impl SingleDiskPlot {
                                     .len(sector_metadata_size)
                                     .map_mut(&metadata_file)?
                             };
-                            let plotting_permit =
-                                match concurrent_plotting_semaphore.clone().acquire_owned().await {
-                                    Ok(plotting_permit) => plotting_permit,
-                                    Err(error) => {
-                                        warn!(
-                                            %sector_offset,
-                                            %sector_index,
-                                            %error,
-                                            "Semaphore was closed, interrupting plotting"
-                                        );
-                                        return Ok(());
-                                    }
-                                };
 
                             debug!(%sector_offset, %sector_index, "Plotting sector");
 
@@ -816,11 +800,9 @@ impl SingleDiskPlot {
 
                             info!(%sector_offset, %sector_index, "Sector plotted successfully");
 
-                            handlers.sector_plotted.call_simple(&(
-                                sector_offset,
-                                plotted_sector,
-                                Arc::new(plotting_permit),
-                            ));
+                            handlers
+                                .sector_plotted
+                                .call_simple(&(sector_offset, plotted_sector));
                         }
 
                         Ok::<_, PlottingError>(())
@@ -1170,13 +1152,7 @@ impl SingleDiskPlot {
     }
 
     /// Subscribe to sector plotting notification
-    ///
-    /// Plotting permit is given such that it can be dropped later by the implementation is
-    /// throttling of the plotting process is desired.
-    pub fn on_sector_plotted(
-        &self,
-        callback: HandlerFn<(usize, PlottedSector, Arc<OwnedSemaphorePermit>)>,
-    ) -> HandlerId {
+    pub fn on_sector_plotted(&self, callback: HandlerFn<(usize, PlottedSector)>) -> HandlerId {
         self.handlers.sector_plotted.add(callback)
     }
 
