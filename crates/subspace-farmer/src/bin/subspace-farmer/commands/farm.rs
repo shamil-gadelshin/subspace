@@ -22,10 +22,10 @@ use subspace_erasure_coding::ErasureCoding;
 use subspace_farmer::single_disk_plot::{
     SingleDiskPlot, SingleDiskPlotError, SingleDiskPlotOptions,
 };
+use subspace_farmer::utils::archival_storage_info::ArchivalStorageInfo;
 use subspace_farmer::utils::archival_storage_pieces::ArchivalStoragePieces;
 use subspace_farmer::utils::farmer_piece_cache::FarmerPieceCache;
 use subspace_farmer::utils::farmer_piece_getter::FarmerPieceGetter;
-use subspace_farmer::utils::node_piece_getter::NodePieceGetter;
 use subspace_farmer::utils::piece_cache::PieceCache;
 use subspace_farmer::utils::piece_validator::SegmentCommitmentPieceValidator;
 use subspace_farmer::utils::readers_and_pieces::{PieceDetails, ReadersAndPieces};
@@ -35,7 +35,7 @@ use subspace_farmer_components::piece_caching::PieceMemoryCache;
 use subspace_farmer_components::plotting::{PieceGetter, PieceGetterRetryPolicy};
 use subspace_networking::libp2p::identity::{ed25519, Keypair};
 use subspace_networking::utils::multihash::ToMultihash;
-use subspace_networking::utils::piece_provider::PieceProvider;
+use subspace_networking::utils::piece_provider::{PieceProvider, PieceValidator};
 use subspace_proof_of_space::Table;
 use tokio::time::sleep;
 use tracing::{debug, error, info, info_span, trace, warn};
@@ -94,6 +94,7 @@ where
         / Piece::SIZE
         + 1usize;
     let archival_storage_pieces = ArchivalStoragePieces::new(cuckoo_filter_capacity);
+    let archival_storage_info = ArchivalStorageInfo::default();
 
     let (node, mut node_runner, piece_cache) = {
         // TODO: Temporary networking identity derivation from the first disk farm identity.
@@ -119,6 +120,7 @@ where
             node_client.clone(),
             piece_memory_cache.clone(),
             archival_storage_pieces.clone(),
+            archival_storage_info.clone(),
         )?
     };
 
@@ -141,9 +143,12 @@ where
             segment_commitments_cache,
         )),
     );
+
     let piece_getter = Arc::new(FarmerPieceGetter::new(
-        NodePieceGetter::new(piece_provider),
+        node.clone(),
+        piece_provider,
         piece_cache.clone(),
+        archival_storage_info,
     ));
 
     let last_segment_index = farmer_app_info.protocol_info.history_size.segment_index();
@@ -418,12 +423,12 @@ fn derive_libp2p_keypair(schnorrkel_sk: &schnorrkel::SecretKey) -> Keypair {
 /// Populates piece cache on startup. It waits for the new segment index and check all pieces from
 /// previous segments to see if they are already in the cache. If they are not, they are added
 /// from DSN.
-async fn populate_pieces_cache<PG, PC>(
+async fn populate_pieces_cache<PV, PC>(
     segment_index: SegmentIndex,
-    piece_getter: Arc<FarmerPieceGetter<PG, PC>>,
+    piece_getter: Arc<FarmerPieceGetter<PV, PC>>,
     piece_cache: Arc<tokio::sync::Mutex<FarmerPieceCache>>,
 ) where
-    PG: PieceGetter + Send + Sync,
+    PV: PieceValidator + Send + Sync + 'static,
     PC: PieceCache + Send + 'static,
 {
     debug!(%segment_index, "Started syncing piece cache...");
