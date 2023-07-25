@@ -86,6 +86,9 @@ pub(crate) enum Command {
     ConnectedPeers {
         result_sender: oneshot::Sender<Vec<PeerId>>,
     },
+    Bootstrap {
+        result_sender: mpsc::UnboundedSender<()>,
+    },
 }
 
 pub(crate) type HandlerFn<A> = Arc<dyn Fn(&A) + Send + Sync + 'static>;
@@ -122,6 +125,7 @@ pub(crate) struct Shared {
     pub(crate) command_sender: mpsc::Sender<Command>,
     pub(crate) kademlia_tasks_semaphore: ResizableSemaphore,
     pub(crate) regular_tasks_semaphore: ResizableSemaphore,
+    pub(crate) bootstrap_finished: Mutex<bool>,
 }
 
 impl Shared {
@@ -140,6 +144,7 @@ impl Shared {
             command_sender,
             kademlia_tasks_semaphore,
             regular_tasks_semaphore,
+            bootstrap_finished: Mutex::new(false),
         }
     }
 }
