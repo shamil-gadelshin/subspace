@@ -284,7 +284,7 @@ pub(super) fn configure_dsn(
                 move |address| {
                     info!(
                         "DSN listening on {}",
-                        address.clone().with(Protocol::P2p(node.id().into()))
+                        address.clone().with(Protocol::P2p(node.id()))
                     );
                 }
             }))
