@@ -50,7 +50,7 @@ pub(super) fn build_transport(
             .boxed()
     };
 
-    let quic = QuicTransport::new(QuicConfig::new(keypair))
+    let quic = QuicTransport::new(QuicConfig::new(keypair).path_mtu_discovery_config(None))
         .map(|(peer_id, muxer), _| (peer_id, StreamMuxerBox::new(muxer)));
 
     let wrapped_quic =
