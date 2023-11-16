@@ -8,6 +8,7 @@ use libp2p::swarm::{
 use libp2p::{Multiaddr, PeerId};
 use std::collections::HashMap;
 use std::task::{Context, Poll};
+use tracing::warn;
 
 // TODO: Upstream these capabilities
 pub(crate) struct Behaviour {
@@ -42,6 +43,8 @@ impl Behaviour {
         if let Some(remove_attempts) = remove_attempts {
             if let Some(attempts) = self.incoming_allow_list.get_mut(peer) {
                 *attempts = attempts.saturating_sub(remove_attempts);
+
+                warn!(%peer, %attempts, "remove_from_incoming_allow_list");
 
                 if *attempts == 0 {
                     self.incoming_allow_list.remove(peer);
@@ -102,6 +105,7 @@ impl NetworkBehaviour for Behaviour {
             }
         }) {
             if self.incoming_allow_list.contains_key(&peer) {
+                warn!(%peer, "self.incoming_allow_list.contains_key(&peer)");
                 return Ok(());
             }
         }
@@ -120,8 +124,10 @@ impl NetworkBehaviour for Behaviour {
         if let Some(attempts) = self.incoming_allow_list.get_mut(&peer) {
             *attempts -= 1;
 
+            warn!(%peer, "handle_established_inbound_connection");
             if *attempts == 0 {
                 self.incoming_allow_list.remove(&peer);
+                warn!(%peer, "self.incoming_allow_list.remove");
             }
 
             return Ok(Self::ConnectionHandler {});

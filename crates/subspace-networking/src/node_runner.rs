@@ -47,7 +47,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tokio::time::Sleep;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 // Defines a batch size for peer addresses from Kademlia buckets.
 const KADEMLIA_PEERS_ADDRESSES_BATCH_SIZE: usize = 20;
@@ -348,7 +348,7 @@ where
         let network_info = self.swarm.network_info();
         let connections = network_info.connection_counters();
 
-        debug!(?connections, "Current connections and limits.");
+        info!(?connections, "Current connections and limits.");
 
         // Renew known external addresses.
         let mut external_addresses = self.swarm.external_addresses().cloned().collect::<Vec<_>>();
@@ -1174,9 +1174,9 @@ where
     }
 
     async fn handle_autonat_event(&mut self, event: AutonatEvent) {
-        trace!(?event, "Autonat event received.");
+        info!(?event, "Autonat event received.");
         if let Some(autonat) = self.swarm.behaviour().autonat.as_ref() {
-            debug!(
+            info!(
                 public_address=?autonat.public_address(),
                 confidence=%autonat.confidence(),
                 "Current public address confidence."
@@ -1197,12 +1197,16 @@ where
                             .connection_limits
                             // We expect a single successful dial from this peer
                             .add_to_incoming_allow_list(peer, 1);
+
+                        warn!(%peer, "OutboundProbeEvent::Request");
                     }
                     OutboundProbeEvent::Response { peer, .. } => {
                         self.swarm
                             .behaviour_mut()
                             .connection_limits
                             .remove_from_incoming_allow_list(&peer, Some(1));
+
+                        warn!(%peer, "OutboundProbeEvent::Response");
                     }
                     OutboundProbeEvent::Error { peer, .. } => {
                         if let Some(peer) = peer {
@@ -1215,7 +1219,7 @@ where
                 }
             }
             AutonatEvent::StatusChanged { old, new } => {
-                debug!(?old, ?new, "Public address status changed.");
+                info!(?old, ?new, "Public address status changed.");
 
                 // TODO: Remove block once https://github.com/libp2p/rust-libp2p/issues/4863 is resolved
                 if let (NatStatus::Public(old_address), NatStatus::Private) = (old, new) {
