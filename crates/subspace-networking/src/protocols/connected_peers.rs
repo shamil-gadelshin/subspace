@@ -46,7 +46,7 @@ use std::task::{Context, Poll, Waker};
 use std::time::{Duration, Instant};
 use tracing::{debug, trace};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub(super) enum ConnectionType {
     Outgoing,
     Incoming,
@@ -70,32 +70,6 @@ impl ConnectionType {
     }
 }
 
-#[derive(Debug, Clone)]
-struct ConnectionInfo {
-    state: ConnectionState,
-    connection_type: Option<ConnectionType>,
-}
-
-impl ConnectionInfo {
-    fn stringify(&self) -> String {
-        format!(
-            "{0}:{1}",
-            self.connection_type
-                .clone()
-                .map(|conn_type| conn_type.stringify())
-                .unwrap_or("None".to_string()),
-            self.state.stringify()
-        )
-    }
-
-    fn new(connection_type: Option<ConnectionType>, connection_state: ConnectionState) -> Self {
-        Self {
-            connection_type,
-            state: connection_state,
-        }
-    }
-}
-
 /// Represents different states of a peer permanent connection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ConnectionState {
@@ -107,11 +81,17 @@ enum ConnectionState {
 
     /// We're waiting for a decision for some time. The decision time is limited by the
     /// connection timeout.
-    Deciding { connection_id: ConnectionId },
+    Deciding {
+        connection_id: ConnectionId,
+        connection_type: ConnectionType,
+    },
 
     /// Indicates that the decision has been made to maintain a permanent
     /// connection with the peer. No further decision-making is required for this state.
-    Permanent { connection_id: ConnectionId },
+    Permanent {
+        connection_id: ConnectionId,
+        connection_type: ConnectionType,
+    },
 
     /// Shows that the system has decided not to connect with the peer.
     /// No further decision-making is required for this state.
@@ -128,21 +108,42 @@ impl ConnectionState {
     fn connection_id(&self) -> Option<ConnectionId> {
         match self {
             ConnectionState::Preparing { .. } | ConnectionState::Connecting { .. } => None,
-            ConnectionState::Deciding { connection_id } => Some(*connection_id),
-            ConnectionState::Permanent { connection_id } => Some(*connection_id),
+            ConnectionState::Deciding { connection_id, .. } => Some(*connection_id),
+            ConnectionState::Permanent { connection_id, .. } => Some(*connection_id),
+            ConnectionState::NotInterested => None,
+        }
+    }
+
+    /// Returns active connection type if any.
+    fn connection_type(&self) -> Option<ConnectionType> {
+        match self {
+            ConnectionState::Preparing { .. } | ConnectionState::Connecting { .. } => None,
+            ConnectionState::Deciding {
+                connection_type, ..
+            } => Some(*connection_type),
+            ConnectionState::Permanent {
+                connection_type, ..
+            } => Some(*connection_type),
             ConnectionState::NotInterested => None,
         }
     }
 
     /// Converts [`ConnectionState`] to a string with information loss.
     fn stringify(&self) -> String {
-        match self {
+        let type_part = self
+            .connection_type()
+            .map(|conn_type| conn_type.stringify())
+            .unwrap_or("None".to_string());
+
+        let state_part = match self {
             ConnectionState::Preparing { .. } => "ToConnect".to_string(),
             ConnectionState::Connecting { .. } => "Connecting".to_string(),
             ConnectionState::Deciding { .. } => "Deciding".to_string(),
             ConnectionState::Permanent { .. } => "Permanent".to_string(),
             ConnectionState::NotInterested => "NotInterested".to_string(),
-        }
+        };
+
+        format!("{0}:{1}", type_part, state_part)
     }
 }
 
@@ -210,7 +211,7 @@ pub struct Behaviour<Instance> {
     config: Config,
 
     /// Represents current permanent connection decisions for known peers.
-    known_peers: HashMap<PeerId, ConnectionInfo>,
+    known_peers: HashMap<PeerId, ConnectionState>,
 
     /// Pending 'signals' to connection handlers about recent changes.
     peer_decision_changes: Vec<PeerConnectionDecisionUpdate>,
@@ -257,12 +258,14 @@ impl<Instance> Behaviour<Instance> {
     ) -> Handler {
         let default_keep_alive_until = Instant::now() + self.config.decision_timeout;
         let (keep_alive, keep_alive_until) =
-            if let Some(connection_info) = self.known_peers.get_mut(peer_id) {
-                match connection_info.state {
+            if let Some(connection_state) = self.known_peers.get_mut(peer_id) {
+                match connection_state {
                     ConnectionState::Preparing { .. } | ConnectionState::Connecting { .. } => {
                         // Connection attempt was successful.
-                        connection_info.state = ConnectionState::Deciding { connection_id };
-                        connection_info.connection_type = Some(connection_type);
+                        *connection_state = ConnectionState::Deciding {
+                            connection_id,
+                            connection_type,
+                        };
 
                         (true, Some(default_keep_alive_until))
                     }
@@ -274,10 +277,10 @@ impl<Instance> Behaviour<Instance> {
                 // Connection from other protocols.
                 self.known_peers.insert(
                     *peer_id,
-                    ConnectionInfo::new(
-                        Some(connection_type),
-                        ConnectionState::Deciding { connection_id },
-                    ),
+                    ConnectionState::Deciding {
+                        connection_id,
+                        connection_type,
+                    },
                 );
 
                 (true, Some(default_keep_alive_until))
@@ -298,22 +301,22 @@ impl<Instance> Behaviour<Instance> {
             < self.config.target_connected_peers;
 
         // It's a known peer.
-        if let Some(connection_info) = self.known_peers.get_mut(&peer_id) {
+        if let Some(connection_state) = self.known_peers.get_mut(&peer_id) {
             // We're connected
-            if let Some(connection_id) = connection_info.state.connection_id() {
-                let not_enough_connected_peers = {
-                    if let Some(connection_type) = &connection_info.connection_type {
-                        match connection_type {
-                            ConnectionType::Outgoing => allow_new_outgoing_connected_peer,
-                            ConnectionType::Incoming => allow_new_incoming_connected_peer,
-                        }
-                    } else {
-                        debug!(
+            if let Some(connection_id) = connection_state.connection_id() {
+                let Some(connection_type) = connection_state.connection_type() else {
+                    debug!(
                             ?peer_id,
                             ?keep_alive,
                             "Detected an attempt to update status of peer with unknown connection type."
                         );
-                        return;
+                    return;
+                };
+
+                let not_enough_connected_peers = {
+                    match connection_type {
+                        ConnectionType::Outgoing => allow_new_outgoing_connected_peer,
+                        ConnectionType::Incoming => allow_new_incoming_connected_peer,
                     }
                 };
 
@@ -323,19 +326,21 @@ impl<Instance> Behaviour<Instance> {
                     trace!(%peer_id, %keep_alive, "Target number of connected peers reached.");
                 }
 
-                //
-                //
-                //     || ;
-
                 // Check whether we have enough connected peers already and a positive decision
                 let (new_connection_state, keep_alive_handler) =
                     if not_enough_connected_peers && keep_alive {
-                        (ConnectionState::Permanent { connection_id }, true)
+                        (
+                            ConnectionState::Permanent {
+                                connection_id,
+                                connection_type,
+                            },
+                            true,
+                        )
                     } else {
                         (ConnectionState::NotInterested, false)
                     };
 
-                connection_info.state = new_connection_state;
+                *connection_state = new_connection_state;
 
                 self.peer_decision_changes
                     .push(PeerConnectionDecisionUpdate {
@@ -361,12 +366,18 @@ impl<Instance> Behaviour<Instance> {
     }
 
     /// Calculates the current number of permanently connected peers.
-    fn permanently_connected_peers(&self, connection_type: ConnectionType) -> u32 {
+    fn permanently_connected_peers(&self, filter_connection_type: ConnectionType) -> u32 {
         self.known_peers
             .iter()
-            .filter(|(_, connection_info)| {
-                matches!(connection_info.state, ConnectionState::Permanent { .. })
-                    && connection_info.connection_type.clone() == Some(connection_type.clone())
+            .filter(|(_, connection_state)| {
+                if let ConnectionState::Permanent {
+                    connection_type, ..
+                } = connection_state
+                {
+                    *connection_type == filter_connection_type
+                } else {
+                    false
+                }
             })
             .count() as u32
     }
@@ -376,8 +387,8 @@ impl<Instance> Behaviour<Instance> {
     fn active_peers(&self) -> u32 {
         self.known_peers
             .iter()
-            .filter(|(_, connection_info)| {
-                !matches!(connection_info.state, ConnectionState::NotInterested)
+            .filter(|(_, connection_state)| {
+                !matches!(connection_state, ConnectionState::NotInterested)
             })
             .count() as u32
     }
@@ -460,10 +471,10 @@ impl<Instance: 'static + Send> NetworkBehaviour for Behaviour<Instance> {
                 match self.known_peers.entry(peer_id) {
                     // Connection was established without dialing from this protocol
                     Entry::Vacant(entry) => {
-                        entry.insert(ConnectionInfo::new(
-                            Some(endpoint.into()),
-                            ConnectionState::Deciding { connection_id },
-                        ));
+                        entry.insert(ConnectionState::Deciding {
+                            connection_id,
+                            connection_type: endpoint.into(),
+                        });
 
                         trace!(%peer_id, "Pending peer decision...");
                         self.wake();
@@ -483,7 +494,7 @@ impl<Instance: 'static + Send> NetworkBehaviour for Behaviour<Instance> {
                 let known_connection_closed = self
                     .known_peers
                     .get(&peer_id)
-                    .and_then(|connection_info| connection_info.state.connection_id())
+                    .and_then(|connection_state| connection_state.connection_id())
                     .map(|exiting_connection_id| exiting_connection_id == connection_id)
                     .unwrap_or(false);
 
@@ -516,7 +527,7 @@ impl<Instance: 'static + Send> NetworkBehaviour for Behaviour<Instance> {
                 let other_connections = self
                     .known_peers
                     .get(&peer_id)
-                    .map(|connection_info| connection_info.state.connected())
+                    .map(|connection_state| connection_state.connected())
                     .unwrap_or(false);
                 if !other_connections {
                     let old_peer_decision = self.known_peers.remove(&peer_id);
@@ -559,8 +570,8 @@ impl<Instance: 'static + Send> NetworkBehaviour for Behaviour<Instance> {
         }
 
         // Check decision statuses.
-        for (peer_id, connection_info) in self.known_peers.iter_mut() {
-            match &mut connection_info.state {
+        for (peer_id, connection_state) in self.known_peers.iter_mut() {
+            match connection_state {
                 ConnectionState::Preparing {
                     peer_address: address,
                 } => {
@@ -568,10 +579,9 @@ impl<Instance: 'static + Send> NetworkBehaviour for Behaviour<Instance> {
 
                     let dial_opts = DialOpts::peer_id(*peer_id).addresses(vec![address.clone()]);
 
-                    connection_info.state = ConnectionState::Connecting {
+                    *connection_state = ConnectionState::Connecting {
                         peer_address: address.clone(),
                     };
-                    connection_info.connection_type = Some(ConnectionType::Outgoing);
 
                     return Poll::Ready(ToSwarm::Dial {
                         opts: dial_opts.build(),
@@ -615,12 +625,9 @@ impl<Instance: 'static + Send> NetworkBehaviour for Behaviour<Instance> {
                         self.known_peers.entry(peer_id).or_insert_with(|| {
                             cx.waker().wake_by_ref();
 
-                            ConnectionInfo::new(
-                                None,
-                                ConnectionState::Preparing {
-                                    peer_address: address,
-                                },
-                            )
+                            ConnectionState::Preparing {
+                                peer_address: address,
+                            }
                         });
                     }
                 }
