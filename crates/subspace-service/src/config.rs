@@ -1,5 +1,5 @@
 use crate::dsn::DsnConfig;
-use crate::sync_from_dsn::DsnSyncPieceGetter;
+use crate::sync::DsnSyncPieceGetter;
 use prometheus_client::registry::Registry;
 use sc_chain_spec::ChainSpec;
 use sc_network::config::{

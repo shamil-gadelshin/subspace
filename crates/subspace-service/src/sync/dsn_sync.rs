@@ -1,10 +1,9 @@
 mod import_blocks;
-pub(super) mod piece_validator;
-mod segment_header_downloader;
+pub(crate) mod piece_validator;
 
-use crate::sync_from_dsn::import_blocks::import_blocks_from_dsn;
-pub use crate::sync_from_dsn::import_blocks::DsnSyncPieceGetter;
-use crate::sync_from_dsn::segment_header_downloader::SegmentHeaderDownloader;
+use super::segment_header_downloader::SegmentHeaderDownloader;
+use crate::sync::dsn_sync::import_blocks::import_blocks_from_dsn;
+use crate::sync::DsnSyncPieceGetter;
 use futures::channel::mpsc;
 use futures::{select, FutureExt, StreamExt};
 use sc_client_api::{AuxStore, BlockBackend, BlockchainEvents};
@@ -45,7 +44,7 @@ enum NotificationReason {
 /// Create node observer that will track node state and send notifications to worker to start sync
 /// from DSN.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn create_observer_and_worker<Block, AS, Client, PG>(
+pub(crate) fn create_observer_and_worker<Block, AS, Client, PG>(
     segment_headers_store: SegmentHeadersStore<AS>,
     network_service: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
     node: Node,
