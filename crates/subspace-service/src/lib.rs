@@ -28,13 +28,14 @@ pub mod config;
 pub mod dsn;
 mod metrics;
 pub mod rpc;
-pub mod sync_from_dsn;
+pub mod sync;
 pub mod transaction_pool;
 
 use crate::config::{SubspaceConfiguration, SubspaceNetworking};
 use crate::dsn::{create_dsn_instance, DsnConfigurationError};
 use crate::metrics::NodeMetrics;
-use crate::sync_from_dsn::piece_validator::SegmentCommitmentPieceValidator;
+use crate::sync::dsn_sync;
+use crate::sync::dsn_sync::piece_validator::SegmentCommitmentPieceValidator;
 use crate::transaction_pool::FullPool;
 use core::sync::atomic::{AtomicU32, Ordering};
 use cross_domain_message_gossip::xdm_gossip_peers_set_config;
@@ -896,7 +897,7 @@ where
             pause_sync.store(true, Ordering::Release);
         }
 
-        let (observer, worker) = sync_from_dsn::create_observer_and_worker(
+        let (observer, worker) = dsn_sync::create_observer_and_worker(
             segment_headers_store.clone(),
             Arc::clone(&network_service),
             node.clone(),
