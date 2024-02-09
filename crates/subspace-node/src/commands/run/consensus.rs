@@ -172,6 +172,8 @@ enum StatePruningMode {
     Archive,
     /// Keep only the data of finalized blocks.
     ArchiveCanonical,
+    /// Keep the data of the last number of finalized blocks.
+    Number(u32),
 }
 
 impl FromStr for StatePruningMode {
@@ -181,17 +183,21 @@ impl FromStr for StatePruningMode {
         match input {
             "archive" => Ok(Self::Archive),
             "archive-canonical" => Ok(Self::ArchiveCanonical),
-            _ => Err("Invalid state pruning mode specified".to_string()),
+            n => n
+                .parse()
+                .map_err(|_| "Invalid block pruning mode specified".to_string())
+                .map(Self::Number),
         }
     }
 }
 
 impl fmt::Display for StatePruningMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Archive => "archive",
-            Self::ArchiveCanonical => "archive-canonical",
-        })
+        match self {
+            Self::Archive => f.write_str("archive"),
+            Self::ArchiveCanonical => f.write_str("archive-canonical"),
+            Self::Number(n) => f.write_str(n.to_string().as_str()),
+        }
     }
 }
 
@@ -266,6 +272,7 @@ impl PruningOptions {
         match self.state_pruning {
             StatePruningMode::Archive => PruningMode::ArchiveAll,
             StatePruningMode::ArchiveCanonical => PruningMode::ArchiveCanonical,
+            StatePruningMode::Number(num) => PruningMode::blocks_pruning(num),
         }
     }
 

@@ -61,7 +61,7 @@ use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_INFO};
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedSender};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
-use sp_consensus::SyncOracle;
+use sp_consensus::{BlockOrigin, SyncOracle};
 use sp_consensus_subspace::{FarmerPublicKey, SubspaceApi, SubspaceJustification};
 use sp_objects::ObjectsApi;
 use sp_runtime::generic::SignedBlock;
@@ -256,7 +256,7 @@ pub struct ArchivedSegmentNotification {
     pub acknowledgement_sender: TracingUnboundedSender<()>,
 }
 
-fn find_last_archived_block<Block, Client, AS>(
+pub fn find_last_archived_block<Block, Client, AS>(
     client: &Client,
     segment_headers_store: &SegmentHeadersStore<AS>,
     best_block_to_archive: NumberFor<Block>,
@@ -683,7 +683,7 @@ fn finalize_block<Block, Backend, Client>(
                 error
             })?;
 
-        debug!("Finalizing blocks up to ({:?}, {})", number, hash);
+        info!("Finalizing blocks up to ({:?}, {})", number, hash);
 
         telemetry!(
             telemetry;
@@ -771,9 +771,12 @@ where
             // Just to be very explicit that block import shouldn't continue until archiving
             // is over
             acknowledgement_sender: _acknowledgement_sender,
-            ..
+            origin,
+            last_archived_block
         }) = block_importing_notification_stream.next().await
         {
+            info!(%block_number, ?origin, "Importing block with archiver.");
+
             let block_number_to_archive =
                 match block_number.checked_sub(&confirmation_depth_k.into()) {
                     Some(block_number_to_archive) => block_number_to_archive,
@@ -783,7 +786,22 @@ where
                 };
 
             if best_archived_block_number >= block_number_to_archive {
+                info!(%block_number, "Skipped archiving imported block: already archived.");
                 // This block was already archived, skip
+                continue;
+            }
+
+            if origin == BlockOrigin::FastSync {
+                // best_archived_block_number = block_number;
+                info!(%block_number, "Fast sync marker: {last_archived_block:?}");
+                let last_archived_block = last_archived_block.unwrap();// TODO:
+                best_archived_block_number = last_archived_block.0.last_archived_block().number.into();
+                best_archived_block_hash = last_archived_block.1.block.header().hash();
+                let last_archived_block_encoded = encode_block(last_archived_block.1);
+                archiver = Archiver::with_initial_state(archiver.kzg(), last_archived_block.0, &last_archived_block_encoded, last_archived_block.2).unwrap();
+
+                info!(%block_number, "Skipped archiving imported block: fast sync marker.");
+                // This block is a fast-sync marker, skip
                 continue;
             }
 
@@ -800,10 +818,11 @@ where
             let parent_block_hash = *block.block.header().parent_hash();
             let block_hash_to_archive = block.block.hash();
 
-            debug!(
+            info!(
                 "Archiving block {:?} ({})",
                 block_number_to_archive, block_hash_to_archive
             );
+
 
             if parent_block_hash != best_archived_block_hash {
                 let error = format!(
@@ -917,7 +936,7 @@ async fn send_archived_segment_notification(
     archived_segment_notification_sender.notify(move || archived_segment_notification);
 
     while acknowledgement_receiver.next().await.is_some() {
-        debug!(
+        info!(
             "Archived segment notification acknowledged: {}",
             segment_index
         );

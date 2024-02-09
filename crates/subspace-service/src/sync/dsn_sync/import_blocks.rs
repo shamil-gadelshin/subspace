@@ -33,7 +33,7 @@ use subspace_core_primitives::{
     ArchivedHistorySegment, BlockNumber, Piece, RecordedHistorySegment, SegmentIndex,
 };
 use tokio::sync::Semaphore;
-use tracing::warn;
+use tracing::{info, warn};
 
 /// How many blocks to queue before pausing and waiting for blocks to be imported, this is
 /// essentially used to ensure we use a bounded amount of RAM during sync process.
@@ -44,6 +44,7 @@ const WAIT_FOR_BLOCKS_TO_IMPORT: Duration = Duration::from_secs(1);
 /// Starts the process of importing blocks.
 ///
 /// Returns number of downloaded blocks.
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn import_blocks_from_dsn<Block, AS, Client, PG, IQS>(
     segment_headers_store: &SegmentHeadersStore<AS>,
     segment_header_downloader: &SegmentHeaderDownloader<'_>,
@@ -52,6 +53,7 @@ pub(super) async fn import_blocks_from_dsn<Block, AS, Client, PG, IQS>(
     import_queue_service: &mut IQS,
     last_processed_segment_index: &mut SegmentIndex,
     last_processed_block_number: &mut <Block::Header as Header>::Number,
+    reconstructor: &mut Reconstructor,
 ) -> Result<u64, sc_service::Error>
 where
     Block: BlockT,
@@ -81,7 +83,6 @@ where
     }
 
     let mut downloaded_blocks = 0;
-    let mut reconstructor = Reconstructor::new().map_err(|error| error.to_string())?;
     // Start from the first unprocessed segment and process all segments known so far
     let segment_indices_iter = (*last_processed_segment_index + SegmentIndex::ONE)
         ..=segment_headers_store
@@ -90,13 +91,13 @@ where
     let mut segment_indices_iter = segment_indices_iter.peekable();
 
     while let Some(segment_index) = segment_indices_iter.next() {
-        debug!(%segment_index, "Processing segment");
+        info!(%segment_index, "Processing segment");
 
         let segment_header = segment_headers_store
             .get_segment_header(segment_index)
             .expect("Statically guaranteed to exist, see checks above; qed");
 
-        trace!(
+        info!(
             %segment_index,
             last_archived_block_number = %segment_header.last_archived_block().number,
             last_archived_block_progress = ?segment_header.last_archived_block().archived_progress,
@@ -116,7 +117,7 @@ where
         if last_archived_block <= *last_processed_block_number {
             *last_processed_segment_index = segment_index;
             // Reset reconstructor instance
-            reconstructor = Reconstructor::new().map_err(|error| error.to_string())?;
+            *reconstructor = Reconstructor::new().map_err(|error| error.to_string())?;
             continue;
         }
         // Just one partial unprocessed block and this was the last segment available, so nothing to
@@ -126,13 +127,12 @@ where
             && segment_indices_iter.peek().is_none()
         {
             // Reset reconstructor instance
-            reconstructor = Reconstructor::new().map_err(|error| error.to_string())?;
+            *reconstructor = Reconstructor::new().map_err(|error| error.to_string())?;
             continue;
         }
 
         let blocks =
-            download_and_reconstruct_blocks(segment_index, piece_getter, &mut reconstructor)
-                .await?;
+            download_and_reconstruct_blocks(segment_index, piece_getter, reconstructor).await?;
 
         let mut blocks_to_import = Vec::with_capacity(QUEUED_BLOCKS_LIMIT as usize);
 
@@ -167,9 +167,12 @@ where
                         .import_blocks(BlockOrigin::NetworkInitialSync, blocks_to_import.clone());
                     blocks_to_import.clear();
                 }
-                trace!(
+
+                let limit = QUEUED_BLOCKS_LIMIT;
+                info!(
                     %block_number,
                     %best_block_number,
+                    %limit,
                     "Number of importing blocks reached queue limit, waiting before retrying"
                 );
                 tokio::time::sleep(WAIT_FOR_BLOCKS_TO_IMPORT).await;
@@ -222,6 +225,7 @@ where
                 let last_block = blocks_to_import
                     .pop()
                     .expect("Not empty, checked above; qed");
+
                 import_queue_service
                     .import_blocks(BlockOrigin::NetworkInitialSync, blocks_to_import);
                 // This will notify Substrate's sync mechanism and allow regular Substrate sync to continue gracefully
@@ -238,7 +242,7 @@ where
     Ok(downloaded_blocks)
 }
 
-async fn download_and_reconstruct_blocks<PG>(
+pub(crate) async fn download_and_reconstruct_blocks<PG>(
     segment_index: SegmentIndex,
     piece_getter: &PG,
     reconstructor: &mut Reconstructor,
@@ -246,7 +250,7 @@ async fn download_and_reconstruct_blocks<PG>(
 where
     PG: DsnSyncPieceGetter,
 {
-    debug!(%segment_index, "Retrieving pieces of the segment");
+    info!(%segment_index, "Retrieving pieces of the segment");
 
     let semaphore = &Semaphore::new(RecordedHistorySegment::NUM_RAW_RECORDS);
 

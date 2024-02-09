@@ -138,7 +138,11 @@ impl From<SubstrateConfiguration> for Configuration {
                 // Substrate's default
                 max_blocks_per_request: 64,
                 // Substrate's default, full mode
-                sync_mode: SyncMode::Full,
+                sync_mode: SyncMode::LightState {
+                    skip_proofs: true,
+                    storage_chain_mode: false,
+                },
+                //  sync_mode: SyncMode::Full, // TODO
                 pause_sync: Arc::new(AtomicBool::new(false)),
                 // Substrate's default
                 enable_dht_random_walk: true,

@@ -271,6 +271,8 @@ where
 
             Box::new(
                 move |parent_hash, slot, proof_of_time, quick_verification| {
+                    return true; // TODO:
+
                     let parent_hash = {
                         let mut converted_parent_hash = Block::Hash::default();
                         converted_parent_hash.as_mut().copy_from_slice(&parent_hash);
@@ -796,7 +798,9 @@ where
         }
     };
 
-    let import_queue_service = import_queue.service();
+    let import_queue_service1 = import_queue.service();
+    let import_queue_service2 = import_queue.service();
+    let import_queue_service3 = import_queue.service();
     let network_wrapper = Arc::new(NetworkWrapper::default());
     let block_relay = Some(
         build_consensus_relay(
@@ -902,10 +906,14 @@ where
             Arc::clone(&network_service),
             node.clone(),
             Arc::clone(&client),
-            import_queue_service,
+            import_queue_service1,
+            import_queue_service2,
+            import_queue_service3,
             sync_target_block_number,
             pause_sync,
             dsn_sync_piece_getter,
+            sync_service.clone(),
+            subspace_link.clone(),
         );
         task_manager
             .spawn_handle()
@@ -1038,6 +1046,8 @@ where
             move |parent_hash, ()| {
                 let client = client.clone();
                 let subspace_link = subspace_link.clone();
+
+                println!("From within create_inherent_data_providers: {:?}", parent_hash);
 
                 async move {
                     let timestamp = sp_timestamp::InherentDataProvider::from_system_time();

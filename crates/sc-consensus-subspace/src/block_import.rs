@@ -53,12 +53,15 @@ use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor, One};
 use sp_runtime::Justifications;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use sp_consensus::BlockOrigin;
+use sp_runtime::generic::SignedBlock;
 use subspace_core_primitives::{
     BlockNumber, HistorySize, PublicKey, SectorId, SegmentHeader, SegmentIndex, SolutionRange,
 };
 use subspace_proof_of_space::Table;
 use subspace_verification::{calculate_block_weight, PieceCheckParams, VerifySolutionParams};
-use tracing::warn;
+use tracing::{info, warn};
+use subspace_core_primitives::objects::BlockObjectMapping;
 
 /// Notification with number of the block that is about to be imported and acknowledgement sender
 /// that can be used to pause block production if desired.
@@ -69,6 +72,13 @@ where
 {
     /// Block number
     pub block_number: NumberFor<Block>,
+
+    /// Block origin
+    pub origin: BlockOrigin,
+
+    // TODO: remove
+    pub last_archived_block: Option<(SegmentHeader, SignedBlock<Block>, BlockObjectMapping)>,
+
     /// Sender for pausing the block import when operator is not fast enough to process
     /// the consensus block.
     pub acknowledgement_sender: mpsc::Sender<()>,
@@ -355,6 +365,7 @@ where
         justifications: &Option<Justifications>,
         skip_runtime_access: bool,
     ) -> Result<(), Error<Block::Header>> {
+        println!("Here 1 hash = {:?}", block_hash);
         let block_number = *header.number();
         let parent_hash = *header.parent_hash();
 
@@ -578,19 +589,21 @@ where
                     inherent_data,
                 )?;
 
-                if !inherent_res.ok() {
-                    for (i, e) in inherent_res.into_errors() {
-                        match create_inherent_data_providers
-                            .try_handle_error(&i, &e)
-                            .await
-                        {
-                            Some(res) => res.map_err(Error::CheckInherents)?,
-                            None => return Err(Error::CheckInherentsUnhandled(i)),
-                        }
-                    }
-                }
+                // if !inherent_res.ok() {
+                //     for (i, e) in inherent_res.into_errors() {
+                //         match create_inherent_data_providers
+                //             .try_handle_error(&i, &e)
+                //             .await
+                //         {
+                //             Some(res) => res.map_err(Error::CheckInherents)?,
+                //             None => return Err(Error::CheckInherentsUnhandled(i)),
+                //         }
+                //     }
+                // }
             }
         }
+
+        println!("Here 2 hash = {:?}", block_hash);
 
         Ok(())
     }
@@ -623,6 +636,8 @@ where
         let block_hash = block.post_hash();
         let block_number = *block.header.number();
 
+        info!(%block_number, ?block_hash, origin=?block.origin, "Subspace block import.");
+
         // Early exit if block already in chain
         match self.client.status(block_hash)? {
             sp_blockchain::BlockStatus::InChain => {
@@ -639,10 +654,20 @@ where
         let subspace_digest_items = extract_subspace_digest_items(&block.header)?;
         let skip_execution_checks = block.state_action.skip_execution_checks();
 
+        // TODO:
+        println!(
+            "*** import_block (before root_plot_public_key): {:?}",
+            block_hash
+        );
         let root_plot_public_key = self
             .client
             .runtime_api()
             .root_plot_public_key(*block.header.parent_hash())?;
+
+        println!(
+            "*** import_block (before block_import_verification): {:?}",
+            block_hash
+        );
 
         self.block_import_verification(
             block_hash,
@@ -653,14 +678,22 @@ where
             &block.justifications,
             skip_execution_checks,
         )
-        .await?;
+            .await?;
+
 
         let parent_weight = if block_number.is_one() {
             0
         } else {
-            aux_schema::load_block_weight(self.client.as_ref(), block.header.parent_hash())?
-                .ok_or_else(|| Error::ParentBlockNoAssociatedWeight(block_hash))?
+            //TODO:
+            // if block.origin == BlockOrigin::FastSync{
+            //     0
+            // } else {
+                aux_schema::load_block_weight(self.client.as_ref(), block.header.parent_hash())?
+                    .ok_or_else(|| Error::ParentBlockNoAssociatedWeight(block_hash))?
+      //     }
         };
+
+   //     let parent_weight = 0;
 
         let added_weight = calculate_block_weight(subspace_digest_items.solution_range);
         let total_weight = parent_weight + added_weight;
@@ -687,7 +720,10 @@ where
                 return Err(Error::DifferentSegmentCommitment(segment_index));
             }
         }
-
+        println!(
+            "*** import_block (before load_block_weight): {:?}",
+            block_hash
+        );
         // The fork choice rule is that we pick the heaviest chain (i.e. smallest solution range),
         // if there's a tie we go with the longest chain
         let fork_choice = {
@@ -708,16 +744,22 @@ where
 
         let (acknowledgement_sender, mut acknowledgement_receiver) = mpsc::channel(0);
 
+        println!("*** import_block (before notify): {:?}", block_hash);
+
         self.subspace_link
             .block_importing_notification_sender
             .notify(move || BlockImportingNotification {
                 block_number,
+                origin: block.origin,
                 acknowledgement_sender,
+                last_archived_block: None,
             });
 
         while acknowledgement_receiver.next().await.is_some() {
             // Wait for all the acknowledgements to finish.
         }
+
+        println!("*** import_block (before import_block): {:?}", block_hash);
 
         self.inner
             .import_block(block)
