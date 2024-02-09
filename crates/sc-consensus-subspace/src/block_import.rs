@@ -355,6 +355,7 @@ where
         justifications: &Option<Justifications>,
         skip_runtime_access: bool,
     ) -> Result<(), Error<Block::Header>> {
+        println!("Here 1 hash = {:?}", block_hash);
         let block_number = *header.number();
         let parent_hash = *header.parent_hash();
 
@@ -592,6 +593,8 @@ where
             }
         }
 
+        println!("Here 2 hash = {:?}", block_hash);
+
         Ok(())
     }
 }
@@ -622,6 +625,8 @@ where
     ) -> Result<ImportResult, Self::Error> {
         let block_hash = block.post_hash();
         let block_number = *block.header.number();
+
+        println!("*** import_block: {:?}", block_hash);
 
         // Early exit if block already in chain
         match self.client.status(block_hash)? {

@@ -112,6 +112,7 @@ use subspace_proof_of_space::Table;
 use subspace_runtime_primitives::opaque::Block;
 use subspace_runtime_primitives::{AccountId, Balance, Hash, Nonce};
 use tracing::{debug, error, info, Instrument};
+use sc_service::config::SyncMode;
 
 // There are multiple places where it is assumed that node is running on 64-bit system, refuse to
 // compile otherwise
@@ -867,6 +868,7 @@ where
             sync_target_block_number,
             pause_sync,
             dsn_sync_piece_getter,
+            sync_service.clone(),
         );
         task_manager
             .spawn_handle()

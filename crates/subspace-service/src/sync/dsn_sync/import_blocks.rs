@@ -238,7 +238,7 @@ where
     Ok(downloaded_blocks)
 }
 
-async fn download_and_reconstruct_blocks<PG>(
+pub(crate) async fn download_and_reconstruct_blocks<PG>(
     segment_index: SegmentIndex,
     piece_getter: &PG,
     reconstructor: &mut Reconstructor,

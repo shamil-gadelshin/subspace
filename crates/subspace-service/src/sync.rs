@@ -1,4 +1,5 @@
 pub mod dsn_sync;
+pub mod fast_sync;
 pub mod segment_header_downloader;
 
 use async_trait::async_trait;

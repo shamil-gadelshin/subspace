@@ -25,6 +25,7 @@ use sp_messenger::messages::ChainId;
 use std::env;
 use subspace_runtime::{Block, RuntimeApi};
 use tracing::{debug, error, info, info_span, warn};
+use sc_service::config::SyncMode;
 
 /// Options for running a node
 #[derive(Debug, Parser)]
@@ -82,7 +83,7 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
 
     let ConsensusChainConfiguration {
         maybe_tmp_dir: _maybe_tmp_dir,
-        subspace_configuration,
+        mut subspace_configuration,
         dev,
         pot_external_entropy,
         storage_monitor,
@@ -126,6 +127,9 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
                     "Failed to build a full subspace node 1: {error:?}"
                 ))
             })?;
+
+            subspace_configuration.base.network.sync_mode = SyncMode::LightState {skip_proofs: true,
+                storage_chain_mode: false,};
 
             let full_node_fut = subspace_service::new_full::<PosTable, _>(
                 subspace_configuration,

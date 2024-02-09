@@ -1,4 +1,4 @@
-mod import_blocks;
+pub(crate) mod import_blocks;
 pub(crate) mod piece_validator;
 
 use super::segment_header_downloader::SegmentHeaderDownloader;
@@ -19,6 +19,7 @@ use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use sc_network_sync::SyncingService;
 use subspace_core_primitives::SegmentIndex;
 use subspace_networking::Node;
 use tracing::{info, warn};
@@ -53,6 +54,7 @@ pub(crate) fn create_observer_and_worker<Block, AS, Client, PG>(
     sync_target_block_number: Arc<AtomicU32>,
     pause_sync: Arc<AtomicBool>,
     piece_getter: PG,
+    sync_service: Arc<SyncingService<Block>>,
 ) -> (
     impl Future<Output = ()> + Send + 'static,
     impl Future<Output = Result<(), sc_service::Error>> + Send + 'static,
@@ -87,6 +89,7 @@ where
             pause_sync,
             rx,
             &piece_getter,
+            sync_service
         )
         .await
     };
@@ -218,6 +221,7 @@ async fn create_worker<Block, AS, IQS, Client, PG>(
     pause_sync: Arc<AtomicBool>,
     mut notifications: mpsc::Receiver<NotificationReason>,
     piece_getter: &PG,
+    sync_service: Arc<SyncingService<Block>>,
 ) -> Result<(), sc_service::Error>
 where
     Block: BlockT,
@@ -251,6 +255,10 @@ where
     // Node starts as offline, we'll wait for it to go online shrtly after
     let mut initial_pause_sync = Some(pause_sync.swap(true, Ordering::AcqRel));
     while let Some(reason) = notifications.next().await {
+        // TODO: remove test
+        super::fast_sync::download_last_segment(&segment_headers_store,node, piece_getter, sync_service.clone(), client, import_queue_service).await.unwrap();
+
+
         let prev_pause_sync = pause_sync.swap(true, Ordering::AcqRel);
 
         info!(?reason, "Received notification to sync from DSN");
