@@ -225,7 +225,7 @@ where
     .unwrap(); // TODO: remove error
     let sync_fut = sync_worker.run();
 
-    let _ = tokio::spawn(networking_fut);
+    let net_fut = tokio::spawn(networking_fut);
     let sync_worker_handle = tokio::spawn(sync_fut); // TODO: join until finish
 
     // Start the process
@@ -235,8 +235,12 @@ where
 
     println!("Sync worker handle result: {}", result.is_ok(),);
 
+    client.clear_block_gap();
+
     // Import delay
     sleep(Duration::from_secs(5)).await;
+
+    net_fut.abort();
 
     // This will notify Substrate's sync mechanism and allow regular Substrate sync to continue gracefully
    match result {
