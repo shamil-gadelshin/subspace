@@ -644,28 +644,42 @@ where
         let subspace_digest_items = extract_subspace_digest_items(&block.header)?;
         let skip_execution_checks = block.state_action.skip_execution_checks();
 
-        let root_plot_public_key = self
-            .client
-            .runtime_api()
-            .root_plot_public_key(*block.header.parent_hash())?;
+        if false {
+            // TODO:
+            println!(
+                "*** import_block (before root_plot_public_key): {:?}",
+                block_hash
+            );
+            let root_plot_public_key = self
+                .client
+                .runtime_api()
+                .root_plot_public_key(*block.header.parent_hash())?;
 
-        self.block_import_verification(
-            block_hash,
-            block.header.clone(),
-            block.body.clone(),
-            &root_plot_public_key,
-            &subspace_digest_items,
-            &block.justifications,
-            skip_execution_checks,
-        )
-        .await?;
+            println!(
+                "*** import_block (before block_import_verification): {:?}",
+                block_hash
+            );
 
-        let parent_weight = if block_number.is_one() {
-            0
-        } else {
-            aux_schema::load_block_weight(self.client.as_ref(), block.header.parent_hash())?
-                .ok_or_else(|| Error::ParentBlockNoAssociatedWeight(block_hash))?
-        };
+            self.block_import_verification(
+                block_hash,
+                block.header.clone(),
+                block.body.clone(),
+                &root_plot_public_key,
+                &subspace_digest_items,
+                &block.justifications,
+                skip_execution_checks,
+            )
+            .await?;
+        }
+
+        // let parent_weight = if block_number.is_one() {
+        //     0
+        // } else {
+        //     aux_schema::load_block_weight(self.client.as_ref(), block.header.parent_hash())?
+        //         .ok_or_else(|| Error::ParentBlockNoAssociatedWeight(block_hash))?
+        // };
+
+        let parent_weight = 0;
 
         let added_weight = calculate_block_weight(subspace_digest_items.solution_range);
         let total_weight = parent_weight + added_weight;
@@ -692,37 +706,46 @@ where
                 return Err(Error::DifferentSegmentCommitment(segment_index));
             }
         }
-
+        println!(
+            "*** import_block (before load_block_weight): {:?}",
+            block_hash
+        );
         // The fork choice rule is that we pick the heaviest chain (i.e. smallest solution range),
         // if there's a tie we go with the longest chain
-        let fork_choice = {
-            let info = self.client.info();
+        // TODO
+        // let fork_choice = {
+        //     let info = self.client.info();
+        //
+        //     let last_best_weight = if &info.best_hash == block.header.parent_hash() {
+        //         // the parent=genesis case is already covered for loading parent weight, so we don't
+        //         // need to cover again here
+        //         parent_weight
+        //     } else {
+        //         aux_schema::load_block_weight(&*self.client, info.best_hash)?
+        //             .ok_or_else(|| Error::NoBlockWeight(info.best_hash))?
+        //     };
+        //
+        //     ForkChoiceStrategy::Custom(total_weight > last_best_weight)
+        // };
+        //block.fork_choice = Some(fork_choice);
+        block.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
-            let last_best_weight = if &info.best_hash == block.header.parent_hash() {
-                // the parent=genesis case is already covered for loading parent weight, so we don't
-                // need to cover again here
-                parent_weight
-            } else {
-                aux_schema::load_block_weight(&*self.client, info.best_hash)?
-                    .ok_or_else(|| Error::NoBlockWeight(info.best_hash))?
-            };
+        // let (acknowledgement_sender, mut acknowledgement_receiver) = mpsc::channel(0);
+        //
+        // println!("*** import_block (before notify): {:?}", block_hash);
+        //
+        // self.subspace_link
+        //     .block_importing_notification_sender
+        //     .notify(move || BlockImportingNotification {
+        //         block_number,
+        //         acknowledgement_sender,
+        //     });
+        //
+        // while acknowledgement_receiver.next().await.is_some() {
+        //     // Wait for all the acknowledgements to finish.
+        // }
 
-            ForkChoiceStrategy::Custom(total_weight > last_best_weight)
-        };
-        block.fork_choice = Some(fork_choice);
-
-        let (acknowledgement_sender, mut acknowledgement_receiver) = mpsc::channel(0);
-
-        self.subspace_link
-            .block_importing_notification_sender
-            .notify(move || BlockImportingNotification {
-                block_number,
-                acknowledgement_sender,
-            });
-
-        while acknowledgement_receiver.next().await.is_some() {
-            // Wait for all the acknowledgements to finish.
-        }
+        println!("*** import_block (before import_block): {:?}", block_hash);
 
         self.inner
             .import_block(block)
@@ -734,6 +757,8 @@ where
         &self,
         block: BlockCheckParams<Block>,
     ) -> Result<ImportResult, Self::Error> {
+        println!("*** check_block: {:?}", block.hash);
+
         self.inner.check_block(block).await.map_err(Into::into)
     }
 }

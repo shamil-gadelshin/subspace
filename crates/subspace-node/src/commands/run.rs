@@ -17,6 +17,7 @@ use domain_runtime_primitives::opaque::Block as DomainBlock;
 use futures::FutureExt;
 use sc_cli::Signals;
 use sc_consensus_slots::SlotProportion;
+use sc_service::config::SyncMode;
 use sc_storage_monitor::StorageMonitorService;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::tracing_unbounded;
@@ -25,7 +26,6 @@ use sp_messenger::messages::ChainId;
 use std::env;
 use subspace_runtime::{Block, RuntimeApi};
 use tracing::{debug, error, info, info_span, warn};
-use sc_service::config::SyncMode;
 
 /// Options for running a node
 #[derive(Debug, Parser)]
@@ -127,9 +127,6 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
                     "Failed to build a full subspace node 1: {error:?}"
                 ))
             })?;
-
-            subspace_configuration.base.network.sync_mode = SyncMode::LightState {skip_proofs: true,
-                storage_chain_mode: false,};
 
             let full_node_fut = subspace_service::new_full::<PosTable, _>(
                 subspace_configuration,
