@@ -11,14 +11,14 @@ use sc_consensus_subspace::archiver::{decode_block, SegmentHeadersStore};
 use sc_network::{service, NetworkService};
 use sc_network_sync::fast_sync_engine::FastSyncingEngine;
 use sc_network_sync::service::network::{NetworkServiceHandle, NetworkServiceProvider};
-use sc_network_sync::{SyncStatusProvider, SyncingService};
+use sc_network_sync::{SyncStatusProvider, SyncingService, SyncStatus};
 use sc_service::{ClientExt, RawBlockData};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockOrigin;
 use sp_consensus_subspace::{FarmerPublicKey, SubspaceApi};
 use sp_runtime::generic::SignedBlock;
-use sp_runtime::traits::{Block as BlockT, CheckedSub, Header, NumberFor};
+use sp_runtime::traits::{Block as BlockT, CheckedSub, Header, NumberFor, One};
 use sp_runtime::Justifications;
 use std::fs::File;
 use std::hash::Hash;
@@ -29,7 +29,7 @@ use std::time::Duration;
 use subspace_archiving::reconstructor::Reconstructor;
 use subspace_networking::Node;
 use tokio::time::sleep;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 use subspace_core_primitives::SegmentIndex;
 
 #[derive(Clone, Debug, Encode, Decode)]
@@ -235,6 +235,10 @@ where
 
     println!("Sync worker handle result: {}", result.is_ok(),);
 
+    let info = client.info();
+
+    println!("**** Client info1: {:?}", info);
+
     client.clear_block_gap();
 
     // Import delay
@@ -258,10 +262,42 @@ where
 
     let info = client.info();
 
-    println!("**** Client info: {:?}", info);
+    println!("**** Client info2: {:?}", info);
 
     // Import delay
     sleep(Duration::from_secs(5)).await;
+
+    // loop {
+    //     let sync_status = sync_service.status().await;
+    //
+    //     println!("**** Sync status: {:?}", sync_status);
+    //
+    //     match sync_status{
+    //         Ok(sync_status) => {
+    //             if let Some(target) = sync_status.best_seen_block {
+    //                 let info = client.info();
+    //
+    //                 if info.best_number != target {
+    //                     client.update_block_gap(info.best_number + One::one(), target)
+    //                 } else {
+    //                     println!("best_number equals target: {target}");
+    //                 }
+    //
+    //                 break;
+    //             }
+    //         }
+    //         Err(err) => {
+    //             error!("Sync status error: {err:?}");
+    //         }
+    //     }
+    //
+    //     println!("Wait for valid sync status");
+    //     sleep(Duration::from_secs(5)).await;
+    // }
+    //
+    // let info = client.info();
+    //
+    // println!("**** Client info3: {:?}", info);
 
     // sync_service.on_block_finalized()
     // // Import delay

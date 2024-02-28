@@ -278,6 +278,8 @@ where
     let mut initial_pause_sync = Some(pause_sync.swap(true, Ordering::AcqRel));
 
     if let Some(reason) = notifications.next().await {
+        // let prev_pause_sync = pause_sync.swap(true, Ordering::AcqRel);
+
         // TODO: remove test
         let fast_sync_result = super::fast_sync::download_last_segment(
             &segment_headers_store,
@@ -301,6 +303,9 @@ where
         {
            panic!("Unexpected error");
         }
+
+        // println!("prev_pause_sync={prev_pause_sync}");
+        // pause_sync.store(prev_pause_sync, Ordering::Release,);
     }
 
     println!("last_processed_block_number={last_processed_block_number}, last_processed_segment_index={last_processed_segment_index}");
