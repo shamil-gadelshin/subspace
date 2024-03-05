@@ -281,7 +281,7 @@ where
         // let prev_pause_sync = pause_sync.swap(true, Ordering::AcqRel);
 
         // TODO: remove test
-        let fast_sync_result = super::fast_sync::download_last_segment(
+        let fast_sync_result = super::fast_sync::fast_sync2(
             &segment_headers_store,
             node,
             piece_getter,

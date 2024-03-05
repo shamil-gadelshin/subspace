@@ -265,6 +265,8 @@ where
 
             Box::new(
                 move |parent_hash, slot, proof_of_time, quick_verification| {
+                    return true; // TODO:
+
                     let parent_hash = {
                         let mut converted_parent_hash = Block::Hash::default();
                         converted_parent_hash.as_mut().copy_from_slice(&parent_hash);

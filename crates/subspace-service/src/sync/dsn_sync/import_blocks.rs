@@ -164,16 +164,19 @@ where
             while block_number.saturating_sub(best_block_number) >= QUEUED_BLOCKS_LIMIT.into() {
                 if !blocks_to_import.is_empty() {
                     let importing_blocks = blocks_to_import.iter().map(|b: &IncomingBlock<Block>| b.header.clone().map(|h| h.number().clone())).collect::<Vec<_>>();
-                    info!("*** Importing blocks: {importing_blocks:?}");
+                    info!("*** Importing blocks1: {importing_blocks:?}");
 
                     // Import queue handles verification and importing it into the client
                     import_queue_service
                         .import_blocks(BlockOrigin::NetworkInitialSync, blocks_to_import.clone());
                     blocks_to_import.clear();
                 }
-                trace!(
+
+                let limit = QUEUED_BLOCKS_LIMIT;
+                info!(
                     %block_number,
                     %best_block_number,
+                    %limit,
                     "Number of importing blocks reached queue limit, waiting before retrying"
                 );
                 tokio::time::sleep(WAIT_FOR_BLOCKS_TO_IMPORT).await;
@@ -228,7 +231,7 @@ where
                     .expect("Not empty, checked above; qed");
 
                 let importing_blocks = blocks_to_import.iter().map(|b: &IncomingBlock<Block>| b.header.clone().map(|h| h.number().clone())).collect::<Vec<_>>();
-                info!("*** Importing blocks: {importing_blocks:?}");
+                info!("*** Importing blocks2: {importing_blocks:?}");
 
                 import_queue_service
                     .import_blocks(BlockOrigin::NetworkInitialSync, blocks_to_import);

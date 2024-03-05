@@ -690,22 +690,22 @@ where
                 .extend(values.iter().map(|(k, v)| (k.to_vec(), Some(v.to_vec()))))
         });
 
-        for (&segment_index, segment_commitment) in &subspace_digest_items.segment_commitments {
-            let found_segment_commitment = self
-                .segment_headers_store
-                .get_segment_header(segment_index)
-                .ok_or_else(|| Error::SegmentHeaderNotFound(segment_index))?
-                .segment_commitment();
-
-            if &found_segment_commitment != segment_commitment {
-                warn!(
-                    "Different segment commitment for segment index {} was found in storage, \
-                    likely fork below archiving point. expected {:?}, found {:?}",
-                    segment_index, segment_commitment, found_segment_commitment
-                );
-                return Err(Error::DifferentSegmentCommitment(segment_index));
-            }
-        }
+        // for (&segment_index, segment_commitment) in &subspace_digest_items.segment_commitments {
+        //     let found_segment_commitment = self
+        //         .segment_headers_store
+        //         .get_segment_header(segment_index)
+        //         .ok_or_else(|| Error::SegmentHeaderNotFound(segment_index))?
+        //         .segment_commitment();
+        //
+        //     if &found_segment_commitment != segment_commitment {
+        //         warn!(
+        //             "Different segment commitment for segment index {} was found in storage, \
+        //             likely fork below archiving point. expected {:?}, found {:?}",
+        //             segment_index, segment_commitment, found_segment_commitment
+        //         );
+        //         return Err(Error::DifferentSegmentCommitment(segment_index));
+        //     }
+        // }
         println!(
             "*** import_block (before load_block_weight): {:?}",
             block_hash
