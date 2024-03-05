@@ -71,7 +71,6 @@ use sc_network::{NetworkService, NotificationService};
 use sc_proof_of_time::source::gossip::pot_gossip_peers_set_config;
 use sc_proof_of_time::source::PotSourceWorker;
 use sc_proof_of_time::verifier::PotVerifier;
-use sc_service::config::SyncMode;
 use sc_service::error::Error as ServiceError;
 use sc_service::{Configuration, NetworkStarter, SpawnTasksParams, TaskManager};
 use sc_subspace_block_relay::{

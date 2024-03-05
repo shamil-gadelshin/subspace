@@ -17,7 +17,6 @@ use domain_runtime_primitives::opaque::Block as DomainBlock;
 use futures::FutureExt;
 use sc_cli::Signals;
 use sc_consensus_slots::SlotProportion;
-use sc_service::config::SyncMode;
 use sc_storage_monitor::StorageMonitorService;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::tracing_unbounded;
@@ -83,7 +82,7 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
 
     let ConsensusChainConfiguration {
         maybe_tmp_dir: _maybe_tmp_dir,
-        mut subspace_configuration,
+        subspace_configuration,
         dev,
         pot_external_entropy,
         storage_monitor,

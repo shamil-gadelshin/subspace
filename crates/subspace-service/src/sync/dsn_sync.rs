@@ -10,7 +10,6 @@ use sc_client_api::{AuxStore, BlockBackend, BlockchainEvents, ProofProvider};
 use sc_consensus::import_queue::ImportQueueService;
 use sc_consensus_subspace::archiver::SegmentHeadersStore;
 use sc_network::{NetworkPeers, NetworkService};
-use sc_network_sync::service::network::NetworkServiceHandle;
 use sc_network_sync::SyncingService;
 use sc_service::ClientExt;
 use sp_api::ProvideRuntimeApi;
@@ -53,9 +52,9 @@ pub(crate) fn create_observer_and_worker<Block, AS, Client, PG, IQS>(
     network_service: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
     node: Node,
     client: Arc<Client>,
-    mut import_queue_service1: Box<IQS>,
-    mut import_queue_service2: Box<IQS>,
-    mut import_queue_service3: Box<IQS>,
+    import_queue_service1: Box<IQS>,
+    import_queue_service2: Box<IQS>,
+    import_queue_service3: Box<IQS>,
     sync_target_block_number: Arc<AtomicU32>,
     pause_sync: Arc<AtomicBool>,
     piece_getter: PG,
@@ -230,8 +229,8 @@ async fn create_worker<Block, AS, IQS, Client, PG>(
     segment_headers_store: SegmentHeadersStore<AS>,
     node: &Node,
     client: Arc<Client>,
-    mut import_queue_service1: Box<IQS>,
-    mut import_queue_service2: Box<IQS>,
+    import_queue_service1: Box<IQS>,
+    import_queue_service2: Box<IQS>,
     mut import_queue_service3: Box<IQS>,
     sync_target_block_number: Arc<AtomicU32>,
     pause_sync: Arc<AtomicBool>,
@@ -281,7 +280,7 @@ where
         // let prev_pause_sync = pause_sync.swap(true, Ordering::AcqRel);
 
         // TODO: remove test
-        let fast_sync_result = super::fast_sync::fast_sync2(
+        let fast_sync_result = super::fast_sync::fast_sync(
             &segment_headers_store,
             node,
             piece_getter,

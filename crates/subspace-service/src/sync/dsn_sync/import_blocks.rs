@@ -44,6 +44,7 @@ const WAIT_FOR_BLOCKS_TO_IMPORT: Duration = Duration::from_secs(1);
 /// Starts the process of importing blocks.
 ///
 /// Returns number of downloaded blocks.
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn import_blocks_from_dsn<Block, AS, Client, PG, IQS>(
     segment_headers_store: &SegmentHeadersStore<AS>,
     segment_header_downloader: &SegmentHeaderDownloader<'_>,
@@ -163,9 +164,6 @@ where
             // seems like complexity is not worth it.
             while block_number.saturating_sub(best_block_number) >= QUEUED_BLOCKS_LIMIT.into() {
                 if !blocks_to_import.is_empty() {
-                    let importing_blocks = blocks_to_import.iter().map(|b: &IncomingBlock<Block>| b.header.clone().map(|h| h.number().clone())).collect::<Vec<_>>();
-                    info!("*** Importing blocks1: {importing_blocks:?}");
-
                     // Import queue handles verification and importing it into the client
                     import_queue_service
                         .import_blocks(BlockOrigin::NetworkInitialSync, blocks_to_import.clone());
@@ -229,9 +227,6 @@ where
                 let last_block = blocks_to_import
                     .pop()
                     .expect("Not empty, checked above; qed");
-
-                let importing_blocks = blocks_to_import.iter().map(|b: &IncomingBlock<Block>| b.header.clone().map(|h| h.number().clone())).collect::<Vec<_>>();
-                info!("*** Importing blocks2: {importing_blocks:?}");
 
                 import_queue_service
                     .import_blocks(BlockOrigin::NetworkInitialSync, blocks_to_import);
