@@ -7,25 +7,25 @@ use sc_client_api::{AuxStore, BlockBackend, ProofProvider};
 use sc_consensus::import_queue::ImportQueueService;
 use sc_consensus::IncomingBlock;
 use sc_consensus_subspace::archiver::{decode_block, SegmentHeadersStore};
-use sc_network::{NetworkService};
+use sc_network::NetworkService;
 use sc_network_sync::fast_sync_engine::FastSyncingEngine;
-use sc_network_sync::service::network::{NetworkServiceProvider};
-use sc_network_sync::{SyncingService};
+use sc_network_sync::service::network::NetworkServiceProvider;
+use sc_network_sync::SyncingService;
 use sc_service::{ClientExt, RawBlockData};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockOrigin;
 use sp_consensus_subspace::{FarmerPublicKey, SubspaceApi};
 use sp_runtime::generic::SignedBlock;
-use sp_runtime::traits::{Block as BlockT, Header, NumberFor,};
+use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
 use sp_runtime::Justifications;
 use std::sync::Arc;
 use std::time::Duration;
 use subspace_archiving::reconstructor::Reconstructor;
+use subspace_core_primitives::SegmentIndex;
 use subspace_networking::Node;
 use tokio::time::sleep;
-use tracing::{info};
-use subspace_core_primitives::SegmentIndex;
+use tracing::info;
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct TempRawBlockData<Block: BlockT> {
@@ -57,7 +57,7 @@ impl<Block: BlockT> TempRawBlockData<Block> {
     }
 }
 
-pub(crate) struct FastSyncResult<Block: BlockT>{
+pub(crate) struct FastSyncResult<Block: BlockT> {
     pub(crate) last_imported_block_number: NumberFor<Block>,
     pub(crate) last_imported_segment_index: SegmentIndex,
     pub(crate) reconstructor: Reconstructor,
@@ -74,11 +74,11 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
     mut import_queue_service2: Box<IQS>,
     network_service: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
 ) -> Result<FastSyncResult<Block>, sc_service::Error>
-    where
-        PG: DsnSyncPieceGetter,
-        AS: AuxStore + Send + Sync + 'static,
-        Block: BlockT,
-        Client: HeaderBackend<Block>
+where
+    PG: DsnSyncPieceGetter,
+    AS: AuxStore + Send + Sync + 'static,
+    Block: BlockT,
+    Client: HeaderBackend<Block>
         + ClientExt<Block>
         + BlockBackend<Block>
         + ProvideRuntimeApi<Block>
@@ -86,8 +86,8 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
         + Send
         + Sync
         + 'static,
-        Client::Api: SubspaceApi<Block, FarmerPublicKey>,
-        IQS: ImportQueueService<Block> + ?Sized  + 'static,
+    Client::Api: SubspaceApi<Block, FarmerPublicKey>,
+    IQS: ImportQueueService<Block> + ?Sized + 'static,
 {
     let mut reconstructor = Reconstructor::new().map_err(|error| error.to_string())?;
 
@@ -101,8 +101,6 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
     let last_segment_index = segment_headers_store.max_segment_index().unwrap(); // TODO:
     let last_segment_header = segment_headers_store.get_segment_header(last_segment_index);
 
-    // let last_segment_header = segment_header_downloader.get_last_segment_header().await.map_err(|error| error.to_string())?;
-
     println!("Last segment header: {last_segment_header:?}");
 
     let last_segment_header = last_segment_header.unwrap();
@@ -112,14 +110,12 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
         piece_getter,
         &mut reconstructor,
     )
-        .await?;
+    .await?;
 
     let mut last_block = Default::default(); //TODO:
     let mut prev_last_block = Default::default(); //TODO:
 
     for block in blocks {
-//        println!("Downloaded and reconstructed block #{}", block.0);
-
         prev_last_block = last_block;
         last_block = block;
     }
@@ -127,7 +123,7 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
     let active_block = prev_last_block;
     let block_bytes = active_block.1;
 
-    let (header, extrinsics,justifications) = deconstruct_block::<Block>(block_bytes)?;
+    let (header, extrinsics, justifications) = deconstruct_block::<Block>(block_bytes)?;
     let hash = header.hash();
     println!("Reconstructed block #{} {:?}", active_block.0, hash);
 
@@ -142,7 +138,6 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
 
     let last_imported_segment_index = last_segment_index;
     let last_imported_block_number = active_block.0.into();
-
 
     let original_raw_block = raw_block.clone().to_raw_block();
 
@@ -169,7 +164,7 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
         sleep(Duration::from_secs(20)).await;
 
         if active_peers > 6 {
-            break
+            break;
         }
     }
 
@@ -190,7 +185,7 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
         true,
         initial_peers,
     )
-        .unwrap(); // TODO: remove error
+    .unwrap(); // TODO: remove error
     let sync_fut = sync_worker.run();
 
     let net_fut = tokio::spawn(networking_fut);
@@ -201,7 +196,7 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
 
     let result = sync_worker_handle.await;
 
-    println!("Sync worker handle result: {}", result.is_ok(), );
+    println!("Sync worker handle result: {}", result.is_ok(),);
 
     let info = client.info();
 
@@ -218,10 +213,10 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
     match result {
         Ok(Some(current_block)) => {
             import_queue_service2.import_blocks(BlockOrigin::NetworkBroadcast, vec![current_block]);
-            println!("**** Sync worker handle was imported with broadcast", );
-        },
+            println!("**** Sync worker handle was imported with broadcast",);
+        }
         Ok(None) => {
-            println!("**** Sync worker handle returned None", );
+            println!("**** Sync worker handle returned None",);
         }
         Err(err) => {
             println!("**** Sync worker handle returned Err={}", err);
@@ -237,13 +232,12 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
     // Import delay
     sleep(Duration::from_secs(5)).await;
 
-
     let (header, extrinsics, justifications) = deconstruct_block::<Block>(last_block.1)?;
     let hash = header.hash();
     let last_incoming_block = create_incoming_block(header, extrinsics, justifications);
     println!("Reconstructed block #{} {:?}", last_block.0, hash);
     import_queue_service2.import_blocks(BlockOrigin::NetworkBroadcast, vec![last_incoming_block]);
-    println!("**** Last block imported.", );
+    println!("**** Last block imported.",);
 
     // Import delay
     sleep(Duration::from_secs(5)).await;
@@ -251,18 +245,19 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
 
     println!("**** Client info3: {:?}", info);
 
-//    panic!("Stop");
+    //    panic!("Stop");
 
     Ok(FastSyncResult::<Block> {
         last_imported_block_number,
         last_imported_segment_index,
-        reconstructor
+        reconstructor,
     })
 }
 
-fn deconstruct_block<Block: BlockT>(block_data: Vec<u8>) -> Result<( Block::Header,Vec<Block::Extrinsic>, Option<Justifications>), sc_service::Error>{
-    let signed_block =
-        decode_block::<Block>(&block_data).map_err(|error| error.to_string())?;
+fn deconstruct_block<Block: BlockT>(
+    block_data: Vec<u8>,
+) -> Result<(Block::Header, Vec<Block::Extrinsic>, Option<Justifications>), sc_service::Error> {
+    let signed_block = decode_block::<Block>(&block_data).map_err(|error| error.to_string())?;
 
     let SignedBlock {
         block,
@@ -270,10 +265,14 @@ fn deconstruct_block<Block: BlockT>(block_data: Vec<u8>) -> Result<( Block::Head
     } = signed_block;
     let (header, extrinsics) = block.deconstruct();
 
-    Ok(( header, extrinsics, justifications))
+    Ok((header, extrinsics, justifications))
 }
 
-fn create_incoming_block<Block: BlockT>( header: Block::Header, extrinsics: Vec<Block::Extrinsic>, justifications: Option<Justifications>) -> IncomingBlock<Block>{
+fn create_incoming_block<Block: BlockT>(
+    header: Block::Header,
+    extrinsics: Vec<Block::Extrinsic>,
+    justifications: Option<Justifications>,
+) -> IncomingBlock<Block> {
     IncomingBlock {
         hash: header.hash(),
         header: Some(header),
@@ -292,8 +291,8 @@ async fn download_segment_headers<AS>(
     segment_headers_store: &SegmentHeadersStore<AS>,
     segment_header_downloader: &SegmentHeaderDownloader<'_>,
 ) -> Result<(), sc_service::Error>
-    where
-        AS: AuxStore + Send + Sync + 'static,
+where
+    AS: AuxStore + Send + Sync + 'static,
 {
     let max_segment_index = segment_headers_store.max_segment_index().ok_or_else(|| {
         sc_service::Error::Other(

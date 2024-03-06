@@ -53,7 +53,7 @@ pub(super) async fn import_blocks_from_dsn<Block, AS, Client, PG, IQS>(
     import_queue_service: &mut IQS,
     last_processed_segment_index: &mut SegmentIndex,
     last_processed_block_number: &mut <Block::Header as Header>::Number,
-    reconstructor: &mut  Reconstructor,
+    reconstructor: &mut Reconstructor,
 ) -> Result<u64, sc_service::Error>
 where
     Block: BlockT,
@@ -83,7 +83,6 @@ where
     }
 
     let mut downloaded_blocks = 0;
-//    let mut reconstructor = Reconstructor::new().map_err(|error| error.to_string())?;
     // Start from the first unprocessed segment and process all segments known so far
     let segment_indices_iter = (*last_processed_segment_index + SegmentIndex::ONE)
         ..=segment_headers_store
@@ -133,8 +132,7 @@ where
         }
 
         let blocks =
-            download_and_reconstruct_blocks(segment_index, piece_getter, reconstructor)
-                .await?;
+            download_and_reconstruct_blocks(segment_index, piece_getter, reconstructor).await?;
 
         let mut blocks_to_import = Vec::with_capacity(QUEUED_BLOCKS_LIMIT as usize);
 

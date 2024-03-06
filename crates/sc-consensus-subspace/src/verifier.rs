@@ -475,11 +475,7 @@ where
     SelectChain: sp_consensus::SelectChain<Block>,
 {
     fn verification_concurrency(&self) -> NonZeroUsize {
-        let result = available_parallelism().unwrap_or(NonZeroUsize::new(1).expect("Not zero; qed"));
-
-        println!("verification_concurrency={:?}", result);
-
-        result
+        available_parallelism().unwrap_or(NonZeroUsize::new(1).expect("Not zero; qed"))
     }
 
     async fn verify(

@@ -21,10 +21,10 @@ use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use subspace_archiving::reconstructor::Reconstructor;
 use subspace_core_primitives::SegmentIndex;
 use subspace_networking::Node;
-use tracing::{info, warn};
-use subspace_archiving::reconstructor::Reconstructor;
+use tracing::{debug, error, info, trace, warn};
 
 /// How much time to wait for new block to be imported before timing out and starting sync from DSN
 const NO_IMPORTED_BLOCKS_TIMEOUT: Duration = Duration::from_secs(10 * 60);
@@ -86,7 +86,15 @@ where
         let node = node.clone();
         let client = Arc::clone(&client);
 
-        async move { create_observer(network_service_clone.as_ref(), &node, client.as_ref(), notification_sender).await }
+        async move {
+            create_observer(
+                network_service_clone.as_ref(),
+                &node,
+                client.as_ref(),
+                notification_sender,
+            )
+            .await
+        }
     };
     let worker_fut = async move {
         create_worker(
@@ -102,7 +110,7 @@ where
             &piece_getter,
             sync_service,
             network_service,
-            tx
+            tx,
         )
         .await
     };
@@ -290,30 +298,22 @@ where
             import_queue_service2,
             network_service.clone(),
         )
-            .await
-            .unwrap();
+        .await
+        .unwrap();
 
         last_processed_block_number = fast_sync_result.last_imported_block_number;
         last_processed_segment_index = fast_sync_result.last_imported_segment_index;
         reconstructor = fast_sync_result.reconstructor;
 
-        if let Err(error) =
-            notifications_sender.try_send(NotificationReason::WentOnlineSubspace)
-        {
-           panic!("Unexpected error");
-        }
+        debug!(%last_processed_block_number, %last_processed_segment_index, "Fast sync finished.");
 
-        // println!("prev_pause_sync={prev_pause_sync}");
-        // pause_sync.store(prev_pause_sync, Ordering::Release,);
+        notifications_sender
+            .try_send(NotificationReason::WentOnlineSubspace)
+            .map_err(|_| sc_service::Error::Other("Can't send sync notification reason.".into()))?;
     }
-
-    println!("last_processed_block_number={last_processed_block_number}, last_processed_segment_index={last_processed_segment_index}");
-
-//        panic!("Hard stop.");
 
     #[allow(clippy::never_loop)]
     while let Some(reason) = notifications.next().await {
-
         let prev_pause_sync = pause_sync.swap(true, Ordering::AcqRel);
 
         info!(?reason, "Received notification to sync from DSN");
