@@ -166,7 +166,7 @@ where
         open_peers = network_service.open_peers().await.unwrap();
         //let active_peers = sync_service.num_sync_peers().await.unwrap();
         let active_peers = open_peers.len();
-        println!("Sync peers: {active_peers}");
+        println!("Sync peers: {active_peers}"); // TODO:
         sleep(Duration::from_secs(20)).await;
 
         if active_peers > 6 {
@@ -207,37 +207,13 @@ where
 
     info!("Sync worker handle result: {}", result.is_ok(),);
 
-    let info = client.info();
-
-    println!("Clearing block gap...");
-
+    info!("Clearing block gap...");
     client.clear_block_gap();
 
-    // Import delay
+    // Block import delay
     sleep(Duration::from_secs(5)).await;
 
     net_fut.abort();
-
-    // // This will notify Substrate's sync mechanism and allow regular Substrate sync to continue gracefully
-    // match result {
-    //     Ok(Some(current_block)) => {
-    //         import_queue_service2.import_blocks(BlockOrigin::NetworkBroadcast, vec![current_block]);
-    //         println!("**** Sync worker handle was imported with broadcast",);
-    //     }
-    //     Ok(None) => {
-    //         println!("**** Sync worker handle returned None",);
-    //     }
-    //     Err(err) => {
-    //         println!("**** Sync worker handle returned Err={}", err);
-    //     }
-    // }
-
-    info!("Setting new best block number.",);
-
-    sync_service.new_best_number(number);
-
-    // Import delay
-    sleep(Duration::from_secs(5)).await;
 
     info!(
         "Importing the last block from the segment #{}",
@@ -247,17 +223,20 @@ where
     let hash = header.hash();
     let last_incoming_block = create_incoming_block(header, extrinsics, justifications);
 
-    info!(?hash, "Reconstructed block #{}", last_block.0,);
+    info!(
+        ?hash,
+        block_number = %last_block.0,
+        segment_index = %last_segment_index,
+        "Importing reconstructed last block from the segment.",
+    );
 
     import_queue_service2.import_blocks(BlockOrigin::NetworkBroadcast, vec![last_incoming_block]);
 
     // Import delay
     sleep(Duration::from_secs(5)).await;
+
     let info = client.info();
-
-    println!("**** Client info3: {:?}", info);
-
-    //    panic!("Stop");
+    info!("Current client info: {:?}", info);
 
     Ok(FastSyncResult::<Block> {
         last_imported_block_number,
