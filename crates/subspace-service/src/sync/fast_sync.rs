@@ -21,11 +21,12 @@ use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
 use sp_runtime::Justifications;
 use std::sync::Arc;
 use std::time::Duration;
+use subspace_archiving::archiver::Segment;
 use subspace_archiving::reconstructor::Reconstructor;
 use subspace_core_primitives::SegmentIndex;
 use subspace_networking::Node;
 use tokio::time::sleep;
-use tracing::info;
+use tracing::{error, info};
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct TempRawBlockData<Block: BlockT> {
@@ -89,21 +90,28 @@ where
     Client::Api: SubspaceApi<Block, FarmerPublicKey>,
     IQS: ImportQueueService<Block> + ?Sized + 'static,
 {
-    let mut reconstructor = Reconstructor::new().map_err(|error| error.to_string())?;
+    // TODO: skip fast sync if no segments
+    info!("Starting fast sync...");
 
-    println!("************* Downloading last segment *************");
+    let mut reconstructor = Reconstructor::new().map_err(|error| error.to_string())?;
     let segment_header_downloader = SegmentHeaderDownloader::new(node);
 
-    download_segment_headers(segment_headers_store, &segment_header_downloader)
-        .await
-        .unwrap(); // TODO
+    if let Err(error) =
+        download_segment_headers(segment_headers_store, &segment_header_downloader).await
+    {
+        error!(?error, "Failed to download segment headers.");
+        return Err(error);
+    };
 
-    let last_segment_index = segment_headers_store.max_segment_index().unwrap(); // TODO:
-    let last_segment_header = segment_headers_store.get_segment_header(last_segment_index);
+    let Some(last_segment_index) = segment_headers_store.max_segment_index() else {
+        return Err(sc_service::Error::Other(
+            "Can't get last segment index.".into(),
+        ));
+    };
 
-    println!("Last segment header: {last_segment_header:?}");
-
-    let last_segment_header = last_segment_header.unwrap();
+    let last_segment_header = segment_headers_store
+        .get_segment_header(last_segment_index)
+        .expect("We get segment index from the same storage. It should be present.");
 
     let blocks = download_and_reconstruct_blocks(
         last_segment_header.segment_index(),
@@ -112,20 +120,26 @@ where
     )
     .await?;
 
-    let mut last_block = Default::default(); //TODO:
-    let mut prev_last_block = Default::default(); //TODO:
-
-    for block in blocks {
-        prev_last_block = last_block;
-        last_block = block;
+    if blocks.len() < 2 {
+        return Err(sc_service::Error::Other(
+            "Unexpected block array length.".into(),
+        ));
     }
 
-    let active_block = prev_last_block;
+    let last_block = blocks[blocks.len() - 1].clone();
+    let second_last_block = blocks[blocks.len() - 2].clone();
+
+    let last_imported_segment_index = last_segment_index;
+    let last_imported_block_number = last_block.0.into();
+
+    let active_block = second_last_block;
     let block_bytes = active_block.1;
 
     let (header, extrinsics, justifications) = deconstruct_block::<Block>(block_bytes)?;
     let hash = header.hash();
-    println!("Reconstructed block #{} {:?}", active_block.0, hash);
+
+    info!("Started importing 'raw block'.");
+    info!(?hash, "Reconstructed block #{}", active_block.0,);
 
     let raw_block_data = RawBlockData {
         hash,
@@ -136,24 +150,16 @@ where
 
     let raw_block = TempRawBlockData::from_raw_block(active_block.0.into(), raw_block_data);
 
-    let last_imported_segment_index = last_segment_index;
-    let last_imported_block_number = active_block.0.into();
-
     let original_raw_block = raw_block.clone().to_raw_block();
 
-    let hash1 = raw_block.hash;
     let block_body = raw_block.block_body;
     let justifications = raw_block.justifications;
     let header = raw_block.header;
     let number = raw_block.number;
 
-    let imported_block_header = client.header(hash1);
-    println!("Imported block header: {imported_block_header:?}");
-
     client.import_raw_block(original_raw_block);
 
-    let imported_block_header = client.header(hash);
-    println!("Imported block header: {imported_block_header:?}");
+    info!("Gathering peers for state sync.");
 
     let mut open_peers;
     loop {
@@ -168,12 +174,14 @@ where
         }
     }
 
+    info!("Starting state sync...");
+
     let (network_service_worker, network_service_handle) = NetworkServiceProvider::new();
 
     let networking_fut = network_service_worker.run(network_service);
 
-    println!("Peers - #{number} - {:?}", open_peers);
     let initial_peers = open_peers.into_iter().map(|peer_id| (peer_id, number));
+
     let (sync_worker, sync_engine) = FastSyncingEngine::new(
         client.clone(),
         import_queue_service1,
@@ -185,7 +193,8 @@ where
         true,
         initial_peers,
     )
-    .unwrap(); // TODO: remove error
+    .map_err(|err| sc_service::Error::Client(err))?;
+
     let sync_fut = sync_worker.run();
 
     let net_fut = tokio::spawn(networking_fut);
@@ -196,11 +205,11 @@ where
 
     let result = sync_worker_handle.await;
 
-    println!("Sync worker handle result: {}", result.is_ok(),);
+    info!("Sync worker handle result: {}", result.is_ok(),);
 
     let info = client.info();
 
-    println!("**** Client info1: {:?}", info);
+    println!("Clearing block gap...");
 
     client.clear_block_gap();
 
@@ -209,35 +218,38 @@ where
 
     net_fut.abort();
 
-    // This will notify Substrate's sync mechanism and allow regular Substrate sync to continue gracefully
-    match result {
-        Ok(Some(current_block)) => {
-            import_queue_service2.import_blocks(BlockOrigin::NetworkBroadcast, vec![current_block]);
-            println!("**** Sync worker handle was imported with broadcast",);
-        }
-        Ok(None) => {
-            println!("**** Sync worker handle returned None",);
-        }
-        Err(err) => {
-            println!("**** Sync worker handle returned Err={}", err);
-        }
-    }
+    // // This will notify Substrate's sync mechanism and allow regular Substrate sync to continue gracefully
+    // match result {
+    //     Ok(Some(current_block)) => {
+    //         import_queue_service2.import_blocks(BlockOrigin::NetworkBroadcast, vec![current_block]);
+    //         println!("**** Sync worker handle was imported with broadcast",);
+    //     }
+    //     Ok(None) => {
+    //         println!("**** Sync worker handle returned None",);
+    //     }
+    //     Err(err) => {
+    //         println!("**** Sync worker handle returned Err={}", err);
+    //     }
+    // }
 
-    let info = client.info();
-
-    println!("**** Client info2: {:?}", info);
+    info!("Setting new best block number.",);
 
     sync_service.new_best_number(number);
 
     // Import delay
     sleep(Duration::from_secs(5)).await;
 
+    info!(
+        "Importing the last block from the segment #{}",
+        last_block.0
+    );
     let (header, extrinsics, justifications) = deconstruct_block::<Block>(last_block.1)?;
     let hash = header.hash();
     let last_incoming_block = create_incoming_block(header, extrinsics, justifications);
-    println!("Reconstructed block #{} {:?}", last_block.0, hash);
+
+    info!(?hash, "Reconstructed block #{}", last_block.0,);
+
     import_queue_service2.import_blocks(BlockOrigin::NetworkBroadcast, vec![last_incoming_block]);
-    println!("**** Last block imported.",);
 
     // Import delay
     sleep(Duration::from_secs(5)).await;
