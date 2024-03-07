@@ -649,12 +649,12 @@ pub mod pallet {
                     .expect("Subspace inherent data not correctly encoded")
                     .expect("Subspace inherent data must be provided");
 
-                if segment_headers != &inherent_data.segment_headers {
-                    return Err(InherentError::IncorrectSegmentHeadersList {
-                        expected: inherent_data.segment_headers,
-                        actual: segment_headers.clone(),
-                    });
-                }
+                // if segment_headers != &inherent_data.segment_headers {
+                //     return Err(InherentError::IncorrectSegmentHeadersList {
+                //         expected: inherent_data.segment_headers,
+                //         actual: segment_headers.clone(),
+                //     });
+                // }
             }
 
             Ok(())

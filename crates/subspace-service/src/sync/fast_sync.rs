@@ -1,8 +1,6 @@
 use crate::sync::dsn_sync::import_blocks::download_and_reconstruct_blocks;
 use crate::sync::segment_header_downloader::SegmentHeaderDownloader;
 use crate::sync::DsnSyncPieceGetter;
-use core::default::Default;
-use parity_scale_codec::{Decode, Encode};
 use sc_client_api::{AuxStore, BlockBackend, ProofProvider};
 use sc_consensus::import_queue::ImportQueueService;
 use sc_consensus::IncomingBlock;
@@ -10,7 +8,6 @@ use sc_consensus_subspace::archiver::{decode_block, SegmentHeadersStore};
 use sc_network::NetworkService;
 use sc_network_sync::fast_sync_engine::FastSyncingEngine;
 use sc_network_sync::service::network::NetworkServiceProvider;
-use sc_network_sync::SyncingService;
 use sc_service::{ClientExt, RawBlockData};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
@@ -21,42 +18,11 @@ use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
 use sp_runtime::Justifications;
 use std::sync::Arc;
 use std::time::Duration;
-use subspace_archiving::archiver::Segment;
 use subspace_archiving::reconstructor::Reconstructor;
 use subspace_core_primitives::SegmentIndex;
 use subspace_networking::Node;
 use tokio::time::sleep;
 use tracing::{error, info};
-
-#[derive(Clone, Debug, Encode, Decode)]
-pub struct TempRawBlockData<Block: BlockT> {
-    pub hash: Block::Hash,
-    pub header: Block::Header,
-    pub block_body: Option<Vec<Block::Extrinsic>>,
-    pub justifications: Option<Justifications>,
-    pub number: NumberFor<Block>,
-}
-
-impl<Block: BlockT> TempRawBlockData<Block> {
-    fn from_raw_block(block_number: NumberFor<Block>, value: RawBlockData<Block>) -> Self {
-        Self {
-            hash: value.hash,
-            header: value.header,
-            block_body: value.block_body,
-            justifications: value.justifications,
-            number: block_number,
-        }
-    }
-
-    fn to_raw_block(self) -> RawBlockData<Block> {
-        RawBlockData {
-            hash: self.hash,
-            header: self.header,
-            block_body: self.block_body,
-            justifications: self.justifications,
-        }
-    }
-}
 
 pub(crate) struct FastSyncResult<Block: BlockT> {
     pub(crate) last_imported_block_number: NumberFor<Block>,
@@ -69,7 +35,6 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
     segment_headers_store: &SegmentHeadersStore<AS>,
     node: &Node,
     piece_getter: &PG,
-    sync_service: Arc<SyncingService<Block>>,
     client: Arc<Client>,
     import_queue_service1: Box<IQS>,
     mut import_queue_service2: Box<IQS>,
@@ -134,30 +99,27 @@ where
 
     let active_block = second_last_block;
     let block_bytes = active_block.1;
+    let number = NumberFor::<Block>::from(active_block.0);
 
     let (header, extrinsics, justifications) = deconstruct_block::<Block>(block_bytes)?;
     let hash = header.hash();
 
-    info!("Started importing 'raw block'.");
-    info!(?hash, "Reconstructed block #{}", active_block.0,);
 
-    let raw_block_data = RawBlockData {
+    info!("Started importing 'raw block'.");
+    info!(?hash, "Reconstructed block #{}", number);
+
+    let raw_block = RawBlockData {
         hash,
         header,
         block_body: Some(extrinsics),
         justifications,
     };
 
-    let raw_block = TempRawBlockData::from_raw_block(active_block.0.into(), raw_block_data);
-
-    let original_raw_block = raw_block.clone().to_raw_block();
+    client.import_raw_block(raw_block.clone());
 
     let block_body = raw_block.block_body;
     let justifications = raw_block.justifications;
     let header = raw_block.header;
-    let number = raw_block.number;
-
-    client.import_raw_block(original_raw_block);
 
     info!("Gathering peers for state sync.");
 
@@ -193,15 +155,15 @@ where
         true,
         initial_peers,
     )
-    .map_err(|err| sc_service::Error::Client(err))?;
+    .map_err(sc_service::Error::Client)?;
 
     let sync_fut = sync_worker.run();
 
     let net_fut = tokio::spawn(networking_fut);
     let sync_worker_handle = tokio::spawn(sync_fut); // TODO: join until finish
 
-    // Start the process
-    let _ = sync_engine.peers_info().await;
+    // Start syncing..
+    let _ = sync_engine.start().await;
 
     let result = sync_worker_handle.await;
 

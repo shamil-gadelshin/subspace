@@ -774,6 +774,8 @@ where
             ..
         }) = block_importing_notification_stream.next().await
         {
+            info!(%block_number, "Archiving imported block.");
+
             let block_number_to_archive =
                 match block_number.checked_sub(&confirmation_depth_k.into()) {
                     Some(block_number_to_archive) => block_number_to_archive,

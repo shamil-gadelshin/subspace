@@ -11,7 +11,7 @@ use sc_consensus::import_queue::ImportQueueService;
 use sc_consensus_subspace::archiver::SegmentHeadersStore;
 use sc_network::{NetworkPeers, NetworkService};
 use sc_network_sync::SyncingService;
-use sc_service::ClientExt;
+use sc_service::{ClientExt, Error};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus_subspace::{FarmerPublicKey, SubspaceApi};
@@ -25,6 +25,7 @@ use subspace_archiving::reconstructor::Reconstructor;
 use subspace_core_primitives::SegmentIndex;
 use subspace_networking::Node;
 use tracing::{debug, error, info, trace, warn};
+use crate::sync::fast_sync::FastSyncResult;
 
 /// How much time to wait for new block to be imported before timing out and starting sync from DSN
 const NO_IMPORTED_BLOCKS_TIMEOUT: Duration = Duration::from_secs(10 * 60);
@@ -284,26 +285,31 @@ where
     // Node starts as offline, we'll wait for it to go online shrtly after
     let mut initial_pause_sync = Some(pause_sync.swap(true, Ordering::AcqRel));
 
+    // Run fast-sync first.
     if let Some(reason) = notifications.next().await {
-        // let prev_pause_sync = pause_sync.swap(true, Ordering::AcqRel);
-
-        // TODO: remove test
-        let fast_sync_result = super::fast_sync::fast_sync(
+       let fast_sync_result = super::fast_sync::fast_sync(
             &segment_headers_store,
             node,
             piece_getter,
-            sync_service.clone(),
             client.clone(),
             import_queue_service1,
             import_queue_service2,
             network_service.clone(),
         )
-        .await
-        .unwrap();
+        .await;
 
-        last_processed_block_number = fast_sync_result.last_imported_block_number;
-        last_processed_segment_index = fast_sync_result.last_imported_segment_index;
-        reconstructor = fast_sync_result.reconstructor;
+        match fast_sync_result{
+            Ok(fast_sync_result) => {
+                last_processed_block_number = fast_sync_result.last_imported_block_number;
+                last_processed_segment_index = fast_sync_result.last_imported_segment_index;
+                reconstructor = fast_sync_result.reconstructor;
+
+                info!("Fast sync finished.");
+            }
+            Err(err) => {
+                error!("Fast sync failed: {err}");
+            }
+        }
 
         debug!(%last_processed_block_number, %last_processed_segment_index, "Fast sync finished.");
 

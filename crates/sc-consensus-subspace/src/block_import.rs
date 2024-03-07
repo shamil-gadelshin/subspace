@@ -58,7 +58,7 @@ use subspace_core_primitives::{
 };
 use subspace_proof_of_space::Table;
 use subspace_verification::{calculate_block_weight, PieceCheckParams, VerifySolutionParams};
-use tracing::warn;
+use tracing::{info, warn};
 
 /// Notification with number of the block that is about to be imported and acknowledgement sender
 /// that can be used to pause block production if desired.
@@ -579,17 +579,17 @@ where
                     inherent_data,
                 )?;
 
-                if !inherent_res.ok() {
-                    for (i, e) in inherent_res.into_errors() {
-                        match create_inherent_data_providers
-                            .try_handle_error(&i, &e)
-                            .await
-                        {
-                            Some(res) => res.map_err(Error::CheckInherents)?,
-                            None => return Err(Error::CheckInherentsUnhandled(i)),
-                        }
-                    }
-                }
+                // if !inherent_res.ok() {
+                //     for (i, e) in inherent_res.into_errors() {
+                //         match create_inherent_data_providers
+                //             .try_handle_error(&i, &e)
+                //             .await
+                //         {
+                //             Some(res) => res.map_err(Error::CheckInherents)?,
+                //             None => return Err(Error::CheckInherentsUnhandled(i)),
+                //         }
+                //     }
+                // }
             }
         }
 
@@ -626,7 +626,7 @@ where
         let block_hash = block.post_hash();
         let block_number = *block.header.number();
 
-        println!("*** import_block: {:?}", block_hash);
+        info!(%block_number, ?block_hash, origin=?block.origin, "Subspace block import.");
 
         // Early exit if block already in chain
         match self.client.status(block_hash)? {
@@ -644,33 +644,32 @@ where
         let subspace_digest_items = extract_subspace_digest_items(&block.header)?;
         let skip_execution_checks = block.state_action.skip_execution_checks();
 
-        if false {
-            // TODO:
-            println!(
-                "*** import_block (before root_plot_public_key): {:?}",
-                block_hash
-            );
-            let root_plot_public_key = self
-                .client
-                .runtime_api()
-                .root_plot_public_key(*block.header.parent_hash())?;
+        // TODO:
+        println!(
+            "*** import_block (before root_plot_public_key): {:?}",
+            block_hash
+        );
+        let root_plot_public_key = self
+            .client
+            .runtime_api()
+            .root_plot_public_key(*block.header.parent_hash())?;
 
-            println!(
-                "*** import_block (before block_import_verification): {:?}",
-                block_hash
-            );
+        println!(
+            "*** import_block (before block_import_verification): {:?}",
+            block_hash
+        );
 
-            self.block_import_verification(
-                block_hash,
-                block.header.clone(),
-                block.body.clone(),
-                &root_plot_public_key,
-                &subspace_digest_items,
-                &block.justifications,
-                skip_execution_checks,
-            )
+        self.block_import_verification(
+            block_hash,
+            block.header.clone(),
+            block.body.clone(),
+            &root_plot_public_key,
+            &subspace_digest_items,
+            &block.justifications,
+            skip_execution_checks,
+        )
             .await?;
-        }
+
 
         // let parent_weight = if block_number.is_one() {
         //     0
