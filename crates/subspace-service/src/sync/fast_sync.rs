@@ -165,9 +165,11 @@ where
     // Start syncing..
     let _ = sync_engine.start().await;
 
-    let result = sync_worker_handle.await;
+    let last_block_from_sync = sync_worker_handle.await
+        .map_err(|e| sc_service::Error::Other("Fast sync task error.".into()))?
+        .map_err(sc_service::Error::Client)?;
 
-    info!("Sync worker handle result: {}", result.is_ok(),);
+    info!("Sync worker handle result: {:?}", last_block_from_sync,);
 
     info!("Clearing block gap...");
     client.clear_block_gap();

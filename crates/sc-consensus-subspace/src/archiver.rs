@@ -683,7 +683,7 @@ fn finalize_block<Block, Backend, Client>(
                 error
             })?;
 
-        debug!("Finalizing blocks up to ({:?}, {})", number, hash);
+        info!("Finalizing blocks up to ({:?}, {})", number, hash);
 
         telemetry!(
             telemetry;
@@ -774,7 +774,7 @@ where
             ..
         }) = block_importing_notification_stream.next().await
         {
-            info!(%block_number, "Archiving imported block.");
+            info!(%block_number, "Importing block with archiver.");
 
             let block_number_to_archive =
                 match block_number.checked_sub(&confirmation_depth_k.into()) {
@@ -785,6 +785,7 @@ where
                 };
 
             if best_archived_block_number >= block_number_to_archive {
+                info!(%block_number, "Skipped archiving imported block.");
                 // This block was already archived, skip
                 continue;
             }
@@ -802,7 +803,7 @@ where
             let parent_block_hash = *block.block.header().parent_hash();
             let block_hash_to_archive = block.block.hash();
 
-            debug!(
+            info!(
                 "Archiving block {:?} ({})",
                 block_number_to_archive, block_hash_to_archive
             );

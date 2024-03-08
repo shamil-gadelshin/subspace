@@ -308,6 +308,7 @@ where
             }
             Err(err) => {
                 error!("Fast sync failed: {err}");
+                panic!("Fast sync failed."); // TODO:
             }
         }
 

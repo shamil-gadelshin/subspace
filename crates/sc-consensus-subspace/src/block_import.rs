@@ -53,6 +53,7 @@ use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor, One};
 use sp_runtime::Justifications;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use sp_consensus::BlockOrigin;
 use subspace_core_primitives::{
     BlockNumber, HistorySize, PublicKey, SectorId, SegmentHeader, SegmentIndex, SolutionRange,
 };
@@ -69,6 +70,10 @@ where
 {
     /// Block number
     pub block_number: NumberFor<Block>,
+
+    /// Block origin
+    pub origin: BlockOrigin,
+
     /// Sender for pausing the block import when operator is not fast enough to process
     /// the consensus block.
     pub acknowledgement_sender: mpsc::Sender<()>,
@@ -729,20 +734,21 @@ where
         //block.fork_choice = Some(fork_choice);
         block.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
-        // let (acknowledgement_sender, mut acknowledgement_receiver) = mpsc::channel(0);
-        //
-        // println!("*** import_block (before notify): {:?}", block_hash);
-        //
-        // self.subspace_link
-        //     .block_importing_notification_sender
-        //     .notify(move || BlockImportingNotification {
-        //         block_number,
-        //         acknowledgement_sender,
-        //     });
-        //
-        // while acknowledgement_receiver.next().await.is_some() {
-        //     // Wait for all the acknowledgements to finish.
-        // }
+        let (acknowledgement_sender, mut acknowledgement_receiver) = mpsc::channel(0);
+
+        println!("*** import_block (before notify): {:?}", block_hash);
+
+        self.subspace_link
+            .block_importing_notification_sender
+            .notify(move || BlockImportingNotification {
+                block_number,
+                origin: block.origin,
+                acknowledgement_sender,
+            });
+
+        while acknowledgement_receiver.next().await.is_some() {
+            // Wait for all the acknowledgements to finish.
+        }
 
         println!("*** import_block (before import_block): {:?}", block_hash);
 
@@ -756,8 +762,6 @@ where
         &self,
         block: BlockCheckParams<Block>,
     ) -> Result<ImportResult, Self::Error> {
-        println!("*** check_block: {:?}", block.hash);
-
         self.inner.check_block(block).await.map_err(Into::into)
     }
 }
