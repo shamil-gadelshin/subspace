@@ -129,6 +129,12 @@ impl<Block: BlockT> SubspaceLink<Block> {
         self.block_importing_notification_stream.clone()
     }
 
+    pub fn block_importing_notification_sender(
+        &self,
+    ) -> SubspaceNotificationSender<BlockImportingNotification<Block>> {
+        self.block_importing_notification_sender.clone()
+    }
+
     /// Get blocks that are expected to be included at specified block number.
     pub fn segment_headers_for_block(&self, block_number: NumberFor<Block>) -> Vec<SegmentHeader> {
         self.segment_headers

@@ -61,7 +61,7 @@ use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_INFO};
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedSender};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
-use sp_consensus::SyncOracle;
+use sp_consensus::{BlockOrigin, SyncOracle};
 use sp_consensus_subspace::{FarmerPublicKey, SubspaceApi, SubspaceJustification};
 use sp_objects::ObjectsApi;
 use sp_runtime::generic::SignedBlock;
@@ -771,10 +771,10 @@ where
             // Just to be very explicit that block import shouldn't continue until archiving
             // is over
             acknowledgement_sender: _acknowledgement_sender,
-            ..
+            origin,
         }) = block_importing_notification_stream.next().await
         {
-            info!(%block_number, "Importing block with archiver.");
+            info!(%block_number, ?origin, "Importing block with archiver.");
 
             let block_number_to_archive =
                 match block_number.checked_sub(&confirmation_depth_k.into()) {
@@ -785,12 +785,19 @@ where
                 };
 
             if best_archived_block_number >= block_number_to_archive {
-                info!(%block_number, "Skipped archiving imported block.");
+                info!(%block_number, "Skipped archiving imported block: already archived.");
                 // This block was already archived, skip
                 continue;
             }
 
             best_archived_block_number = block_number_to_archive;
+
+            if origin == BlockOrigin::FastSync {
+                best_archived_block_number = block_number;
+                info!(%block_number, "Skipped archiving imported block: fast sync marker.");
+                // This block is a fast-sync marker, skip
+                continue;
+            }
 
             let block = client
                 .block(
@@ -808,16 +815,17 @@ where
                 block_number_to_archive, block_hash_to_archive
             );
 
-            if parent_block_hash != best_archived_block_hash {
-                let error = format!(
-                    "Attempt to switch to a different fork beyond archiving depth, \
-                    can't do it: parent block hash {}, best archived block hash {}",
-                    parent_block_hash, best_archived_block_hash
-                );
-                return Err(sp_blockchain::Error::Consensus(sp_consensus::Error::Other(
-                    error.into(),
-                )));
-            }
+            // TODO: restore
+            // if parent_block_hash != best_archived_block_hash {
+            //     let error = format!(
+            //         "Attempt to switch to a different fork beyond archiving depth, \
+            //         can't do it: parent block hash {}, best archived block hash {}",
+            //         parent_block_hash, best_archived_block_hash
+            //     );
+            //     return Err(sp_blockchain::Error::Consensus(sp_consensus::Error::Other(
+            //         error.into(),
+            //     )));
+            // }
 
             best_archived_block_hash = block_hash_to_archive;
 
@@ -920,7 +928,7 @@ async fn send_archived_segment_notification(
     archived_segment_notification_sender.notify(move || archived_segment_notification);
 
     while acknowledgement_receiver.next().await.is_some() {
-        debug!(
+        info!(
             "Archived segment notification acknowledged: {}",
             segment_index
         );

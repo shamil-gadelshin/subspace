@@ -874,6 +874,7 @@ where
             pause_sync,
             dsn_sync_piece_getter,
             sync_service.clone(),
+            subspace_link.clone(),
         );
         task_manager
             .spawn_handle()

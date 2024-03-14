@@ -25,6 +25,7 @@ use subspace_archiving::reconstructor::Reconstructor;
 use subspace_core_primitives::SegmentIndex;
 use subspace_networking::Node;
 use tracing::{debug, error, info, trace, warn};
+use sc_consensus_subspace::SubspaceLink;
 use crate::sync::fast_sync::FastSyncResult;
 
 /// How much time to wait for new block to be imported before timing out and starting sync from DSN
@@ -60,6 +61,7 @@ pub(crate) fn create_observer_and_worker<Block, AS, Client, PG, IQS>(
     pause_sync: Arc<AtomicBool>,
     piece_getter: PG,
     sync_service: Arc<SyncingService<Block>>,
+    subspace_link: SubspaceLink<Block>,
 ) -> (
     impl Future<Output = ()> + Send + 'static,
     impl Future<Output = Result<(), sc_service::Error>> + Send + 'static,
@@ -112,6 +114,7 @@ where
             sync_service,
             network_service,
             tx,
+            subspace_link,
         )
         .await
     };
@@ -248,6 +251,7 @@ async fn create_worker<Block, AS, IQS, Client, PG>(
     sync_service: Arc<SyncingService<Block>>,
     network_service: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
     mut notifications_sender: mpsc::Sender<NotificationReason>,
+    subspace_link: SubspaceLink<Block>,
 ) -> Result<(), sc_service::Error>
 where
     Block: BlockT,
@@ -295,6 +299,7 @@ where
             import_queue_service1,
             import_queue_service2,
             network_service.clone(),
+            subspace_link
         )
         .await;
 

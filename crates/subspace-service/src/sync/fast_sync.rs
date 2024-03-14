@@ -18,11 +18,14 @@ use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
 use sp_runtime::Justifications;
 use std::sync::Arc;
 use std::time::Duration;
+use futures::channel::mpsc;
 use subspace_archiving::reconstructor::Reconstructor;
 use subspace_core_primitives::SegmentIndex;
 use subspace_networking::Node;
 use tokio::time::sleep;
 use tracing::{error, info};
+use sc_consensus_subspace::block_import::BlockImportingNotification;
+use sc_consensus_subspace::SubspaceLink;
 
 pub(crate) struct FastSyncResult<Block: BlockT> {
     pub(crate) last_imported_block_number: NumberFor<Block>,
@@ -39,6 +42,7 @@ pub(crate) async fn fast_sync<PG, AS, Block, Client, IQS>(
     import_queue_service1: Box<IQS>,
     mut import_queue_service2: Box<IQS>,
     network_service: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
+    subspace_link: SubspaceLink<Block>,
 ) -> Result<FastSyncResult<Block>, sc_service::Error>
 where
     PG: DsnSyncPieceGetter,
@@ -97,29 +101,31 @@ where
     let last_imported_segment_index = last_segment_index;
     let last_imported_block_number = last_block.0.into();
 
-    let active_block = second_last_block;
-    let block_bytes = active_block.1;
-    let number = NumberFor::<Block>::from(active_block.0);
+    info!("Started importing 'raw blocks'.");
+    for block in blocks.into_iter() {
+        let block_bytes = block.1;
+        let number = NumberFor::<Block>::from(block.0);
 
-    let (header, extrinsics, justifications) = deconstruct_block::<Block>(block_bytes)?;
-    let hash = header.hash();
+        let (header, extrinsics, justifications) = deconstruct_block::<Block>(block_bytes)?;
+        let hash = header.hash();
 
+        info!(?hash, "Reconstructed block #{} for raw block import", number);
 
-    info!("Started importing 'raw block'.");
-    info!(?hash, "Reconstructed block #{}", number);
+        let raw_block = RawBlockData {
+            hash,
+            header,
+            block_body: Some(extrinsics),
+            justifications,
+        };
 
-    let raw_block = RawBlockData {
-        hash,
-        header,
-        block_body: Some(extrinsics),
-        justifications,
-    };
+        // Skip the last block import. We'll import it later with execution.
+        if number == NumberFor::<Block>::from(last_imported_block_number){
+            break;
+        }
 
-    client.import_raw_block(raw_block.clone());
-
-    let block_body = raw_block.block_body;
-    let justifications = raw_block.justifications;
-    let header = raw_block.header;
+        client.import_raw_block(raw_block.clone());
+        info!(?hash, "#{number} raw block imported",);
+    }
 
     info!("Gathering peers for state sync.");
 
@@ -142,7 +148,12 @@ where
 
     let networking_fut = network_service_worker.run(network_service);
 
-    let initial_peers = open_peers.into_iter().map(|peer_id| (peer_id, number));
+    // Prepare gathering the state for the second last block
+    let block_bytes = second_last_block.1;
+    let second_last_block_number = second_last_block.0;
+
+    let (header, extrinsics, justifications) = deconstruct_block::<Block>(block_bytes)?;
+    let initial_peers = open_peers.into_iter().map(|peer_id| (peer_id, second_last_block_number.into()));
 
     let (sync_worker, sync_engine) = FastSyncingEngine::new(
         client.clone(),
@@ -150,7 +161,7 @@ where
         network_service_handle,
         None,
         header.clone(),
-        block_body.clone(),
+        Some(extrinsics),
         justifications.clone(),
         true,
         initial_peers,
@@ -175,7 +186,7 @@ where
     client.clear_block_gap();
 
     // Block import delay
-    sleep(Duration::from_secs(5)).await;
+    sleep(Duration::from_secs(5)).await; // TODO
 
     net_fut.abort();
 
@@ -186,18 +197,30 @@ where
     let (header, extrinsics, justifications) = deconstruct_block::<Block>(last_block.1)?;
     let hash = header.hash();
     let last_incoming_block = create_incoming_block(header, extrinsics, justifications);
+    let block_number = last_block.0;
 
     info!(
         ?hash,
-        block_number = %last_block.0,
+        %block_number,
         segment_index = %last_segment_index,
         "Importing reconstructed last block from the segment.",
     );
 
+    // TODO:
+    let (acknowledgement_sender, _) = mpsc::channel(0);
+    subspace_link
+        .block_importing_notification_sender()
+        .notify(move || BlockImportingNotification {
+            block_number: block_number.into(),
+            origin: BlockOrigin::FastSync,
+            acknowledgement_sender,
+        });
+
+    // Import and execute the last block from the segment and setup the substrate sync
     import_queue_service2.import_blocks(BlockOrigin::NetworkBroadcast, vec![last_incoming_block]);
 
     // Import delay
-    sleep(Duration::from_secs(5)).await;
+    sleep(Duration::from_secs(5)).await; // TODO
 
     let info = client.info();
     info!("Current client info: {:?}", info);
