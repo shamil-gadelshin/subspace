@@ -584,17 +584,17 @@ where
                     inherent_data,
                 )?;
 
-                // if !inherent_res.ok() {
-                //     for (i, e) in inherent_res.into_errors() {
-                //         match create_inherent_data_providers
-                //             .try_handle_error(&i, &e)
-                //             .await
-                //         {
-                //             Some(res) => res.map_err(Error::CheckInherents)?,
-                //             None => return Err(Error::CheckInherentsUnhandled(i)),
-                //         }
-                //     }
-                // }
+                if !inherent_res.ok() {
+                    for (i, e) in inherent_res.into_errors() {
+                        match create_inherent_data_providers
+                            .try_handle_error(&i, &e)
+                            .await
+                        {
+                            Some(res) => res.map_err(Error::CheckInherents)?,
+                            None => return Err(Error::CheckInherentsUnhandled(i)),
+                        }
+                    }
+                }
             }
         }
 
@@ -676,14 +676,19 @@ where
             .await?;
 
 
-        // let parent_weight = if block_number.is_one() {
-        //     0
-        // } else {
-        //     aux_schema::load_block_weight(self.client.as_ref(), block.header.parent_hash())?
-        //         .ok_or_else(|| Error::ParentBlockNoAssociatedWeight(block_hash))?
-        // };
+        let parent_weight = if block_number.is_one() {
+            0
+        } else {
+            //TODO:
+            // if block.origin == BlockOrigin::FastSync{
+            //     0
+            // } else {
+                aux_schema::load_block_weight(self.client.as_ref(), block.header.parent_hash())?
+                    .ok_or_else(|| Error::ParentBlockNoAssociatedWeight(block_hash))?
+      //     }
+        };
 
-        let parent_weight = 0;
+   //     let parent_weight = 0;
 
         let added_weight = calculate_block_weight(subspace_digest_items.solution_range);
         let total_weight = parent_weight + added_weight;
@@ -694,45 +699,43 @@ where
                 .extend(values.iter().map(|(k, v)| (k.to_vec(), Some(v.to_vec()))))
         });
 
-        // for (&segment_index, segment_commitment) in &subspace_digest_items.segment_commitments {
-        //     let found_segment_commitment = self
-        //         .segment_headers_store
-        //         .get_segment_header(segment_index)
-        //         .ok_or_else(|| Error::SegmentHeaderNotFound(segment_index))?
-        //         .segment_commitment();
-        //
-        //     if &found_segment_commitment != segment_commitment {
-        //         warn!(
-        //             "Different segment commitment for segment index {} was found in storage, \
-        //             likely fork below archiving point. expected {:?}, found {:?}",
-        //             segment_index, segment_commitment, found_segment_commitment
-        //         );
-        //         return Err(Error::DifferentSegmentCommitment(segment_index));
-        //     }
-        // }
+        for (&segment_index, segment_commitment) in &subspace_digest_items.segment_commitments {
+            let found_segment_commitment = self
+                .segment_headers_store
+                .get_segment_header(segment_index)
+                .ok_or_else(|| Error::SegmentHeaderNotFound(segment_index))?
+                .segment_commitment();
+
+            if &found_segment_commitment != segment_commitment {
+                warn!(
+                    "Different segment commitment for segment index {} was found in storage, \
+                    likely fork below archiving point. expected {:?}, found {:?}",
+                    segment_index, segment_commitment, found_segment_commitment
+                );
+                return Err(Error::DifferentSegmentCommitment(segment_index));
+            }
+        }
         println!(
             "*** import_block (before load_block_weight): {:?}",
             block_hash
         );
         // The fork choice rule is that we pick the heaviest chain (i.e. smallest solution range),
         // if there's a tie we go with the longest chain
-        // TODO
-        // let fork_choice = {
-        //     let info = self.client.info();
-        //
-        //     let last_best_weight = if &info.best_hash == block.header.parent_hash() {
-        //         // the parent=genesis case is already covered for loading parent weight, so we don't
-        //         // need to cover again here
-        //         parent_weight
-        //     } else {
-        //         aux_schema::load_block_weight(&*self.client, info.best_hash)?
-        //             .ok_or_else(|| Error::NoBlockWeight(info.best_hash))?
-        //     };
-        //
-        //     ForkChoiceStrategy::Custom(total_weight > last_best_weight)
-        // };
-        //block.fork_choice = Some(fork_choice);
-        block.fork_choice = Some(ForkChoiceStrategy::Custom(true));
+        let fork_choice = {
+            let info = self.client.info();
+
+            let last_best_weight = if &info.best_hash == block.header.parent_hash() {
+                // the parent=genesis case is already covered for loading parent weight, so we don't
+                // need to cover again here
+                parent_weight
+            } else {
+                aux_schema::load_block_weight(&*self.client, info.best_hash)?
+                    .ok_or_else(|| Error::NoBlockWeight(info.best_hash))?
+            };
+
+            ForkChoiceStrategy::Custom(total_weight > last_best_weight)
+        };
+        block.fork_choice = Some(fork_choice);
 
         let (acknowledgement_sender, mut acknowledgement_receiver) = mpsc::channel(0);
 
