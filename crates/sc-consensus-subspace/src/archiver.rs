@@ -256,7 +256,7 @@ pub struct ArchivedSegmentNotification {
     pub acknowledgement_sender: TracingUnboundedSender<()>,
 }
 
-fn find_last_archived_block<Block, Client, AS>(
+pub fn find_last_archived_block<Block, Client, AS>(
     client: &Client,
     segment_headers_store: &SegmentHeadersStore<AS>,
     best_block_to_archive: NumberFor<Block>,
@@ -772,6 +772,7 @@ where
             // is over
             acknowledgement_sender: _acknowledgement_sender,
             origin,
+            last_archived_block
         }) = block_importing_notification_stream.next().await
         {
             info!(%block_number, ?origin, "Importing block with archiver.");
@@ -790,14 +791,20 @@ where
                 continue;
             }
 
-            best_archived_block_number = block_number_to_archive;
-
             if origin == BlockOrigin::FastSync {
-                best_archived_block_number = block_number;
+                info!(%block_number, "Fast sync marker: {last_archived_block:?}");
+                // best_archived_block_number = block_number;
+                let last_archived_block = last_archived_block.unwrap();// TODO:
+                best_archived_block_number = last_archived_block.0.last_archived_block().number.into();
+                let last_archived_block_encoded = encode_block(last_archived_block.1);
+                archiver = Archiver::with_initial_state(archiver.kzg(), last_archived_block.0, &last_archived_block_encoded, last_archived_block.2).unwrap();
+
                 info!(%block_number, "Skipped archiving imported block: fast sync marker.");
                 // This block is a fast-sync marker, skip
                 continue;
             }
+
+            best_archived_block_number = block_number_to_archive;
 
             let block = client
                 .block(
@@ -815,17 +822,17 @@ where
                 block_number_to_archive, block_hash_to_archive
             );
 
-            // TODO: restore
-            // if parent_block_hash != best_archived_block_hash {
-            //     let error = format!(
-            //         "Attempt to switch to a different fork beyond archiving depth, \
-            //         can't do it: parent block hash {}, best archived block hash {}",
-            //         parent_block_hash, best_archived_block_hash
-            //     );
-            //     return Err(sp_blockchain::Error::Consensus(sp_consensus::Error::Other(
-            //         error.into(),
-            //     )));
-            // }
+
+            if parent_block_hash != best_archived_block_hash {
+                let error = format!(
+                    "Attempt to switch to a different fork beyond archiving depth, \
+                    can't do it: parent block hash {}, best archived block hash {}",
+                    parent_block_hash, best_archived_block_hash
+                );
+                return Err(sp_blockchain::Error::Consensus(sp_consensus::Error::Other(
+                    error.into(),
+                )));
+            }
 
             best_archived_block_hash = block_hash_to_archive;
 

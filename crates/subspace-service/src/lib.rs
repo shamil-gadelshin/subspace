@@ -1008,6 +1008,8 @@ where
                 let client = client.clone();
                 let subspace_link = subspace_link.clone();
 
+                println!("From within create_inherent_data_providers: {:?}", parent_hash);
+
                 async move {
                     let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 

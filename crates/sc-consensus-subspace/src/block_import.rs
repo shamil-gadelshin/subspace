@@ -54,12 +54,14 @@ use sp_runtime::Justifications;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use sp_consensus::BlockOrigin;
+use sp_runtime::generic::SignedBlock;
 use subspace_core_primitives::{
     BlockNumber, HistorySize, PublicKey, SectorId, SegmentHeader, SegmentIndex, SolutionRange,
 };
 use subspace_proof_of_space::Table;
 use subspace_verification::{calculate_block_weight, PieceCheckParams, VerifySolutionParams};
 use tracing::{info, warn};
+use subspace_core_primitives::objects::BlockObjectMapping;
 
 /// Notification with number of the block that is about to be imported and acknowledgement sender
 /// that can be used to pause block production if desired.
@@ -73,6 +75,9 @@ where
 
     /// Block origin
     pub origin: BlockOrigin,
+
+    // TODO: remove
+    pub last_archived_block: Option<(SegmentHeader, SignedBlock<Block>, BlockObjectMapping)>,
 
     /// Sender for pausing the block import when operator is not fast enough to process
     /// the consensus block.
@@ -584,17 +589,17 @@ where
                     inherent_data,
                 )?;
 
-                if !inherent_res.ok() {
-                    for (i, e) in inherent_res.into_errors() {
-                        match create_inherent_data_providers
-                            .try_handle_error(&i, &e)
-                            .await
-                        {
-                            Some(res) => res.map_err(Error::CheckInherents)?,
-                            None => return Err(Error::CheckInherentsUnhandled(i)),
-                        }
-                    }
-                }
+                // if !inherent_res.ok() {
+                //     for (i, e) in inherent_res.into_errors() {
+                //         match create_inherent_data_providers
+                //             .try_handle_error(&i, &e)
+                //             .await
+                //         {
+                //             Some(res) => res.map_err(Error::CheckInherents)?,
+                //             None => return Err(Error::CheckInherentsUnhandled(i)),
+                //         }
+                //     }
+                // }
             }
         }
 
@@ -747,6 +752,7 @@ where
                 block_number,
                 origin: block.origin,
                 acknowledgement_sender,
+                last_archived_block: None,
             });
 
         while acknowledgement_receiver.next().await.is_some() {

@@ -27,6 +27,7 @@ use subspace_networking::Node;
 use tracing::{debug, error, info, trace, warn};
 use sc_consensus_subspace::SubspaceLink;
 use crate::sync::fast_sync::FastSyncResult;
+use sp_objects::ObjectsApi;
 
 /// How much time to wait for new block to be imported before timing out and starting sync from DSN
 const NO_IMPORTED_BLOCKS_TIMEOUT: Duration = Duration::from_secs(10 * 60);
@@ -78,7 +79,7 @@ where
         + Sync
         + ClientExt<Block>
         + 'static,
-    Client::Api: SubspaceApi<Block, FarmerPublicKey>,
+    Client::Api: SubspaceApi<Block, FarmerPublicKey>+ ObjectsApi<Block>,
     PG: DsnSyncPieceGetter + Send + Sync + 'static,
     IQS: ImportQueueService<Block> + ?Sized + 'static,
 {
@@ -264,7 +265,7 @@ where
         + Send
         + Sync
         + 'static,
-    Client::Api: SubspaceApi<Block, FarmerPublicKey>,
+    Client::Api: SubspaceApi<Block, FarmerPublicKey> + ObjectsApi<Block>,
     IQS: ImportQueueService<Block> + ?Sized + 'static,
     PG: DsnSyncPieceGetter,
 {

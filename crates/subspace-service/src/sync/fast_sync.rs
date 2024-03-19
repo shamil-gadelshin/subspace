@@ -4,7 +4,7 @@ use crate::sync::DsnSyncPieceGetter;
 use sc_client_api::{AuxStore, BlockBackend, ProofProvider};
 use sc_consensus::import_queue::ImportQueueService;
 use sc_consensus::IncomingBlock;
-use sc_consensus_subspace::archiver::{decode_block, SegmentHeadersStore};
+use sc_consensus_subspace::archiver::{decode_block, find_last_archived_block, SegmentHeadersStore};
 use sc_network::NetworkService;
 use sc_network_sync::fast_sync_engine::FastSyncingEngine;
 use sc_network_sync::service::network::NetworkServiceProvider;
@@ -26,6 +26,7 @@ use tokio::time::sleep;
 use tracing::{error, info};
 use sc_consensus_subspace::block_import::BlockImportingNotification;
 use sc_consensus_subspace::SubspaceLink;
+use sp_objects::ObjectsApi;
 
 pub(crate) struct FastSyncResult<Block: BlockT> {
     pub(crate) last_imported_block_number: NumberFor<Block>,
@@ -56,7 +57,7 @@ where
         + Send
         + Sync
         + 'static,
-    Client::Api: SubspaceApi<Block, FarmerPublicKey>,
+    Client::Api: SubspaceApi<Block, FarmerPublicKey> + ObjectsApi<Block>,
     IQS: ImportQueueService<Block> + ?Sized + 'static,
 {
     // TODO: skip fast sync if no segments
@@ -82,12 +83,32 @@ where
         .get_segment_header(last_segment_index)
         .expect("We get segment index from the same storage. It should be present.");
 
+    let second_last_segment_index = last_segment_header.segment_index() - 1.into();
+    let second_last_segment_header =  segment_headers_store
+        .get_segment_header(second_last_segment_index)
+        .expect("We get segment index from the same storage. It should be present.");
+
+    let prev_blocks = download_and_reconstruct_blocks(
+        second_last_segment_index,
+        piece_getter,
+        &mut reconstructor,
+    )
+    .await?;
+
+    println!("**** Prev blocks downloaded: {}-{}", prev_blocks[0].0, prev_blocks[prev_blocks.len() - 1].0);
+
     let blocks = download_and_reconstruct_blocks(
         last_segment_header.segment_index(),
         piece_getter,
         &mut reconstructor,
     )
     .await?;
+
+    println!("**** Blocks downloaded: {}-{}", blocks[0].0, blocks[blocks.len() - 1].0);
+
+    assert_eq!(second_last_segment_header.last_archived_block().number, blocks[0].0);
+
+    panic!("Stop");
 
     if blocks.len() < 2 {
         return Err(sc_service::Error::Other(
@@ -206,15 +227,44 @@ where
         "Importing reconstructed last block from the segment.",
     );
 
+    // let last_segment_header = segment_headers_store
+    //     .get_segment_header(last_segment_index)
+    //     .expect("We get segment index from the same storage. It should be present.");
+    // assert_eq!(last_segment_header.segment_index(), last_segment_index);
+    let last_archived_block_number = last_segment_header.last_archived_block().number;
+
+    // let last_archived_block = client
+    //     .block(last_archived_block_hash)?
+    //     .expect("Last archived block must always be retrievable; qed");
+
+    // let block_object_mappings = client
+    //     .runtime_api()
+    //     .validated_object_call_hashes(last_archived_block_hash)
+    //     .and_then(|calls| {
+    //         client.runtime_api().extract_block_object_mapping(
+    //             *last_archived_block.block.header().parent_hash(),
+    //             last_archived_block.block.clone(),
+    //             calls,
+    //         )
+    //     })
+    //     .unwrap_or_default();
+
+   // info!(?last_segment_header, ?last_archived_block_number, "{:?}", last_archived_block);
+
     // TODO:
-    let (acknowledgement_sender, _) = mpsc::channel(0);
-    subspace_link
-        .block_importing_notification_sender()
-        .notify(move || BlockImportingNotification {
-            block_number: block_number.into(),
-            origin: BlockOrigin::FastSync,
-            acknowledgement_sender,
-        });
+    // let (acknowledgement_sender, _) = mpsc::channel(0);
+    // subspace_link
+    //     .block_importing_notification_sender()
+    //     .notify(move || BlockImportingNotification {
+    //         block_number: block_number.into(),
+    //         origin: BlockOrigin::FastSync,
+    //         acknowledgement_sender,
+    //         last_archived_block: Some((
+    //         last_segment_header,
+    //         last_archived_block,
+    //         block_object_mappings,
+    //         ))
+    //     });
 
     // Import and execute the last block from the segment and setup the substrate sync
     import_queue_service2.import_blocks(BlockOrigin::NetworkBroadcast, vec![last_incoming_block]);
