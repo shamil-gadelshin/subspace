@@ -792,10 +792,11 @@ where
             }
 
             if origin == BlockOrigin::FastSync {
-                info!(%block_number, "Fast sync marker: {last_archived_block:?}");
                 // best_archived_block_number = block_number;
+                info!(%block_number, "Fast sync marker: {last_archived_block:?}");
                 let last_archived_block = last_archived_block.unwrap();// TODO:
                 best_archived_block_number = last_archived_block.0.last_archived_block().number.into();
+                best_archived_block_hash = last_archived_block.1.block.header().hash();
                 let last_archived_block_encoded = encode_block(last_archived_block.1);
                 archiver = Archiver::with_initial_state(archiver.kzg(), last_archived_block.0, &last_archived_block_encoded, last_archived_block.2).unwrap();
 
