@@ -63,6 +63,7 @@ pub(crate) fn create_observer_and_worker<Block, AS, Client, PG, IQS>(
     piece_getter: PG,
     sync_service: Arc<SyncingService<Block>>,
     subspace_link: SubspaceLink<Block>,
+    fast_sync_enabled: bool,
 ) -> (
     impl Future<Output = ()> + Send + 'static,
     impl Future<Output = Result<(), sc_service::Error>> + Send + 'static,
@@ -116,6 +117,7 @@ where
             network_service,
             tx,
             subspace_link,
+            fast_sync_enabled
         )
         .await
     };
@@ -253,6 +255,7 @@ async fn create_worker<Block, AS, IQS, Client, PG>(
     network_service: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
     mut notifications_sender: mpsc::Sender<NotificationReason>,
     subspace_link: SubspaceLink<Block>,
+    fast_sync_enabled: bool,
 ) -> Result<(), sc_service::Error>
 where
     Block: BlockT,
@@ -287,46 +290,47 @@ where
 
     let mut reconstructor = Reconstructor::new().map_err(|error| error.to_string())?;
 
+    pause_sync.store(true, Ordering::Release);
+
     // Run fast-sync first.
-    if let Some(reason) = notifications.next().await {
- 		pause_sync.store(true, Ordering::Release);
-       let fast_sync_result = super::fast_sync::fast_sync(
-            &segment_headers_store,
-            node,
-            piece_getter,
-            client.clone(),
-            import_queue_service1,
-            import_queue_service2,
-            network_service.clone(),
-            subspace_link
-        )
-        .await;
+    if fast_sync_enabled {
+        if let Some(reason) = notifications.next().await {
+            let fast_sync_result = super::fast_sync::fast_sync(
+                &segment_headers_store,
+                node,
+                piece_getter,
+                client.clone(),
+                import_queue_service1,
+                import_queue_service2,
+                network_service.clone(),
+                subspace_link
+            )
+                .await;
 
-        match fast_sync_result{
-            Ok(fast_sync_result) => {
-                last_processed_block_number = fast_sync_result.last_imported_block_number;
-                last_processed_segment_index = fast_sync_result.last_imported_segment_index;
-                reconstructor = fast_sync_result.reconstructor;
+            match fast_sync_result {
+                Ok(fast_sync_result) => {
+                    last_processed_block_number = fast_sync_result.last_imported_block_number;
+                    last_processed_segment_index = fast_sync_result.last_imported_segment_index;
+                    reconstructor = fast_sync_result.reconstructor;
 
-                info!("Fast sync finished.");
+                    info!("Fast sync finished.");
+                }
+                Err(err) => {
+                    error!("Fast sync failed: {err}");
+                    panic!("Fast sync failed."); // TODO:
+                }
             }
-            Err(err) => {
-                error!("Fast sync failed: {err}");
-                panic!("Fast sync failed."); // TODO:
-            }
+
+            debug!(%last_processed_block_number, %last_processed_segment_index, "Fast sync finished.");
+
+            notifications_sender
+                .try_send(NotificationReason::WentOnlineSubspace)
+                .map_err(|_| sc_service::Error::Other("Can't send sync notification reason.".into()))?;
         }
-
-        debug!(%last_processed_block_number, %last_processed_segment_index, "Fast sync finished.");
-
-        notifications_sender
-            .try_send(NotificationReason::WentOnlineSubspace)
-            .map_err(|_| sc_service::Error::Other("Can't send sync notification reason.".into()))?;
     }
 
     #[allow(clippy::never_loop)]
     while let Some(reason) = notifications.next().await {
-        pause_sync.store(true, Ordering::Release);
-
         info!(?reason, "Received notification to sync from DSN");
         // TODO: Maybe handle failed block imports, additional helpful logging
         let import_froms_from_dsn_fut = import_blocks_from_dsn(

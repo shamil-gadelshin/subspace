@@ -914,6 +914,7 @@ where
             dsn_sync_piece_getter,
             sync_service.clone(),
             subspace_link.clone(),
+            config.fast_sync_enabled
         );
         task_manager
             .spawn_handle()
