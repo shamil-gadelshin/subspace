@@ -41,10 +41,7 @@ where
         &self,
         piece_index: PieceIndex,
     ) -> Result<Option<Piece>, Box<dyn Error + Send + Sync + 'static>> {
-        self.get_piece(
-            piece_index,
-        )
-        .await
+        Ok(self.get_piece_from_cache(piece_index).await)
     }
 }
 
