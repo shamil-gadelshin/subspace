@@ -292,8 +292,19 @@ where
 
     pause_sync.store(true, Ordering::Release);
 
+    let finalized_state_detected = client.info().finalized_state.is_some();
+
+    // TODO: Introduce fast-sync support for reruns
+    if fast_sync_enabled && finalized_state_detected{
+        info!("Fast sync detected existing finalized state.")
+    }
+
+    // if finalized_state_detected{
+    //     client.clear_block_gap();
+    // }
+
     // Run fast-sync first.
-    if fast_sync_enabled {
+    if fast_sync_enabled && !finalized_state_detected {
         if let Some(reason) = notifications.next().await {
             let fast_sync_result = super::fast_sync::fast_sync(
                 &segment_headers_store,

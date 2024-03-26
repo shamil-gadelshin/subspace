@@ -117,6 +117,7 @@ use subspace_proof_of_space::Table;
 use subspace_runtime_primitives::opaque::Block;
 use subspace_runtime_primitives::{AccountId, Balance, Hash, Nonce};
 use tracing::{debug, error, info, Instrument};
+use sc_service::ClientExt;
 
 // There are multiple places where it is assumed that node is running on 64-bit system, refuse to
 // compile otherwise
@@ -703,6 +704,12 @@ where
         mut telemetry,
     } = other;
 
+    // Clear block gap on reruns
+    if client.info().finalized_state.is_some() {
+        info!(client_info=?client.info(), "Client info");
+        client.clear_block_gap();
+    }
+
     let offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
     let (node, bootstrap_nodes) = match config.subspace_networking {
         SubspaceNetworking::Reuse {
@@ -884,6 +891,7 @@ where
         );
 
     network_wrapper.set(network_service.clone());
+
     if config.sync_from_dsn {
         let dsn_sync_piece_getter = config.dsn_piece_getter.unwrap_or_else(|| {
             Arc::new(PieceProvider::new(
