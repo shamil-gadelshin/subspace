@@ -147,6 +147,7 @@ impl From<SubstrateConfiguration> for Configuration {
                 // Substrate's default
                 max_blocks_per_request: 64,
                 // Substrate's default, full mode
+                //sync_mode: SyncMode::Full,
                 sync_mode: SyncMode::LightState {
                     skip_proofs: true,
                     storage_chain_mode: false,
