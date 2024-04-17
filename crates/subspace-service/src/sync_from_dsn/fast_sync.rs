@@ -334,9 +334,9 @@ where
             last_block_number
         );
 
-        // Update common blocks with connected peers.
-        self.sync_service
-            .new_best_number(second_last_block_number.into());
+        // // Update common blocks with connected peers.
+        // self.sync_service
+        //     .new_best_number(second_last_block_number.into());
 
         // Import and execute the last block from the segment and setup the substrate sync
         self.import_deconstructed_block(
@@ -588,8 +588,8 @@ where
                     // State block import delay
                     self.wait_for_block_import(state_block_number).await;
 
-                    debug!("Clearing block gap...");
-                    self.client.clear_block_gap();
+                    // debug!("Clearing block gap...");
+                    // self.client.clear_block_gap();
 
                     return Ok(last_block_from_sync);
                 }
