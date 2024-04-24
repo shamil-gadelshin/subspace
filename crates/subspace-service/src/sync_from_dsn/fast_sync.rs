@@ -5,7 +5,6 @@ use sc_client_api::{AuxStore, BlockBackend, ProofProvider};
 use sc_consensus::import_queue::ImportQueueService;
 use sc_consensus::IncomingBlock;
 use sc_consensus_subspace::archiver::{decode_block, SegmentHeadersStore};
-use sc_consensus_subspace::block_import::ArchiverInitilizationData;
 use sc_consensus_subspace::SubspaceLink;
 use sc_network::{NetworkService, PeerId};
 use sc_network_sync::fast_sync_engine::FastSyncingEngine;
@@ -229,7 +228,7 @@ where
         let state_block_bytes = blocks[0].1.clone();
         let state_block_number = blocks[0].0;
 
-        let (raw_block, state_block) =
+        let (raw_block, _) =
             Self::create_raw_block(state_block_bytes.clone(), state_block_number.into())?;
 
         self.client.import_raw_block(raw_block.clone())?;
@@ -294,20 +293,20 @@ where
 
             // 4.a) Initialize archiver and skip the first block.
             // We imported it previously as raw block.
-            if current_block_number == state_block_number.into() {
-                let notification_block = state_block.clone();
-                self.subspace_link
-                    .archiver_notification_sender()
-                    .notify(move || ArchiverInitilizationData {
-                        last_archived_block: (
-                            second_last_segment_header,
-                            notification_block.clone(),
-                            Default::default(),
-                        ),
-                    });
-
-                continue;
-            }
+            // if current_block_number == state_block_number.into() {
+            //     let notification_block = state_block.clone();
+            //     self.subspace_link
+            //         .archiver_notification_sender()
+            //         .notify(move || ArchiverInitilizationData {
+            //             last_archived_block: (
+            //                 second_last_segment_header,
+            //                 notification_block.clone(),
+            //                 Default::default(),
+            //             ),
+            //         });
+            //
+            //     continue;
+            // }
 
             // Skip the last block import. We'll import it later with execution.
             if current_block_number == NumberFor::<Block>::from(last_block_number) {
