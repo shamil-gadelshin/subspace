@@ -8,7 +8,7 @@ use sc_cli::{
     TransactionPoolParams, RPC_DEFAULT_PORT,
 };
 use sc_informant::OutputFormat;
-use sc_network::config::{MultiaddrWithPeerId, NonReservedPeerMode, SetConfig};
+use sc_network::config::{MultiaddrWithPeerId, NonReservedPeerMode, SetConfig, SyncMode};
 use sc_service::{BlocksPruning, Configuration, PruningMode};
 use sc_storage_monitor::StorageMonitorParams;
 use sc_telemetry::TelemetryEndpoints;
@@ -597,7 +597,13 @@ pub(super) fn create_consensus_chain_configuration(
         chain_spec: Box::new(chain_spec),
         informant_output_format: OutputFormat { enable_color },
     };
-    let consensus_chain_config = Configuration::from(consensus_chain_config);
+    let mut consensus_chain_config = Configuration::from(consensus_chain_config);
+    if fast_sync {  // TODO: check for second fast sync
+        consensus_chain_config.network.sync_mode = SyncMode::LightState {
+            skip_proofs: true,
+            storage_chain_mode: false,
+        };
+    }
 
     let pot_external_entropy =
         derive_pot_external_entropy(&consensus_chain_config, pot_external_entropy)?;
