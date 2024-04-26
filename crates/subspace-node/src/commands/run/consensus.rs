@@ -598,7 +598,8 @@ pub(super) fn create_consensus_chain_configuration(
         informant_output_format: OutputFormat { enable_color },
     };
     let mut consensus_chain_config = Configuration::from(consensus_chain_config);
-    if fast_sync {  // TODO: check for second fast sync
+    if fast_sync {
+        // TODO: check for second fast sync
         consensus_chain_config.network.sync_mode = SyncMode::LightState {
             skip_proofs: true,
             storage_chain_mode: false,

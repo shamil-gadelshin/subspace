@@ -347,8 +347,7 @@ where
 
         // Block import delay
         // We wait to import for all the blocks from the segment except the last one
-        self.wait_for_block_import(last_block_number.into())
-            .await;
+        self.wait_for_block_import(last_block_number.into()).await;
 
         // Clear the block gap to prevent Substrate sync to download blocks from the start.
         debug!("Clearing block gap...");
