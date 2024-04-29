@@ -9,7 +9,9 @@ use sc_consensus_subspace::SubspaceLink;
 use sc_network::{NetworkService, PeerId};
 use sc_network_sync::fast_sync_engine::FastSyncingEngine;
 use sc_network_sync::service::network::NetworkServiceProvider;
+use sc_network_sync::service::syncing_service::SyncRestartArgs;
 use sc_network_sync::SyncingService;
+use sc_service::config::SyncMode;
 use sc_service::{ClientExt, Error, RawBlockData};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
@@ -353,7 +355,12 @@ where
         debug!("Clearing block gap...");
         self.client.clear_block_gap();
 
-        self.sync_service.restart().await;
+        self.sync_service
+            .restart(SyncRestartArgs {
+                sync_mode: SyncMode::Full,
+                new_best_block: Some(last_block_number.into()),
+            })
+            .await;
 
         let info = self.client.info();
         debug!("Fast sync. Current client info: {:?}", info);
