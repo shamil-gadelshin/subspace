@@ -1,19 +1,18 @@
 use crate::sync_from_dsn::import_blocks::download_and_reconstruct_blocks;
 use crate::sync_from_dsn::segment_header_downloader::SegmentHeaderDownloader;
 use crate::sync_from_dsn::DsnSyncPieceGetter;
-use sc_client_api::{AuxStore, BlockBackend, ProofProvider};
+use sc_client_api::{AuxStore, backend, BlockBackend, CallExecutor, LockImportRun, ProofProvider};
 use sc_consensus::import_queue::ImportQueueService;
-use sc_consensus::IncomingBlock;
+use sc_consensus::{BlockImportParams, ForkChoiceStrategy, IncomingBlock, StateAction};
 use sc_consensus_subspace::archiver::{decode_block, SegmentHeadersStore};
 use sc_consensus_subspace::SubspaceLink;
 use sc_network::{NetworkService, PeerId};
-use sc_network_sync::fast_sync_engine::FastSyncingEngine;
 use sc_network_sync::service::network::NetworkServiceProvider;
 use sc_network_sync::service::syncing_service::SyncRestartArgs;
 use sc_network_sync::SyncingService;
 use sc_service::config::SyncMode;
-use sc_service::{ClientExt, Error, RawBlockData};
-use sp_api::ProvideRuntimeApi;
+use sc_service::{ClientExt, Error};
+use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockOrigin;
 use sp_consensus_subspace::{FarmerPublicKey, SubspaceApi};
@@ -22,14 +21,100 @@ use sp_runtime::generic::SignedBlock;
 use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
 use sp_runtime::Justifications;
 use std::collections::HashSet;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
+use parity_scale_codec::Encode;
+use sc_service::client::Client;
 use subspace_archiving::reconstructor::Reconstructor;
 use subspace_core_primitives::SegmentIndex;
 use subspace_networking::Node;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::{debug, error};
+use crate::sync_from_dsn::fast_sync_engine::FastSyncingEngine;
+
+pub type BlockWeight = u128;
+
+/// Write the cumulative chain-weight of a block ot aux storage.
+fn write_block_weight<H: Encode, F, R>(block_hash: H, block_weight: BlockWeight, write_aux: F) -> R
+    where
+        F: FnOnce(&[(Vec<u8>, &[u8])]) -> R,
+{
+    let key = block_weight_key(block_hash);
+    block_weight.using_encoded(|s| write_aux(&[(key, s)]))
+}
+
+/// The aux storage key used to store the block weight of the given block hash.
+fn block_weight_key<H: Encode>(block_hash: H) -> Vec<u8> {
+    (b"block_weight", block_hash).encode()
+}
+
+#[derive(Clone, Debug)]
+/// Data container to insert the block into the BlockchainDb without checks.
+pub struct RawBlockData<Block: BlockT> {
+    /// Block hash
+    pub hash: Block::Hash,
+    /// Block header
+    pub header: Block::Header,
+    /// Extrinsics of the block
+    pub block_body: Option<Vec<Block::Extrinsic>>,
+    /// Justifications of the block
+    pub justifications: Option<Justifications>,
+}
+
+
+
+    fn import_raw_block<B, Block, Client>(client: &Client, raw_block: RawBlockData<Block>) -> Result<(), Error>
+        where
+            B: backend::Backend<Block>,
+    //        E: CallExecutor<Block> + Send + Sync,
+            Block: BlockT,
+            // Client<B, E, Block, RA>: ProvideRuntimeApi<Block>,
+            // <Client<B, E, Block, RA> as ProvideRuntimeApi<Block>>::Api: sp_api::Core<Block> + ApiExt<Block>,
+            Client: HeaderBackend<Block>
+            + ClientExt<Block, B>
+            + BlockBackend<Block>
+            + ProvideRuntimeApi<Block>
+            + ProofProvider<Block>
+            + LockImportRun<Block, B>
+            + Send
+            + Sync
+            + 'static,
+            Client::Api: SubspaceApi<Block, FarmerPublicKey> + ObjectsApi<Block>,
+   //         RA: Sync + Send,
+    {
+        let hash = raw_block.hash;
+        let number = *raw_block.header.number();
+        debug!("Importing raw block: {number:?}  - {hash:?} ");
+
+        let mut import_block = BlockImportParams::new(BlockOrigin::NetworkInitialSync, raw_block.header);
+        import_block.justifications = raw_block.justifications;
+        import_block.body = raw_block.block_body;
+        import_block.state_action = StateAction::Skip;
+        import_block.finalized = true;
+        import_block.fork_choice = Some(ForkChoiceStrategy::LongestChain);
+        import_block.import_existing = false;
+
+        // Set zero block weight to allow the execution of the following blocks.
+        write_block_weight(hash, 0, |values| {
+            import_block
+                .auxiliary
+                .extend(values.iter().map(|(k, v)| (k.to_vec(), Some(v.to_vec()))))
+        });
+
+        let result = client
+            .lock_import_and_run(|operation| client.apply_block(operation, import_block, None))
+            .map_err(|e| {
+                error!("Error during importing of the raw block: {}", e);
+                sp_consensus::Error::ClientImport(e.to_string())
+            })?;
+
+        debug!("Raw block imported: {number:?}  - {hash:?}. Result: {result:?}");
+
+        Ok(())
+    }
+
 
 pub(crate) struct FastSyncResult<Block: BlockT> {
     pub(crate) last_imported_block_number: NumberFor<Block>,
@@ -50,7 +135,7 @@ impl<Block: BlockT> FastSyncResult<Block> {
     }
 }
 
-pub(crate) struct FastSyncer<'a, PG, AS, Block, Client, IQS>
+pub(crate) struct FastSyncer<'a, PG, AS, Block, Client, IQS, B>
 where
     Block: BlockT,
     IQS: ?Sized,
@@ -64,18 +149,21 @@ where
     subspace_link: SubspaceLink<Block>,
     fast_sync_state: Arc<parking_lot::Mutex<Option<NumberFor<Block>>>>,
     sync_service: Arc<SyncingService<Block>>,
+    _marker: PhantomData<B>,
 }
 
-impl<'a, PG, AS, Block, Client, IQS> FastSyncer<'a, PG, AS, Block, Client, IQS>
+impl<'a, PG, AS, Block, Client, IQS, B> FastSyncer<'a, PG, AS, Block, Client, IQS, B>
 where
+    B: sc_client_api::Backend<Block>,
     PG: DsnSyncPieceGetter,
     AS: AuxStore + Send + Sync + 'static,
     Block: BlockT,
     Client: HeaderBackend<Block>
-        + ClientExt<Block>
+        + ClientExt<Block, B>
         + BlockBackend<Block>
         + ProvideRuntimeApi<Block>
         + ProofProvider<Block>
+        + LockImportRun<Block, B>
         + Send
         + Sync
         + 'static,
@@ -104,6 +192,7 @@ where
             subspace_link,
             fast_sync_state,
             sync_service,
+            _marker: PhantomData
         }
     }
 
@@ -208,7 +297,7 @@ where
             last_block_bytes_from_second_segment,
             last_block_number_from_second_segment.into(),
         )?;
-        self.client.import_raw_block(raw_block.clone())?;
+        import_raw_block(self.client.as_ref(), raw_block.clone())?;
 
         debug!(
             hash = ?raw_block.hash,
@@ -233,7 +322,7 @@ where
         let (raw_block, _) =
             Self::create_raw_block(state_block_bytes.clone(), state_block_number.into())?;
 
-        self.client.import_raw_block(raw_block.clone())?;
+        import_raw_block(self.client.as_ref(), raw_block.clone())?;
 
         debug!(
             hash = ?raw_block.hash,
@@ -532,7 +621,7 @@ where
             // TODO: add loop timeout
             let peer_candidates = loop {
                 let open_peers = network_service
-                    .open_peers()
+                    .connected_peers()
                     .await
                     .expect("Network service must be available.");
 

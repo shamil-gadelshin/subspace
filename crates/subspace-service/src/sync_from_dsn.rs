@@ -2,13 +2,14 @@ pub(crate) mod fast_sync;
 pub(crate) mod import_blocks;
 pub(crate) mod piece_validator;
 pub(crate) mod segment_header_downloader;
+pub(crate) mod fast_sync_engine;
 
 use crate::sync_from_dsn::fast_sync::FastSyncer;
 use crate::sync_from_dsn::import_blocks::{import_blocks_from_dsn, DsnSyncPieceGetter};
 use crate::sync_from_dsn::segment_header_downloader::SegmentHeaderDownloader;
 use futures::channel::mpsc;
 use futures::{select, FutureExt, StreamExt};
-use sc_client_api::{AuxStore, BlockBackend, BlockchainEvents, ProofProvider};
+use sc_client_api::{AuxStore, BlockBackend, BlockchainEvents, LockImportRun, ProofProvider};
 use sc_consensus::import_queue::ImportQueueService;
 use sc_consensus_subspace::archiver::SegmentHeadersStore;
 use sc_consensus_subspace::SubspaceLink;
@@ -52,7 +53,7 @@ enum NotificationReason {
 /// Create node observer that will track node state and send notifications to worker to start sync
 /// from DSN.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn create_observer_and_worker<Block, AS, Client, PG, IQS>(
+pub(crate) fn create_observer_and_worker<Block, AS, Client, PG, IQS, B>(
     segment_headers_store: SegmentHeadersStore<AS>,
     network_service: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
     node: Node,
@@ -70,6 +71,7 @@ pub(crate) fn create_observer_and_worker<Block, AS, Client, PG, IQS>(
     impl Future<Output = Result<(), sc_service::Error>> + Send + 'static,
 )
 where
+    B: sc_client_api::Backend<Block>,
     Block: BlockT,
     AS: AuxStore + Send + Sync + 'static,
     Client: HeaderBackend<Block>
@@ -77,9 +79,10 @@ where
         + BlockchainEvents<Block>
         + ProvideRuntimeApi<Block>
         + ProofProvider<Block>
+        + LockImportRun<Block, B>
         + Send
         + Sync
-        + ClientExt<Block>
+        + ClientExt<Block, B>
         + 'static,
     Client::Api: SubspaceApi<Block, FarmerPublicKey> + ObjectsApi<Block>,
     PG: DsnSyncPieceGetter + Send + Sync + 'static,
@@ -240,7 +243,7 @@ async fn create_substrate_network_observer<Block>(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn create_worker<Block, AS, IQS, Client, PG>(
+async fn create_worker<Block, AS, IQS, Client, PG, B>(
     segment_headers_store: SegmentHeadersStore<AS>,
     node: &Node,
     client: Arc<Client>,
@@ -257,13 +260,15 @@ async fn create_worker<Block, AS, IQS, Client, PG>(
     sync_service: Arc<SyncingService<Block>>,
 ) -> Result<(), sc_service::Error>
 where
+    B: sc_client_api::Backend<Block>,
     Block: BlockT,
     AS: AuxStore + Send + Sync + 'static,
     Client: HeaderBackend<Block>
         + BlockBackend<Block>
-        + ClientExt<Block>
+        + ClientExt<Block, B>
         + ProvideRuntimeApi<Block>
         + ProofProvider<Block>
+        + LockImportRun<Block, B>
         + Send
         + Sync
         + 'static,
