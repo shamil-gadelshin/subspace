@@ -1,7 +1,9 @@
+use crate::sync_from_dsn::fast_sync_engine::FastSyncingEngine;
 use crate::sync_from_dsn::import_blocks::download_and_reconstruct_blocks;
 use crate::sync_from_dsn::segment_header_downloader::SegmentHeaderDownloader;
 use crate::sync_from_dsn::DsnSyncPieceGetter;
-use sc_client_api::{AuxStore, backend, BlockBackend, CallExecutor, LockImportRun, ProofProvider};
+use parity_scale_codec::Encode;
+use sc_client_api::{backend, AuxStore, BlockBackend, CallExecutor, LockImportRun, ProofProvider};
 use sc_consensus::import_queue::ImportQueueService;
 use sc_consensus::{BlockImportParams, ForkChoiceStrategy, IncomingBlock, StateAction};
 use sc_consensus_subspace::archiver::{decode_block, SegmentHeadersStore};
@@ -10,6 +12,7 @@ use sc_network::{NetworkService, PeerId};
 use sc_network_sync::service::network::NetworkServiceProvider;
 use sc_network_sync::service::syncing_service::SyncRestartArgs;
 use sc_network_sync::SyncingService;
+use sc_service::client::Client;
 use sc_service::config::SyncMode;
 use sc_service::{ClientExt, Error};
 use sp_api::{ApiExt, ProvideRuntimeApi};
@@ -24,22 +27,19 @@ use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
-use parity_scale_codec::Encode;
-use sc_service::client::Client;
 use subspace_archiving::reconstructor::Reconstructor;
 use subspace_core_primitives::SegmentIndex;
 use subspace_networking::Node;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::{debug, error};
-use crate::sync_from_dsn::fast_sync_engine::FastSyncingEngine;
 
 pub type BlockWeight = u128;
 
 /// Write the cumulative chain-weight of a block ot aux storage.
 fn write_block_weight<H: Encode, F, R>(block_hash: H, block_weight: BlockWeight, write_aux: F) -> R
-    where
-        F: FnOnce(&[(Vec<u8>, &[u8])]) -> R,
+where
+    F: FnOnce(&[(Vec<u8>, &[u8])]) -> R,
 {
     let key = block_weight_key(block_hash);
     block_weight.using_encoded(|s| write_aux(&[(key, s)]))
@@ -63,58 +63,59 @@ pub struct RawBlockData<Block: BlockT> {
     pub justifications: Option<Justifications>,
 }
 
-
-
-    fn import_raw_block<B, Block, Client>(client: &Client, raw_block: RawBlockData<Block>) -> Result<(), Error>
-        where
-            B: backend::Backend<Block>,
+fn import_raw_block<B, Block, Client>(
+    client: &Client,
+    raw_block: RawBlockData<Block>,
+) -> Result<(), Error>
+where
+    B: backend::Backend<Block>,
     //        E: CallExecutor<Block> + Send + Sync,
-            Block: BlockT,
-            // Client<B, E, Block, RA>: ProvideRuntimeApi<Block>,
-            // <Client<B, E, Block, RA> as ProvideRuntimeApi<Block>>::Api: sp_api::Core<Block> + ApiExt<Block>,
-            Client: HeaderBackend<Block>
-            + ClientExt<Block, B>
-            + BlockBackend<Block>
-            + ProvideRuntimeApi<Block>
-            + ProofProvider<Block>
-            + LockImportRun<Block, B>
-            + Send
-            + Sync
-            + 'static,
-            Client::Api: SubspaceApi<Block, FarmerPublicKey> + ObjectsApi<Block>,
-   //         RA: Sync + Send,
-    {
-        let hash = raw_block.hash;
-        let number = *raw_block.header.number();
-        debug!("Importing raw block: {number:?}  - {hash:?} ");
+    Block: BlockT,
+    // Client<B, E, Block, RA>: ProvideRuntimeApi<Block>,
+    // <Client<B, E, Block, RA> as ProvideRuntimeApi<Block>>::Api: sp_api::Core<Block> + ApiExt<Block>,
+    Client: HeaderBackend<Block>
+        + ClientExt<Block, B>
+        + BlockBackend<Block>
+        + ProvideRuntimeApi<Block>
+        + ProofProvider<Block>
+        + LockImportRun<Block, B>
+        + Send
+        + Sync
+        + 'static,
+    Client::Api: SubspaceApi<Block, FarmerPublicKey> + ObjectsApi<Block>,
+    //         RA: Sync + Send,
+{
+    let hash = raw_block.hash;
+    let number = *raw_block.header.number();
+    debug!("Importing raw block: {number:?}  - {hash:?} ");
 
-        let mut import_block = BlockImportParams::new(BlockOrigin::NetworkInitialSync, raw_block.header);
-        import_block.justifications = raw_block.justifications;
-        import_block.body = raw_block.block_body;
-        import_block.state_action = StateAction::Skip;
-        import_block.finalized = true;
-        import_block.fork_choice = Some(ForkChoiceStrategy::LongestChain);
-        import_block.import_existing = false;
+    let mut import_block =
+        BlockImportParams::new(BlockOrigin::NetworkInitialSync, raw_block.header);
+    import_block.justifications = raw_block.justifications;
+    import_block.body = raw_block.block_body;
+    import_block.state_action = StateAction::Skip;
+    import_block.finalized = true;
+    import_block.fork_choice = Some(ForkChoiceStrategy::LongestChain);
+    import_block.import_existing = false;
 
-        // Set zero block weight to allow the execution of the following blocks.
-        write_block_weight(hash, 0, |values| {
-            import_block
-                .auxiliary
-                .extend(values.iter().map(|(k, v)| (k.to_vec(), Some(v.to_vec()))))
-        });
+    // Set zero block weight to allow the execution of the following blocks.
+    write_block_weight(hash, 0, |values| {
+        import_block
+            .auxiliary
+            .extend(values.iter().map(|(k, v)| (k.to_vec(), Some(v.to_vec()))))
+    });
 
-        let result = client
-            .lock_import_and_run(|operation| client.apply_block(operation, import_block, None))
-            .map_err(|e| {
-                error!("Error during importing of the raw block: {}", e);
-                sp_consensus::Error::ClientImport(e.to_string())
-            })?;
+    let result = client
+        .lock_import_and_run(|operation| client.apply_block(operation, import_block, None))
+        .map_err(|e| {
+            error!("Error during importing of the raw block: {}", e);
+            sp_consensus::Error::ClientImport(e.to_string())
+        })?;
 
-        debug!("Raw block imported: {number:?}  - {hash:?}. Result: {result:?}");
+    debug!("Raw block imported: {number:?}  - {hash:?}. Result: {result:?}");
 
-        Ok(())
-    }
-
+    Ok(())
+}
 
 pub(crate) struct FastSyncResult<Block: BlockT> {
     pub(crate) last_imported_block_number: NumberFor<Block>,
@@ -192,7 +193,7 @@ where
             subspace_link,
             fast_sync_state,
             sync_service,
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 
