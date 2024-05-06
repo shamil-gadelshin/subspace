@@ -537,12 +537,21 @@ where
         .chain_constants(best_block_hash)?
         .confirmation_depth_k();
 
-    let best_block_to_archive =
-        if let Some(overridden_last_archived_block) = overridden_last_archived_block {
-            overridden_last_archived_block
+    let mut best_block_to_archive = best_block_number + 1u32.into();
+    for distance in 1..=(confirmation_depth_k + 1) {
+        let block_number_candidate = best_block_number.saturating_sub(distance.into());
+        if client.hash(block_number_candidate).ok().flatten().is_some()
+            && client
+                .hash(block_number_candidate.saturating_sub(1u32.into()))
+                .ok()
+                .flatten()
+                .is_some()
+        {
+            best_block_to_archive = block_number_candidate;
         } else {
-            best_block_number.saturating_sub(confirmation_depth_k.into())
-        };
+            break;
+        }
+    }
 
     let maybe_last_archived_block =
         find_last_archived_block(client, segment_headers_store, best_block_to_archive)?;
@@ -949,6 +958,12 @@ where
     if *best_archived_block_number >= block_number_to_archive {
         // This block was already archived, skip
         return Ok(true);
+    }
+
+    if block_number_to_archive > *best_archived_block_number + 1u32.into() {
+        // There is a gap between the best archived block and the block to archive.
+        // It's likely a fast sync.
+        return Ok(false);
     }
 
     let maybe_block_hash = client.hash(block_number_to_archive)?;
