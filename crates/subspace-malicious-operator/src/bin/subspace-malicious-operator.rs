@@ -229,6 +229,7 @@ fn main() -> Result<(), Error> {
                 None,
                 true,
                 SlotProportion::new(3f32 / 4f32),
+                None,
             )
             .await
             .map_err(|error| {
@@ -358,6 +359,7 @@ fn main() -> Result<(), Error> {
                         let bootstrap_result_fut = fetch_domain_bootstrap_info::<DomainBlock, _, _>(
                             &*domain_starter.consensus_client,
                             domain_id,
+                            None
                         );
                         let bootstrap_result = match bootstrap_result_fut.await {
                             Ok(bootstrap_result) => bootstrap_result,

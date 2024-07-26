@@ -106,6 +106,9 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
 
     let base_path = subspace_configuration.base_path.path().to_path_buf();
 
+    println!("run: {maybe_domain_configuration:?}");
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
     info!("Subspace");
     info!("✌️  version {}", env!("SUBSTRATE_CLI_IMPL_VERSION"));
     info!("❤️  by {}", env!("CARGO_PKG_AUTHORS"));
@@ -116,33 +119,34 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
     info!("🏷  Node name: {}", subspace_configuration.network.node_name);
     info!("💾 Node path: {}", base_path.display());
 
-    if maybe_domain_configuration.is_some() && subspace_configuration.sync == ChainSyncMode::Snap {
-        return Err(Error::Other(
-            "Snap sync mode is not supported for domains, use full sync".to_string(),
-        ));
-    }
-
-    if maybe_domain_configuration.is_some()
-        && (matches!(
-            subspace_configuration.blocks_pruning,
-            BlocksPruning::Some(_)
-        ) || matches!(
-            subspace_configuration.state_pruning,
-            Some(PruningMode::Constrained(_))
-        ))
-    {
-        return Err(Error::Other(
-            "Running an operator requires both `--blocks-pruning` and `--state-pruning` to be set \
-            to either `archive` or `archive-canonical`"
-                .to_string(),
-        ));
-    }
+    // if maybe_domain_configuration.is_some() && subspace_configuration.sync == ChainSyncMode::Snap {
+    //     return Err(Error::Other(
+    //         "Snap sync mode is not supported for domains".to_string(),
+    //     ));
+    // }
+    //
+    // if maybe_domain_configuration.is_some()
+    //     && (matches!(
+    //         subspace_configuration.blocks_pruning,
+    //         BlocksPruning::Some(_)
+    //     ) || matches!(
+    //         subspace_configuration.state_pruning,
+    //         Some(PruningMode::Constrained(_))
+    //     ))
+    // {
+    //     return Err(Error::Other(
+    //         "Running an operator requires both `--blocks-pruning` and `--state-pruning` to be set \
+    //         to either `archive` or `archive-canonical`"
+    //             .to_string(),
+    //     ));
+    // }
 
     let mut consensus_state_pruning = subspace_configuration
         .state_pruning
         .clone()
         .unwrap_or_default();
     let mut task_manager = {
+        println!("task_manager");
         let consensus_chain_node = {
             let span = info_span!("Consensus");
             let _enter = span.enter();
@@ -198,6 +202,7 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
                     }),
                 true,
                 SlotProportion::new(3f32 / 4f32),
+                Some(tx)
             );
 
             full_node_fut.await.map_err(|error| {
@@ -216,8 +221,10 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
             sc_service::Error::Other(format!("Failed to start storage monitor: {error:?}"))
         })?;
 
+        println!("before maybe_domain_configuration");
         // Run a domain
         if let Some(domain_configuration) = maybe_domain_configuration {
+            println!("after maybe_domain_configuration");
             let mut xdm_gossip_worker_builder = GossipWorkerBuilder::new();
             let gossip_message_sink = xdm_gossip_worker_builder.gossip_msg_sink();
             let (domain_message_sink, domain_message_receiver) =
@@ -342,6 +349,8 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
                 consensus_state_pruning,
             };
 
+            println!("Domain start options");
+
             consensus_chain_node
                 .task_manager
                 .spawn_essential_handle()
@@ -355,7 +364,10 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
                         let bootstrap_result_fut = fetch_domain_bootstrap_info::<DomainBlock, _, _>(
                             &*domain_start_options.consensus_client,
                             domain_configuration.domain_id,
+                            Some(rx)
                         );
+
+                        println!("before bootstrap_result_fut");
                         let bootstrap_result = match bootstrap_result_fut.await {
                             Ok(bootstrap_result) => bootstrap_result,
                             Err(error) => {
@@ -363,6 +375,8 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
                                 return;
                             }
                         };
+
+                        println!("before run_domain");
 
                         let start_domain = run_domain(
                             bootstrap_result,

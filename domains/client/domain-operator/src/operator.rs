@@ -24,6 +24,8 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::sync::Arc;
 use subspace_runtime_primitives::Balance;
+use crate::domain_worker::SyncParams;
+use sc_network::NetworkRequest;
 
 /// Domain operator.
 pub struct Operator<Block, CBlock, Client, CClient, TransactionPool, Backend, E>
@@ -101,7 +103,7 @@ where
     E: CodeExecutor,
 {
     /// Create a new instance.
-    pub async fn new<IBNS, CIBNS, NSNS, ASS>(
+    pub async fn new<IBNS, CIBNS, NSNS, ASS, NR>(
         spawn_essential: Box<dyn SpawnEssentialNamed>,
         params: OperatorParams<
             Block,
@@ -115,6 +117,7 @@ where
             CIBNS,
             NSNS,
             ASS,
+            NR
         >,
     ) -> Result<Self, sp_consensus::Error>
     where
@@ -122,7 +125,9 @@ where
         CIBNS: Stream<Item = BlockImportNotification<CBlock>> + Send + 'static,
         NSNS: Stream<Item = NewSlotNotification> + Send + 'static,
         ASS: Stream<Item = mpsc::Sender<()>> + Send + 'static,
+        NR: NetworkRequest + Send + Sync + 'static,
     {
+        println!("operator new");
         let domain_bundle_proposer = DomainBundleProposer::<Block, _, CBlock, _, _>::new(
             params.domain_id,
             params.client.clone(),
@@ -189,6 +194,11 @@ where
                 bundle_producer,
                 bundle_processor.clone(),
                 params.operator_streams,
+                SyncParams{
+                    domain_client: params.client.clone(),
+                    network_request: params.network_request,
+                    sync_service: params.sync_service,
+                }
             )
             .boxed(),
         );

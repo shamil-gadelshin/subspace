@@ -695,6 +695,7 @@ pub async fn new_full<PosTable, RuntimeApi>(
     prometheus_registry: Option<&mut Registry>,
     enable_rpc_extensions: bool,
     block_proposal_slot_portion: SlotProportion,
+    start_fetching: Option<tokio::sync::oneshot::Sender<()>>
 ) -> Result<FullNode<RuntimeApi>, Error>
 where
     PosTable: Table,
@@ -1015,6 +1016,11 @@ where
                 // Run snap-sync before DSN-sync.
                 if config.sync == ChainSyncMode::Snap {
                     snap_sync_task.await;
+                }
+
+                if let Some(start_fetching) = start_fetching{
+                    println!("Sending fetching signal");
+                    let _ = start_fetching.send(());
                 }
 
                 if let Err(error) = worker.await {

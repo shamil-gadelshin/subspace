@@ -314,6 +314,7 @@ where
         > + BlockImportProvider<Block, FullClient<Block, RuntimeApi>>
         + 'static,
 {
+    println!("domain new_full");
     let DomainParams {
         domain_id,
         maybe_operator_id,
@@ -461,6 +462,8 @@ where
             block_import,
             skip_empty_bundle_production,
             skip_out_of_order_slot,
+            sync_service: sync_service.clone(),
+            network_request: Arc::clone(&network_service),
         },
     )
     .await?;

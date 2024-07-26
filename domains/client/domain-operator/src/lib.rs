@@ -76,6 +76,8 @@ mod operator;
 mod tests;
 mod utils;
 
+use sc_network::NetworkRequest;
+use sc_network_sync::SyncingService;
 pub use self::aux_schema::load_execution_receipt;
 pub use self::fetch_domain_bootstrap_info::{fetch_domain_bootstrap_info, BootstrapResult};
 pub use self::operator::Operator;
@@ -153,6 +155,7 @@ pub struct OperatorParams<
     CIBNS,
     NSNS,
     ASS,
+    NR,
 > where
     Block: BlockT,
     CBlock: BlockT,
@@ -160,6 +163,7 @@ pub struct OperatorParams<
     CIBNS: Stream<Item = BlockImportNotification<CBlock>> + Send + 'static,
     NSNS: Stream<Item = NewSlotNotification> + Send + 'static,
     ASS: Stream<Item = mpsc::Sender<()>> + Send + 'static,
+    NR: NetworkRequest + Send,
 {
     pub domain_id: DomainId,
     pub domain_created_at: NumberFor<CBlock>,
@@ -178,6 +182,8 @@ pub struct OperatorParams<
     pub block_import: SharedBlockImport<Block>,
     pub skip_empty_bundle_production: bool,
     pub skip_out_of_order_slot: bool,
+    pub sync_service: Arc<SyncingService<Block>>,
+    pub network_request: NR,
 }
 
 pub(crate) fn load_execution_receipt_by_domain_hash<Block, CBlock, Client>(

@@ -46,6 +46,7 @@ use substrate_frame_rpc_system::AccountNonceApi;
 use substrate_test_client::{
     BlockchainEventsExt, RpcHandlersExt, RpcTransactionError, RpcTransactionOutput,
 };
+use tokio::sync::oneshot;
 
 /// The backend type used by the test service.
 pub type Backend = TFullBackend<Block>;
@@ -137,12 +138,13 @@ where
         maybe_operator_id: Option<OperatorId>,
         role: Role,
         mock_consensus_node: &mut MockConsensusNode,
+        start_fetching: Option<oneshot::Receiver<()>>,
     ) -> Self {
         let BootstrapResult {
             domain_instance_data,
             domain_created_at,
             imported_block_notification_stream,
-        } = fetch_domain_bootstrap_info::<Block, _, _>(&*mock_consensus_node.client, domain_id)
+        } = fetch_domain_bootstrap_info::<Block, _, _>(&*mock_consensus_node.client, domain_id, start_fetching)
             .await
             .expect("Failed to get domain instance data");
         let chain_spec = create_domain_spec(domain_instance_data.raw_genesis);
@@ -476,6 +478,7 @@ impl DomainNodeBuilder {
             self.maybe_operator_id,
             role,
             mock_consensus_node,
+            None,
         )
         .await
     }
@@ -498,6 +501,7 @@ impl DomainNodeBuilder {
             self.maybe_operator_id,
             role,
             mock_consensus_node,
+            None,
         )
         .await
     }

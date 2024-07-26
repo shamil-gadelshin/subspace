@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::collections::HashSet;
 use crate::bundle_processor::BundleProcessor;
 use crate::domain_bundle_producer::{DomainBundleProducer, DomainProposal};
 use crate::utils::{BlockInfo, OperatorSlotInfo};
@@ -34,15 +35,113 @@ use sp_domains::{BundleProducerElectionApi, DomainsApi, OpaqueBundle, OperatorId
 use sp_domains_fraud_proof::FraudProofApi;
 use sp_messenger::MessengerApi;
 use sp_mmr_primitives::MmrApi;
-use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
+use sp_runtime::traits::{Block as BlockT, Block, Header as HeaderT, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::pin::pin;
 use std::sync::Arc;
+use std::time::Duration;
+use sc_consensus::ImportedState;
+use tokio::time::sleep;
 use subspace_runtime_primitives::Balance;
+use subspace_service::sync_from_dsn::snap_sync_engine::SnapSyncingEngine;
 use tracing::{info, Instrument};
+use sc_network::PeerId;
+use sc_network_sync::SyncingService;
+use sc_network::NetworkRequest;
 
 pub type OpaqueBundleFor<Block, CBlock> =
     OpaqueBundle<NumberFor<CBlock>, <CBlock as BlockT>::Hash, <Block as BlockT>::Header, Balance>;
+
+
+/// Download and return state for specified block
+async fn download_state<Block, Client, NR>(
+    header: &Block::Header,
+    client: &Arc<Client>,
+    fork_id: Option<&str>,
+    network_request: &NR,
+    sync_service: &SyncingService<Block>,
+) -> Result<ImportedState<Block>, sp_blockchain::Error>
+    where
+        Block: BlockT,
+        Client: HeaderBackend<Block> + ProofProvider<Block> + Send + Sync + 'static,
+        NR: NetworkRequest,
+{
+    let block_number = *header.number();
+
+    const STATE_SYNC_RETRIES: u32 = 5;
+    const LOOP_PAUSE: Duration = Duration::from_secs(20);
+
+    for attempt in 1..=STATE_SYNC_RETRIES {
+        tracing::debug!(%attempt, "Starting state sync...");
+
+        tracing::debug!("Gathering peers for state sync.");
+        let mut tried_peers = HashSet::<PeerId>::new();
+
+        // TODO: add loop timeout
+        let current_peer_id = loop {
+            let connected_full_peers = sync_service
+                .peers_info()
+                .await
+                .expect("Network service must be available.")
+                .iter()
+                .filter_map(|(peer_id, info)| {
+                    (info.roles.is_full() && info.best_number > block_number).then_some(*peer_id)
+                })
+                .collect::<Vec<_>>();
+
+            tracing::debug!(?tried_peers, "Sync peers: {}", connected_full_peers.len());
+
+            let active_peers_set = HashSet::from_iter(connected_full_peers.into_iter());
+
+            if let Some(peer_id) = active_peers_set.difference(&tried_peers).next().cloned() {
+                break peer_id;
+            }
+
+            sleep(LOOP_PAUSE).await;
+        };
+
+        tried_peers.insert(current_peer_id);
+
+        let sync_engine = SnapSyncingEngine::<Block, NR>::new(
+            client.clone(),
+            fork_id,
+            header.clone(),
+            false,
+            (current_peer_id, block_number),
+            network_request,
+        )
+         ?;
+
+        let last_block_from_sync_result = sync_engine.download_state().await;
+
+        match last_block_from_sync_result {
+            Ok(block_to_import) => {
+                tracing::debug!("Sync worker handle result: {:?}", block_to_import);
+
+                return block_to_import.state.ok_or_else(|| {
+                    sp_blockchain::Error::Backend("Imported state was missing in synced block".into())
+                });
+            }
+            Err(error) => {
+                tracing::error!(%error, "State sync error");
+                continue;
+            }
+        }
+    }
+
+    Err(sp_blockchain::Error::Backend("All snap sync retries failed".into()))
+}
+
+pub struct SyncParams<DomainClient, NR: Send, Block: BlockT>{
+    pub domain_client: Arc<DomainClient>,
+    pub sync_service: Arc<SyncingService<Block>>,
+    pub network_request: NR
+}
+
+//
+// async fn sync(){
+//   //  let sync_engine = SnapSyncingEngine::new();
+// }
 
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub(super) async fn start_worker<
@@ -57,6 +156,7 @@ pub(super) async fn start_worker<
     NSNS,
     ASS,
     E,
+    NR
 >(
     spawn_essential: Box<dyn SpawnEssentialNamed>,
     consensus_client: Arc<CClient>,
@@ -65,6 +165,7 @@ pub(super) async fn start_worker<
     mut bundle_producer: DomainBundleProducer<Block, CBlock, Client, CClient, TransactionPool>,
     bundle_processor: BundleProcessor<Block, CBlock, Client, CClient, Backend, E>,
     operator_streams: OperatorStreams<CBlock, IBNS, CIBNS, NSNS, ASS>,
+    sync_params: SyncParams<Client, NR, Block>
 ) where
     Block: BlockT,
     Block::Hash: Into<H256>,
@@ -103,8 +204,17 @@ pub(super) async fn start_worker<
     NSNS: Stream<Item = NewSlotNotification> + Send + 'static,
     ASS: Stream<Item = mpsc::Sender<()>> + Send + 'static,
     E: CodeExecutor,
+    NR: NetworkRequest + Send,
 {
     let span = tracing::Span::current();
+
+    println!("start_worker");
+
+    let header = sync_params.domain_client.header(Default::default()).unwrap().unwrap();
+
+    let result = download_state(&header, &sync_params.domain_client, None, &sync_params.network_request, &sync_params.sync_service).await;
+
+    println!("State downloaded: {:?}", result);
 
     let OperatorStreams {
         consensus_block_import_throttling_buffer_size,

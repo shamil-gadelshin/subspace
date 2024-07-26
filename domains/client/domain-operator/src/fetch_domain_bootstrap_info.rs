@@ -4,6 +4,7 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_domains::{DomainId, DomainInstanceData, DomainsApi, DomainsDigestItem};
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
+use tokio::sync::oneshot;
 
 #[derive(Debug)]
 pub struct BootstrapResult<CBlock: BlockT> {
@@ -23,6 +24,7 @@ pub struct BootstrapResult<CBlock: BlockT> {
 pub async fn fetch_domain_bootstrap_info<Block, CBlock, CClient>(
     consensus_client: &CClient,
     self_domain_id: DomainId,
+    start_fetching: Option<oneshot::Receiver<()>>,
 ) -> Result<BootstrapResult<CBlock>, Box<dyn std::error::Error>>
 where
     Block: BlockT,
@@ -30,6 +32,11 @@ where
     CClient: HeaderBackend<CBlock> + ProvideRuntimeApi<CBlock> + BlockchainEvents<CBlock>,
     CClient::Api: DomainsApi<CBlock, Block::Header>,
 {
+    if let Some(start_fetching) = start_fetching {
+        println!("before fetching signal");
+        let _ = start_fetching.await;
+        println!("after fetching signal");
+    }
     let mut imported_block_notification_stream =
         consensus_client.every_import_notification_stream();
 
@@ -39,12 +46,15 @@ where
         .runtime_api()
         .domain_instance_data(best_hash, self_domain_id)?
     {
+        println!("from runtime_api");
         return Ok(BootstrapResult {
             domain_instance_data,
             domain_created_at,
             imported_block_notification_stream,
         });
     }
+
+    println!("after runtime_api");
 
     // Check each imported consensus block to get the domain instance data
     let (domain_instance_data, domain_created_at) = 'outer: loop {
