@@ -695,7 +695,7 @@ pub async fn new_full<PosTable, RuntimeApi>(
     prometheus_registry: Option<&mut Registry>,
     enable_rpc_extensions: bool,
     block_proposal_slot_portion: SlotProportion,
-    start_fetching: Option<tokio::sync::oneshot::Sender<()>>
+    start_fetching: Option<tokio::sync::oneshot::Sender<()>>,
 ) -> Result<FullNode<RuntimeApi>, Error>
 where
     PosTable: Table,
@@ -982,7 +982,7 @@ where
         pause_sync.store(true, Ordering::Release);
     }
 
-    let snap_sync_task = snap_sync(
+    let snap_sync_task = snap_sync::<_,_,_,_,_,_,DomainHeader>(
         segment_headers_store.clone(),
         node.clone(),
         fork_id.clone(),
@@ -1018,7 +1018,7 @@ where
                     snap_sync_task.await;
                 }
 
-                if let Some(start_fetching) = start_fetching{
+                if let Some(start_fetching) = start_fetching {
                     println!("Sending fetching signal");
                     let _ = start_fetching.send(());
                 }

@@ -29,9 +29,47 @@ use subspace_core_primitives::{BlockNumber, SegmentIndex};
 use subspace_networking::Node;
 use tokio::time::sleep;
 use tracing::{debug, error};
+use sp_domains::DomainId;
+use crate::domains::get_last_confirmed_domain_block_receipt;
+
+async fn get_sync_target_block<Backend, Block, Client, NR, DomainHeader>(
+    fork_id: Option<String>,
+    client: Arc<Client>,
+    network_request: &NR,
+    sync_service: Arc<SyncingService<Block>>,
+) -> Result<Block::Hash, Error> where
+    Backend: sc_client_api::Backend<Block>,
+    Block: BlockT,
+    Client: HeaderBackend<Block>
+        + ClientExt<Block, Backend>
+        + ProvideRuntimeApi<Block>
+        + ProofProvider<Block>
+        + BlockImport<Block>
+        + Send
+        + Sync
+        + 'static,
+    // TODO: Remove when https://github.com/paritytech/polkadot-sdk/pull/5339 is in our fork
+    for<'a> &'a Client: BlockImport<Block>,
+    Client::Api: SubspaceApi<Block, FarmerPublicKey> + ObjectsApi<Block>,
+    NR: NetworkRequest,
+    DomainHeader: Header
+{
+    let domain_id = DomainId::new(0);
+    let data = get_last_confirmed_domain_block_receipt::<Block, Client, NR, DomainHeader>(
+        domain_id,
+        fork_id,
+        client,
+        network_request,
+        sync_service,
+    ).await;
+
+    println!("data: {data:?}");
+
+    Ok(std::default::Default::default())
+}
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR>(
+pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR, DomainHeader>(
     segment_headers_store: SegmentHeadersStore<AS>,
     node: Node,
     fork_id: Option<String>,
@@ -58,12 +96,15 @@ pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR>(
     Client::Api: SubspaceApi<Block, FarmerPublicKey> + ObjectsApi<Block>,
     PG: DsnSyncPieceGetter,
     NR: NetworkRequest,
+    DomainHeader: Header,
 {
     let info = client.info();
     // Only attempt snap sync with genesis state
     // TODO: Support snap sync from any state
     if info.best_hash == info.genesis_hash {
         pause_sync.store(true, Ordering::Release);
+
+        let sync_target_block = get_sync_target_block::<Backend, Block, Client, NR, DomainHeader>(fork_id.clone(), client.clone(), &network_request, sync_service.clone()).await;
 
         let snap_sync_fut = sync(
             &segment_headers_store,

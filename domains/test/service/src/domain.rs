@@ -144,9 +144,13 @@ where
             domain_instance_data,
             domain_created_at,
             imported_block_notification_stream,
-        } = fetch_domain_bootstrap_info::<Block, _, _>(&*mock_consensus_node.client, domain_id, start_fetching)
-            .await
-            .expect("Failed to get domain instance data");
+        } = fetch_domain_bootstrap_info::<Block, _, _>(
+            &*mock_consensus_node.client,
+            domain_id,
+            start_fetching,
+        )
+        .await
+        .expect("Failed to get domain instance data");
         let chain_spec = create_domain_spec(domain_instance_data.raw_genesis);
         let key_seed = <Runtime as DomainRuntime>::to_seed(key);
         let domain_config = node_config(

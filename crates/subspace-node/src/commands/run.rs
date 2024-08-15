@@ -202,7 +202,7 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
                     }),
                 true,
                 SlotProportion::new(3f32 / 4f32),
-                Some(tx)
+                Some(tx),
             );
 
             full_node_fut.await.map_err(|error| {
@@ -364,7 +364,7 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
                         let bootstrap_result_fut = fetch_domain_bootstrap_info::<DomainBlock, _, _>(
                             &*domain_start_options.consensus_client,
                             domain_configuration.domain_id,
-                            Some(rx)
+                            Some(rx),
                         );
 
                         println!("before bootstrap_result_fut");

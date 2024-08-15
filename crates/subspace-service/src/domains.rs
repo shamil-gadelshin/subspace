@@ -41,7 +41,7 @@ pub async fn get_last_confirmed_domain_block_receipt<Block, Client, NR, DomainHe
     domain_id: DomainId,
     fork_id: Option<String>,
     client: Arc<Client>,
-    network_service: NR,
+    network_service: &NR,
     sync_service: Arc<SyncingService<Block>>,
 ) -> Option<ExecutionReceiptFor<DomainHeader, Block, Balance>>
 where

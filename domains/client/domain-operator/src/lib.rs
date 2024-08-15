@@ -72,12 +72,11 @@ mod domain_worker;
 mod fetch_domain_bootstrap_info;
 mod fraud_proof;
 mod operator;
+mod sync;
 #[cfg(test)]
 mod tests;
 mod utils;
 
-use sc_network::NetworkRequest;
-use sc_network_sync::SyncingService;
 pub use self::aux_schema::load_execution_receipt;
 pub use self::fetch_domain_bootstrap_info::{fetch_domain_bootstrap_info, BootstrapResult};
 pub use self::operator::Operator;
@@ -87,6 +86,8 @@ use futures::channel::mpsc;
 use futures::Stream;
 use sc_client_api::{AuxStore, BlockImportNotification};
 use sc_consensus::SharedBlockImport;
+use sc_network::NetworkRequest;
+use sc_network_sync::SyncingService;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::TracingUnboundedSender;
 use sp_blockchain::HeaderBackend;

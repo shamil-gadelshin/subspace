@@ -62,7 +62,7 @@ where
     PG: DsnSyncPieceGetter,
     IQS: ImportQueueService<Block> + ?Sized,
 {
-//    return  Ok(0);
+    //    return  Ok(0);
     {
         let last_segment_header = segment_headers_store.last_segment_header().ok_or_else(|| {
             Error::Other(

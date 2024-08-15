@@ -3,12 +3,14 @@ use crate::domain_block_processor::{DomainBlockProcessor, ReceiptsChecker};
 use crate::domain_bundle_producer::DomainBundleProducer;
 use crate::domain_bundle_proposer::DomainBundleProposer;
 use crate::fraud_proof::FraudProofGenerator;
+use crate::sync::SyncParams;
 use crate::{DomainImportNotifications, NewSlotNotification, OperatorParams};
 use futures::channel::mpsc;
 use futures::{FutureExt, Stream};
 use sc_client_api::{
     AuxStore, BlockBackend, BlockImportNotification, BlockchainEvents, Finalizer, ProofProvider,
 };
+use sc_network::NetworkRequest;
 use sc_utils::mpsc::tracing_unbounded;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::{HeaderBackend, HeaderMetadata};
@@ -24,8 +26,6 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::sync::Arc;
 use subspace_runtime_primitives::Balance;
-use crate::domain_worker::SyncParams;
-use sc_network::NetworkRequest;
 
 /// Domain operator.
 pub struct Operator<Block, CBlock, Client, CClient, TransactionPool, Backend, E>
@@ -117,7 +117,7 @@ where
             CIBNS,
             NSNS,
             ASS,
-            NR
+            NR,
         >,
     ) -> Result<Self, sp_consensus::Error>
     where
@@ -194,11 +194,11 @@ where
                 bundle_producer,
                 bundle_processor.clone(),
                 params.operator_streams,
-                SyncParams{
+                SyncParams {
                     domain_client: params.client.clone(),
                     network_request: params.network_request,
                     sync_service: params.sync_service,
-                }
+                },
             )
             .boxed(),
         );

@@ -390,7 +390,7 @@ pub(super) async fn run_domain(
     domain_configuration: DomainConfiguration,
     domain_start_options: DomainStartOptions,
 ) -> Result<(), Error> {
- println!("run_domain");
+    println!("run_domain");
     let BootstrapResult {
         domain_instance_data,
         domain_created_at,
