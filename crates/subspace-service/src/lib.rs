@@ -27,7 +27,7 @@
 )]
 
 pub mod config;
-pub(crate) mod domains;
+pub mod domains; // TODO: pub(crate)
 pub mod dsn;
 mod metrics;
 pub(crate) mod mmr;
@@ -42,6 +42,7 @@ use crate::metrics::NodeMetrics;
 use crate::mmr::request_handler::MmrRequestHandler;
 use crate::sync_from_dsn::piece_validator::SegmentCommitmentPieceValidator;
 use crate::sync_from_dsn::snap_sync::snap_sync;
+use crate::sync_from_dsn::synchronizer::Synchronizer;
 use crate::transaction_pool::FullPool;
 use core::sync::atomic::{AtomicU32, Ordering};
 use cross_domain_message_gossip::xdm_gossip_peers_set_config;
@@ -696,6 +697,7 @@ pub async fn new_full<PosTable, RuntimeApi>(
     enable_rpc_extensions: bool,
     block_proposal_slot_portion: SlotProportion,
     start_fetching: Option<tokio::sync::oneshot::Sender<()>>,
+    synchronizer: Option<Arc<Synchronizer>>,
 ) -> Result<FullNode<RuntimeApi>, Error>
 where
     PosTable: Table,
@@ -982,7 +984,7 @@ where
         pause_sync.store(true, Ordering::Release);
     }
 
-    let snap_sync_task = snap_sync::<_,_,_,_,_,_,DomainHeader>(
+    let snap_sync_task = snap_sync::<_, _, _, _, _, _, DomainHeader>(
         segment_headers_store.clone(),
         node.clone(),
         fork_id.clone(),
@@ -992,6 +994,7 @@ where
         dsn_sync_piece_getter.clone(),
         Arc::clone(&network_service),
         sync_service.clone(),
+        synchronizer.clone(),
     );
 
     let (observer, worker) = sync_from_dsn::create_observer_and_worker(
@@ -1018,10 +1021,10 @@ where
                     snap_sync_task.await;
                 }
 
-                if let Some(start_fetching) = start_fetching {
-                    println!("Sending fetching signal");
-                    let _ = start_fetching.send(());
-                }
+                // if let Some(start_fetching) = start_fetching {
+                //     println!("Sending fetching signal");
+                //     let _ = start_fetching.send(());
+                // }
 
                 if let Err(error) = worker.await {
                     error!(%error, "Sync from DSN exited with an error");

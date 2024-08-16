@@ -26,6 +26,8 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::sync::Arc;
 use subspace_runtime_primitives::Balance;
+use subspace_service::domains::LastDomainBlockReceiptProvider;
+use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 
 /// Domain operator.
 pub struct Operator<Block, CBlock, Client, CClient, TransactionPool, Backend, E>
@@ -119,6 +121,8 @@ where
             ASS,
             NR,
         >,
+        synchronizer: Option<Arc<Synchronizer>>,
+        execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>
     ) -> Result<Self, sp_consensus::Error>
     where
         IBNS: Stream<Item = (NumberFor<CBlock>, mpsc::Sender<()>)> + Send + 'static,
@@ -199,6 +203,8 @@ where
                     network_request: params.network_request,
                     sync_service: params.sync_service,
                 },
+                synchronizer,
+                execution_receipt_provider
             )
             .boxed(),
         );

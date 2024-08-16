@@ -608,7 +608,7 @@ parameter_types! {
     pub const MaxBundlesPerBlock: u32 = 10;
     pub const DomainInstantiationDeposit: Balance = 100 * SSC;
     pub const MaxDomainNameLength: u32 = 32;
-    pub const BlockTreePruningDepth: u32 = 14_400;
+    pub const BlockTreePruningDepth: u32 = 14;
     pub const StakeWithdrawalLockingPeriod: DomainNumber = 14_400;
     // TODO: revisit these. For now epoch every 10 mins for a 6 second block and only 100 number of staking
     // operations allowed within each epoch.

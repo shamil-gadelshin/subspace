@@ -32,11 +32,11 @@ where
     CClient: HeaderBackend<CBlock> + ProvideRuntimeApi<CBlock> + BlockchainEvents<CBlock>,
     CClient::Api: DomainsApi<CBlock, Block::Header>,
 {
-    if let Some(start_fetching) = start_fetching {
-        println!("before fetching signal");
-        let _ = start_fetching.await;
-        println!("after fetching signal");
-    }
+    // if let Some(start_fetching) = start_fetching {
+    //     println!("before fetching signal");
+    //     let _ = start_fetching.await;
+    //     println!("after fetching signal");
+    // }
     let mut imported_block_notification_stream =
         consensus_client.every_import_notification_stream();
 

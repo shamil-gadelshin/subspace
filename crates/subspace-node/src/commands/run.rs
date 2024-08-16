@@ -2,6 +2,8 @@ mod consensus;
 mod domain;
 mod shared;
 
+use sp_domains::DomainId;
+use subspace_service::domains::LastDomainBlockInfoReceiver;
 use crate::commands::run::consensus::{
     create_consensus_chain_configuration, ConsensusChainConfiguration, ConsensusChainOptions,
 };
@@ -28,9 +30,11 @@ use sp_consensus_subspace::SubspaceApi;
 use sp_core::traits::SpawnEssentialNamed;
 use sp_messenger::messages::ChainId;
 use std::env;
+use std::sync::Arc;
 use subspace_metrics::{start_prometheus_metrics_server, RegistryAdapter};
 use subspace_runtime::{Block, RuntimeApi};
 use subspace_service::config::ChainSyncMode;
+use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use tracing::{debug, error, info, info_span, warn};
 
 /// Options for running a node
@@ -97,6 +101,7 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
     } = create_consensus_chain_configuration(consensus, enable_color, domain_options.is_some())?;
 
     let maybe_domain_configuration = domain_options
+        .clone()
         .map(|domain_options| {
             create_domain_configuration(&subspace_configuration, dev, domain_options, enable_color)
         })
@@ -108,6 +113,17 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
 
     println!("run: {maybe_domain_configuration:?}");
     let (tx, rx) = tokio::sync::oneshot::channel();
+
+    // TODO
+    let synchronizer = if let Some(ref domain_opt) = domain_options {
+        if domain_opt.domain_sync {
+            Some(Arc::new(Synchronizer::new()))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
 
     info!("Subspace");
     info!("✌️  version {}", env!("SUBSTRATE_CLI_IMPL_VERSION"));
@@ -203,6 +219,7 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
                 true,
                 SlotProportion::new(3f32 / 4f32),
                 Some(tx),
+                synchronizer.clone(),
             );
 
             full_node_fut.await.map_err(|error| {
@@ -335,15 +352,15 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
             };
 
             let domain_start_options = DomainStartOptions {
-                consensus_client: consensus_chain_node.client,
+                consensus_client: consensus_chain_node.client.clone(),
                 consensus_offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(
                     consensus_chain_node.transaction_pool,
                 ),
-                consensus_network: consensus_chain_node.network_service,
+                consensus_network: consensus_chain_node.network_service.clone(),
                 block_importing_notification_stream: consensus_chain_node
                     .block_importing_notification_stream,
                 pot_slot_info_stream: consensus_chain_node.pot_slot_info_stream,
-                consensus_network_sync_oracle: consensus_chain_node.sync_service,
+                consensus_network_sync_oracle: consensus_chain_node.sync_service.clone(),
                 domain_message_receiver,
                 gossip_message_sink,
                 consensus_state_pruning,
@@ -357,37 +374,51 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
                 .spawn_essential_blocking(
                     "domain",
                     Some("domains"),
-                    Box::pin(async move {
-                        let span = info_span!("Domain");
-                        let _enter = span.enter();
+                    {
+                        let consensus_chain_client = consensus_chain_node.client.clone();
+                        let consensus_chain_network_service = consensus_chain_node.network_service.clone();
+                        let consensus_chain_sync_service = consensus_chain_node.sync_service.clone();
+                        Box::pin(async move {
+                            let span = info_span!("Domain");
+                            let _enter = span.enter();
 
-                        let bootstrap_result_fut = fetch_domain_bootstrap_info::<DomainBlock, _, _>(
-                            &*domain_start_options.consensus_client,
-                            domain_configuration.domain_id,
-                            Some(rx),
-                        );
+                            let bootstrap_result_fut = fetch_domain_bootstrap_info::<DomainBlock, _, _>(
+                                &*domain_start_options.consensus_client,
+                                domain_configuration.domain_id,
+                                Some(rx),
+                            );
 
-                        println!("before bootstrap_result_fut");
-                        let bootstrap_result = match bootstrap_result_fut.await {
-                            Ok(bootstrap_result) => bootstrap_result,
-                            Err(error) => {
-                                error!(%error, "Domain bootstrapper exited with an error");
-                                return;
+                            println!("before bootstrap_result_fut");
+                            let bootstrap_result = match bootstrap_result_fut.await {
+                                Ok(bootstrap_result) => bootstrap_result,
+                                Err(error) => {
+                                    error!(%error, "Domain bootstrapper exited with an error");
+                                    return;
+                                }
+                            };
+
+                            println!("before run_domain");
+
+                            let receipt_provider = LastDomainBlockInfoReceiver::new(
+                                domain_configuration.domain_id,
+                                None,
+                                consensus_chain_client,
+                                consensus_chain_network_service,
+                                consensus_chain_sync_service,
+                            );
+
+                            let start_domain = run_domain(
+                                bootstrap_result,
+                                domain_configuration,
+                                domain_start_options,
+                                synchronizer, Box::new(receipt_provider)
+                            );
+
+                            if let Err(error) = start_domain.await {
+                                error!(%error, "Domain starter exited with an error");
                             }
-                        };
-
-                        println!("before run_domain");
-
-                        let start_domain = run_domain(
-                            bootstrap_result,
-                            domain_configuration,
-                            domain_start_options,
-                        );
-
-                        if let Err(error) = start_domain.await {
-                            error!(%error, "Domain starter exited with an error");
-                        }
-                    }),
+                        })
+                    },
                 );
         };
 

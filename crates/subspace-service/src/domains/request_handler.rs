@@ -182,6 +182,8 @@ where
                 .runtime_api()
                 .last_confirmed_domain_block_receipt(best_hash, request.domain_id);
 
+            println!("last_confirmed_block_receipt: {last_confirmed_block_receipt:?}");
+
             let response = match last_confirmed_block_receipt {
                 Ok(Some(last_confirmed_block_receipt)) => {
                     LastConfirmedBlockResponse::<Block, DomainHeader> {

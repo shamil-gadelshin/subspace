@@ -36,12 +36,14 @@ use sp_domains::{BundleProducerElectionApi, DomainsApi, OpaqueBundle, OperatorId
 use sp_domains_fraud_proof::FraudProofApi;
 use sp_messenger::MessengerApi;
 use sp_mmr_primitives::MmrApi;
-use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
+use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Header, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::pin::pin;
 use std::sync::Arc;
 use subspace_runtime_primitives::Balance;
+use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use tracing::{info, Instrument};
+use subspace_service::domains::LastDomainBlockReceiptProvider;
 
 pub type OpaqueBundleFor<Block, CBlock> =
     OpaqueBundle<NumberFor<CBlock>, <CBlock as BlockT>::Hash, <Block as BlockT>::Header, Balance>;
@@ -69,6 +71,8 @@ pub(super) async fn start_worker<
     bundle_processor: BundleProcessor<Block, CBlock, Client, CClient, Backend, E>,
     operator_streams: OperatorStreams<CBlock, IBNS, CIBNS, NSNS, ASS>,
     sync_params: SyncParams<Client, NR, Block>,
+    synchronizer: Option<Arc<Synchronizer>>,
+    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>
 ) where
     Block: BlockT,
     Block::Hash: Into<H256>,
@@ -116,15 +120,21 @@ pub(super) async fn start_worker<
     // let header = sync_params.domain_client.header(Default::default()).unwrap().unwrap();
     // let result = download_state(&header, &sync_params.domain_client, None, &sync_params.network_request, &sync_params.sync_service).await;
 
-    let result = sync(
-        &sync_params.domain_client,
-        None,
-        &sync_params.network_request,
-        &sync_params.sync_service,
-    )
-    .await;
+    if let Some(synchronizer) = synchronizer {
+        println!("starting sync");
 
-    println!("Sync completed: {:?}", result);
+        let result = sync(
+            &sync_params.domain_client,
+            None,
+            &sync_params.network_request,
+            &sync_params.sync_service,
+            synchronizer,
+            execution_receipt_provider
+        )
+        .await;
+
+        println!("Sync completed: {:?}", result);
+    }
 
     let OperatorStreams {
         consensus_block_import_throttling_buffer_size,

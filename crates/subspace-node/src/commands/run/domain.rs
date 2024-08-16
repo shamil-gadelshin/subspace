@@ -35,16 +35,18 @@ use sp_domains::{DomainId, DomainInstanceData, OperatorId, RuntimeType};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use subspace_runtime::RuntimeApi as CRuntimeApi;
+use subspace_runtime::{Block, RuntimeApi as CRuntimeApi};
 use subspace_runtime_primitives::opaque::Block as CBlock;
+use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use subspace_service::FullClient as CFullClient;
 use tokio::sync::broadcast::Receiver;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tracing::log::info;
 use tracing::warn;
+use subspace_service::domains::LastDomainBlockReceiptProvider;
 
 /// Options for Substrate networking
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 struct SubstrateNetworkOptions {
     /// Specify a list of bootstrap nodes for Substrate networking stack.
     #[arg(long)]
@@ -83,7 +85,7 @@ struct SubstrateNetworkOptions {
 }
 
 /// Options for running a domain
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 pub(super) struct DomainOptions {
     /// ID of the domain to run
     #[clap(long)]
@@ -129,6 +131,10 @@ pub(super) struct DomainOptions {
     /// Additional args for domain.
     #[clap(raw = true)]
     additional_args: Vec<String>,
+
+    // TODO: remove
+    #[arg(long, default_value_t = false)]
+    pub domain_sync: bool, // TODO
 }
 
 #[derive(Debug)]
@@ -156,6 +162,7 @@ pub(super) fn create_domain_configuration(
         keystore_options,
         pool_config,
         additional_args,
+        ..
     } = domain_options;
 
     let domain_id;
@@ -389,6 +396,8 @@ pub(super) async fn run_domain(
     bootstrap_result: BootstrapResult<CBlock>,
     domain_configuration: DomainConfiguration,
     domain_start_options: DomainStartOptions,
+    synchronizer: Option<Arc<Synchronizer>>,
+    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>
 ) -> Result<(), Error> {
     println!("run_domain");
     let BootstrapResult {
@@ -509,7 +518,7 @@ pub(super) async fn run_domain(
                 evm_domain_runtime::RuntimeApi,
                 AccountId20,
                 _,
-            >(domain_params)
+            >(domain_params, synchronizer, execution_receipt_provider)
             .await?;
 
             domain_node.network_starter.start_network();
@@ -548,7 +557,7 @@ pub(super) async fn run_domain(
                 auto_id_domain_runtime::RuntimeApi,
                 AccountId32,
                 _,
-            >(domain_params)
+            >(domain_params, synchronizer, execution_receipt_provider)
             .await?;
 
             domain_node.network_starter.start_network();

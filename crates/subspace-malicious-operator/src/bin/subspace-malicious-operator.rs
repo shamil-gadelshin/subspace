@@ -230,6 +230,7 @@ fn main() -> Result<(), Error> {
                 true,
                 SlotProportion::new(3f32 / 4f32),
                 None,
+                None,
             )
             .await
             .map_err(|error| {

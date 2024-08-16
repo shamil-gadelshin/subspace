@@ -1,6 +1,8 @@
+use crate::domains::get_last_confirmed_domain_block_receipt;
 use crate::sync_from_dsn::import_blocks::download_and_reconstruct_blocks;
 use crate::sync_from_dsn::segment_header_downloader::SegmentHeaderDownloader;
 use crate::sync_from_dsn::snap_sync_engine::SnapSyncingEngine;
+use crate::sync_from_dsn::synchronizer::Synchronizer;
 use crate::sync_from_dsn::DsnSyncPieceGetter;
 use sc_client_api::{AuxStore, ProofProvider};
 use sc_consensus::import_queue::ImportQueueService;
@@ -18,6 +20,7 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockOrigin;
 use sp_consensus_subspace::{FarmerPublicKey, SubspaceApi};
+use sp_domains::DomainId;
 use sp_objects::ObjectsApi;
 use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
 use std::collections::{HashSet, VecDeque};
@@ -29,15 +32,14 @@ use subspace_core_primitives::{BlockNumber, SegmentIndex};
 use subspace_networking::Node;
 use tokio::time::sleep;
 use tracing::{debug, error};
-use sp_domains::DomainId;
-use crate::domains::get_last_confirmed_domain_block_receipt;
 
 async fn get_sync_target_block<Backend, Block, Client, NR, DomainHeader>(
     fork_id: Option<String>,
     client: Arc<Client>,
     network_request: &NR,
     sync_service: Arc<SyncingService<Block>>,
-) -> Result<Block::Hash, Error> where
+) -> Result<Block::Hash, Error>
+where
     Backend: sc_client_api::Backend<Block>,
     Block: BlockT,
     Client: HeaderBackend<Block>
@@ -52,7 +54,7 @@ async fn get_sync_target_block<Backend, Block, Client, NR, DomainHeader>(
     for<'a> &'a Client: BlockImport<Block>,
     Client::Api: SubspaceApi<Block, FarmerPublicKey> + ObjectsApi<Block>,
     NR: NetworkRequest,
-    DomainHeader: Header
+    DomainHeader: Header,
 {
     let domain_id = DomainId::new(0);
     let data = get_last_confirmed_domain_block_receipt::<Block, Client, NR, DomainHeader>(
@@ -60,8 +62,9 @@ async fn get_sync_target_block<Backend, Block, Client, NR, DomainHeader>(
         fork_id,
         client,
         network_request,
-        sync_service,
-    ).await;
+        &sync_service,
+    )
+    .await;
 
     println!("data: {data:?}");
 
@@ -79,6 +82,7 @@ pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR, DomainHeader>(
     piece_getter: PG,
     network_request: NR,
     sync_service: Arc<SyncingService<Block>>,
+    synchronizer: Option<Arc<Synchronizer>>,
 ) where
     Backend: sc_client_api::Backend<Block>,
     Block: BlockT,
@@ -104,7 +108,15 @@ pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR, DomainHeader>(
     if info.best_hash == info.genesis_hash {
         pause_sync.store(true, Ordering::Release);
 
-        let sync_target_block = get_sync_target_block::<Backend, Block, Client, NR, DomainHeader>(fork_id.clone(), client.clone(), &network_request, sync_service.clone()).await;
+        let target_block = if let Some(synchronizer) = synchronizer {
+            synchronizer.snap_sync_allowed().await
+        } else {
+            None
+        };
+
+        println!("Target_block: {:?}", target_block); // TODO
+
+        //  let sync_target_block = get_sync_target_block::<Backend, Block, Client, NR, DomainHeader>(fork_id.clone(), client.clone(), &network_request, sync_service.clone()).await;
 
         let snap_sync_fut = sync(
             &segment_headers_store,
@@ -115,7 +127,7 @@ pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR, DomainHeader>(
             import_queue_service.as_mut(),
             &network_request,
             &sync_service,
-            None,
+            target_block,
         );
 
         match snap_sync_fut.await {

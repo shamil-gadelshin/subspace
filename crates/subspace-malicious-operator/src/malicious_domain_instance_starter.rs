@@ -29,6 +29,7 @@ use std::sync::Arc;
 use subspace_runtime::RuntimeApi as CRuntimeApi;
 use subspace_runtime_primitives::opaque::Block as CBlock;
 use subspace_runtime_primitives::AccountId;
+use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use subspace_service::FullClient as CFullClient;
 
 /// `DomainInstanceStarter` used to start a domain instance node based on the given
@@ -177,7 +178,7 @@ impl DomainInstanceStarter {
                     evm_domain_runtime::RuntimeApi,
                     AccountId20,
                     _,
-                >(domain_params)
+                >(domain_params, None,Box::new(()))
                 .await?;
 
                 let malicious_bundle_producer = MaliciousBundleProducer::new(
@@ -236,7 +237,7 @@ impl DomainInstanceStarter {
                     auto_id_domain_runtime::RuntimeApi,
                     AccountId32,
                     _,
-                >(domain_params)
+                >(domain_params, None, Box::new(()))
                 .await?;
 
                 let malicious_bundle_producer = MaliciousBundleProducer::new(

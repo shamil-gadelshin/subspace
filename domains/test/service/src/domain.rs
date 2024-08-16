@@ -41,6 +41,7 @@ use std::future::Future;
 use std::sync::Arc;
 use subspace_runtime_primitives::opaque::Block as CBlock;
 use subspace_runtime_primitives::Nonce;
+use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use subspace_test_service::MockConsensusNode;
 use substrate_frame_rpc_system::AccountNonceApi;
 use substrate_test_client::{
@@ -233,7 +234,7 @@ where
             RuntimeApi,
             <Runtime as DomainRuntime>::AccountId,
             _,
-        >(domain_params)
+        >(domain_params, None, Box::new(())) // TODO:
         .await
         .expect("failed to build domain node");
 
