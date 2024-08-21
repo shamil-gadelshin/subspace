@@ -512,7 +512,7 @@ where
             }
         }
 
-        signed_block.encode()
+        encode_extra(signed_block.encode())
     }
 }
 
@@ -521,8 +521,25 @@ pub fn decode_block<Block>(mut encoded_block: &[u8]) -> Result<SignedBlock<Block
 where
     Block: BlockT,
 {
-    SignedBlock::<Block>::decode(&mut encoded_block)
+    let mut decoded = decode_extra(encoded_block.to_vec());
+    SignedBlock::<Block>::decode(&mut decoded.as_slice())
 }
+
+const EXTRA: usize = 1000000; // Define the size of the extra vector
+
+fn encode_extra(mut data: Vec<u8>) -> Vec<u8> {
+    let mut extra_vec = vec![0; EXTRA]; // Create an empty vector with size EXTRA
+    data.append(&mut extra_vec); // Append the empty vector to the original data
+    data
+}
+
+fn decode_extra(mut data: Vec<u8>) -> Vec<u8> {
+    if data.len() >= EXTRA {
+        data.truncate(data.len() - EXTRA); // Remove the extra vector from the end
+    }
+    data
+}
+
 
 fn initialize_archiver<Block, Client, AS>(
     segment_headers_store: &SegmentHeadersStore<AS>,
