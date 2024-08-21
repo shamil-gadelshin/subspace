@@ -297,20 +297,20 @@ where
                 .propose_bundle_at(proof_of_election, tx_range, operator_id, receipt)
                 .await?;
 
-            // if there are no extrinsics and no receipts to confirm, skip the bundle
-            if self.skip_empty_bundle_production
-                && extrinsics.is_empty()
-                && !self
-                    .consensus_client
-                    .runtime_api()
-                    .non_empty_er_exists(consensus_chain_best_hash, self.domain_id)?
-            {
-                tracing::warn!(
-                    ?domain_best_number,
-                    "Skipping empty bundle production on slot {slot}"
-                );
-                return Ok(None);
-            }
+            // // if there are no extrinsics and no receipts to confirm, skip the bundle
+            // if self.skip_empty_bundle_production
+            //     && extrinsics.is_empty()
+            //     && !self
+            //         .consensus_client
+            //         .runtime_api()
+            //         .non_empty_er_exists(consensus_chain_best_hash, self.domain_id)?
+            // {
+            //     tracing::warn!(
+            //         ?domain_best_number,
+            //         "Skipping empty bundle production on slot {slot}"
+            //     );
+            //     return Ok(None);
+            // }
 
             self.last_processed_slot.replace(slot);
 
