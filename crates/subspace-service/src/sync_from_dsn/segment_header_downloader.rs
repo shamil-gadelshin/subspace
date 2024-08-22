@@ -6,7 +6,7 @@ use std::pin::pin;
 use subspace_core_primitives::{SegmentHeader, SegmentIndex};
 use subspace_networking::libp2p::PeerId;
 use subspace_networking::{Node, SegmentHeaderRequest, SegmentHeaderResponse};
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 const SEGMENT_HEADER_NUMBER_PER_REQUEST: u64 = 1000;
 /// Initial number of peers to query for segment header
@@ -29,7 +29,7 @@ impl<'a> SegmentHeaderDownloader<'a> {
         last_known_segment_header: &SegmentHeader,
     ) -> Result<Vec<SegmentHeader>, Box<dyn Error>> {
         let last_known_segment_index = last_known_segment_header.segment_index();
-        trace!(
+        info!(
             %last_known_segment_index,
             "Searching for latest segment header"
         );
@@ -39,7 +39,7 @@ impl<'a> SegmentHeaderDownloader<'a> {
         };
 
         if last_segment_header.segment_index() <= last_known_segment_index {
-            debug!(
+            info!(
                 %last_known_segment_index,
                 last_found_segment_index = %last_segment_header.segment_index(),
                 "No new segment headers found, nothing to download"
@@ -48,7 +48,7 @@ impl<'a> SegmentHeaderDownloader<'a> {
             return Ok(Vec::new());
         }
 
-        debug!(
+        info!(
             %last_known_segment_index,
             last_segment_index = %last_segment_header.segment_index(),
             "Downloading segment headers"
@@ -121,6 +121,192 @@ impl<'a> SegmentHeaderDownloader<'a> {
     ///
     /// `Ok(None)` is returned when no peers were found.
     async fn get_last_segment_header(
+        &self,
+    ) -> Result<Option<(SegmentHeader, Vec<PeerId>)>, Box<dyn Error>> {
+        let bootstrap_result = self.dsn_node.bootstrap().await;
+        println!("bootstrap_result = {bootstrap_result:?}");
+
+        let connected_peers = self.dsn_node.connected_peers().await;
+
+        println!("DSN connected peers = {connected_peers:?}");
+        if let Ok(connected_peers) = connected_peers {
+            for peer_id in connected_peers{
+                let request_result = self
+                    .dsn_node
+                    .send_generic_request(
+                        peer_id,
+                        SegmentHeaderRequest::LastSegmentHeaders {
+                            segment_header_number: 1,
+                        },
+                    )
+                    .await;
+
+                println!("DSN request_result = {request_result:?}");
+
+                if let Ok(SegmentHeaderResponse { mut segment_headers }) = request_result {
+                    if let Some(header) = segment_headers.pop() {
+                        return Ok(Some((header, vec![peer_id])))
+                    }
+                }
+            }
+        }
+
+        let mut peer_segment_headers = HashMap::<PeerId, Vec<SegmentHeader>>::default();
+        for (required_peers, retry_attempt) in (1..=SEGMENT_HEADER_CONSENSUS_INITIAL_NODES)
+            .rev()
+            .zip(1_usize..)
+        {
+            trace!(%retry_attempt, "Downloading last segment headers");
+
+            // Get random peers. Some of them could be bootstrap nodes with no support for
+            // request-response protocol for segment commitment.
+            let get_peers_result = self
+                .dsn_node
+                .get_closest_peers(PeerId::random().into())
+                .await;
+
+            // Acquire segment headers from peers.
+            let peers = match get_peers_result {
+                Ok(get_peers_stream) => get_peers_stream.collect::<Vec<_>>().await,
+                Err(err) => {
+                    warn!(?err, "get_closest_peers returned an error");
+
+                    return Err(err.into());
+                }
+            };
+
+            trace!(peers_count = %peers.len(), "Found closest peers");
+
+            let new_last_known_segment_headers = peers
+                .into_iter()
+                .map(|peer_id| async move {
+                    let request_result = self
+                        .dsn_node
+                        .send_generic_request(
+                            peer_id,
+                            SegmentHeaderRequest::LastSegmentHeaders {
+                                // Request 2 top segment headers, accounting for situations when new
+                                // segment header was just produced and not all nodes have it
+                                segment_header_number: 2,
+                            },
+                        )
+                        .await;
+
+                    match request_result {
+                        Ok(SegmentHeaderResponse { segment_headers }) => {
+                            trace!(
+                                %peer_id,
+                                segment_headers_number=%segment_headers.len(),
+                                "Last segment headers request succeeded"
+                            );
+
+                            if !self
+                                .is_last_segment_headers_response_valid(peer_id, &segment_headers)
+                            {
+                                warn!(
+                                    %peer_id,
+                                    "Received last segment headers response was invalid"
+                                );
+
+                                let _ = self.dsn_node.ban_peer(peer_id).await;
+                                return None;
+                            }
+
+                            Some((peer_id, segment_headers))
+                        }
+                        Err(error) => {
+                            debug!(%peer_id, ?error, "Last segment headers request failed");
+                            None
+                        }
+                    }
+                })
+                .collect::<FuturesUnordered<_>>()
+                .filter_map(|maybe_result| async move { maybe_result });
+            let mut new_last_known_segment_headers = pin!(new_last_known_segment_headers);
+
+            let last_peers_count = peer_segment_headers.len();
+
+            while let Some((peer_id, segment_headers)) = new_last_known_segment_headers.next().await
+            {
+                peer_segment_headers.insert(peer_id, segment_headers);
+            }
+
+            let peer_count = peer_segment_headers.len();
+
+            if peer_count < required_peers {
+                // If we've got nothing, we have to retry
+                if last_peers_count == 0 {
+                    debug!(
+                        %peer_count,
+                        %required_peers,
+                        %retry_attempt,
+                        "Segment headers consensus requires some peers, will retry"
+                    );
+
+                    continue;
+                }
+                // If there are still attempts left, do more attempts
+                if required_peers > 1 {
+                    debug!(
+                        %peer_count,
+                        %required_peers,
+                        %retry_attempt,
+                        "Segment headers consensus requires more peers, will retry"
+                    );
+
+                    continue;
+                }
+
+                debug!(
+                    %peer_count,
+                    %required_peers,
+                    %retry_attempt,
+                    "Segment headers consensus requires more peers, but no attempts left, so continue as is"
+                );
+            }
+
+            // Calculate votes
+            let mut segment_header_peers: HashMap<SegmentHeader, Vec<PeerId>> = HashMap::new();
+
+            for (peer_id, segment_headers) in peer_segment_headers {
+                for segment_header in segment_headers {
+                    segment_header_peers
+                        .entry(segment_header)
+                        .and_modify(|peers| {
+                            peers.push(peer_id);
+                        })
+                        .or_insert(vec![peer_id]);
+                }
+            }
+
+            let mut segment_header_peers_iter = segment_header_peers.into_iter();
+            let (mut best_segment_header, mut most_peers) =
+                segment_header_peers_iter.next().expect(
+                    "Not empty due to not empty list of peers with non empty list of segment \
+                    headers each; qed",
+                );
+
+            for (segment_header, peers) in segment_header_peers_iter {
+                if peers.len() > most_peers.len()
+                    || (peers.len() == most_peers.len()
+                        && segment_header.segment_index() > best_segment_header.segment_index())
+                {
+                    best_segment_header = segment_header;
+                    most_peers = peers;
+                }
+            }
+
+            return Ok(Some((best_segment_header, most_peers)));
+        }
+
+        Ok(None)
+    }
+
+    /// Return last segment header known to DSN and agreed on by majority of the peer set with
+    /// minimum initial size of [`SEGMENT_HEADER_CONSENSUS_INITIAL_NODES`] peers.
+    ///
+    /// `Ok(None)` is returned when no peers were found.
+    async fn get_last_segment_header2(
         &self,
     ) -> Result<Option<(SegmentHeader, Vec<PeerId>)>, Box<dyn Error>> {
         let mut peer_segment_headers = HashMap::<PeerId, Vec<SegmentHeader>>::default();
