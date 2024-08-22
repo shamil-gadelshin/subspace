@@ -1,4 +1,3 @@
-use crate::domains::get_last_confirmed_domain_block_receipt;
 use crate::sync_from_dsn::import_blocks::download_and_reconstruct_blocks;
 use crate::sync_from_dsn::segment_header_downloader::SegmentHeaderDownloader;
 use crate::sync_from_dsn::snap_sync_engine::SnapSyncingEngine;
@@ -31,45 +30,45 @@ use subspace_archiving::reconstructor::Reconstructor;
 use subspace_core_primitives::{BlockNumber, SegmentIndex};
 use subspace_networking::Node;
 use tokio::time::sleep;
-use tracing::{debug, error};
+use tracing::{debug, error, info, warn};
 
-async fn get_sync_target_block<Backend, Block, Client, NR, DomainHeader>(
-    fork_id: Option<String>,
-    client: Arc<Client>,
-    network_request: &NR,
-    sync_service: Arc<SyncingService<Block>>,
-) -> Result<Block::Hash, Error>
-where
-    Backend: sc_client_api::Backend<Block>,
-    Block: BlockT,
-    Client: HeaderBackend<Block>
-        + ClientExt<Block, Backend>
-        + ProvideRuntimeApi<Block>
-        + ProofProvider<Block>
-        + BlockImport<Block>
-        + Send
-        + Sync
-        + 'static,
-    // TODO: Remove when https://github.com/paritytech/polkadot-sdk/pull/5339 is in our fork
-    for<'a> &'a Client: BlockImport<Block>,
-    Client::Api: SubspaceApi<Block, FarmerPublicKey> + ObjectsApi<Block>,
-    NR: NetworkRequest,
-    DomainHeader: Header,
-{
-    let domain_id = DomainId::new(0);
-    let data = get_last_confirmed_domain_block_receipt::<Block, Client, NR, DomainHeader>(
-        domain_id,
-        fork_id,
-        client,
-        network_request,
-        &sync_service,
-    )
-    .await;
-
-    println!("data: {data:?}");
-
-    Ok(std::default::Default::default())
-}
+// async fn get_sync_target_block<Backend, Block, Client, NR, DomainHeader>(
+//     fork_id: Option<String>,
+//     client: Arc<Client>,
+//     network_request: &NR,
+//     sync_service: Arc<SyncingService<Block>>,
+// ) -> Result<Block::Hash, Error>
+// where
+//     Backend: sc_client_api::Backend<Block>,
+//     Block: BlockT,
+//     Client: HeaderBackend<Block>
+//         + ClientExt<Block, Backend>
+//         + ProvideRuntimeApi<Block>
+//         + ProofProvider<Block>
+//         + BlockImport<Block>
+//         + Send
+//         + Sync
+//         + 'static,
+//     // TODO: Remove when https://github.com/paritytech/polkadot-sdk/pull/5339 is in our fork
+//     for<'a> &'a Client: BlockImport<Block>,
+//     Client::Api: SubspaceApi<Block, FarmerPublicKey> + ObjectsApi<Block>,
+//     NR: NetworkRequest,
+//     DomainHeader: Header,
+// {
+//     let domain_id = DomainId::new(0);
+//     let data = get_last_confirmed_domain_block_receipt::<Block, Client, NR, DomainHeader>(
+//         domain_id,
+//         fork_id,
+//         client,
+//         network_request,
+//         &sync_service,
+//     )
+//     .await;
+//
+//     println!("data: {data:?}");
+//
+//     Ok(std::default::Default::default())
+// }
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR, DomainHeader>(
@@ -109,7 +108,7 @@ pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR, DomainHeader>(
         pause_sync.store(true, Ordering::Release);
 
         let target_block = if let Some(synchronizer) = synchronizer {
-            synchronizer.snap_sync_allowed().await
+            synchronizer.consensus_snap_sync_allowed().await
         } else {
             None
         };
@@ -182,39 +181,54 @@ where
                     "Can't get segment header from the store: {last_segment_index}"
                 ))?;
 
+            let mut target_block_exceeded_last_archived_block = false;
             if target_block > segment_header.last_archived_block().number {
-                return Err(format!(
-                    "Target block is greater than the last archived block. \
-                    Last segment index = {last_segment_index}, target block = {target_block}, \
-                    last block from the segment = {}
+               warn!(
+                   %last_segment_index,
+                   %target_block,
+
+                    "Specified target block is greater than the last archived block. \
+                     Choosing the last archived block (#{}) as target block...
                     ",
                     segment_header.last_archived_block().number
-                )
-                .into());
+                );
+                target_block_exceeded_last_archived_block = true;
+                // return Err(format!(
+                //     "Target block is greater than the last archived block. \
+                //     Last segment index = {last_segment_index}, target block = {target_block}, \
+                //     last block from the segment = {}
+                //     ",
+                //     segment_header.last_archived_block().number
+                // )
+                // .into());
             }
 
-            let mut current_segment_index = last_segment_index;
+            if !target_block_exceeded_last_archived_block {
+                let mut current_segment_index = last_segment_index;
 
-            loop {
-                if current_segment_index <= SegmentIndex::ONE {
-                    break;
+                loop {
+                    if current_segment_index <= SegmentIndex::ONE {
+                        break;
+                    }
+
+                    if target_block > segment_header.last_archived_block().number {
+                        current_segment_index += SegmentIndex::ONE;
+                        break;
+                    }
+
+                    current_segment_index -= SegmentIndex::ONE;
+
+                    segment_header = segment_headers_store
+                        .get_segment_header(current_segment_index)
+                        .ok_or(format!(
+                            "Can't get segment header from the store: {last_segment_index}"
+                        ))?;
                 }
 
-                if target_block > segment_header.last_archived_block().number {
-                    current_segment_index += SegmentIndex::ONE;
-                    break;
-                }
-
-                current_segment_index -= SegmentIndex::ONE;
-
-                segment_header = segment_headers_store
-                    .get_segment_header(current_segment_index)
-                    .ok_or(format!(
-                        "Can't get segment header from the store: {last_segment_index}"
-                    ))?;
+                current_segment_index
+            } else {
+                last_segment_index
             }
-
-            current_segment_index
         } else {
             last_segment_index
         }
@@ -505,7 +519,7 @@ where
         .await
         .map_err(|error| error.to_string())?;
 
-    debug!("Found {} new segment headers", new_segment_headers.len());
+    info!("Found {} new segment headers", new_segment_headers.len());
 
     if !new_segment_headers.is_empty() {
         segment_headers_store.add_segment_headers(&new_segment_headers)?;
