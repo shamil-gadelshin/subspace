@@ -1021,6 +1021,11 @@ where
                     snap_sync_task.await;
                 }
 
+                if let Some(synchronizer) = synchronizer {
+                    println!("Waiting for resuming consensus sync");
+                    synchronizer.resuming_consensus_sync_allowed().await;
+                }
+
                 // if let Some(start_fetching) = start_fetching {
                 //     println!("Sending fetching signal");
                 //     let _ = start_fetching.send(());

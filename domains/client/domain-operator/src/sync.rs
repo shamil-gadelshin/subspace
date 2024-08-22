@@ -9,7 +9,7 @@ use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Header};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
-use subspace_service::domains::{get_last_confirmed_domain_block_receipt, LastDomainBlockReceiptProvider};
+use subspace_service::domains::{ LastDomainBlockReceiptProvider};
 use subspace_service::sync_from_dsn::snap_sync_engine::SnapSyncingEngine;
 use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use tokio::time::sleep;
@@ -31,31 +31,31 @@ where
     Ok(header)
 }
 
-pub(crate) async fn get_last_confirmed_execution_receipt<Block, Client, NR>(
-    client: &Arc<Client>,
-    fork_id: Option<&str>,
-    network_request: &NR,
-    sync_service: &SyncingService<Block>,
-) -> Result<ExecutionReceiptFor<Block::Header, Block, Balance>, sp_blockchain::Error>
-where
-    Block: BlockT,
-    Client: HeaderBackend<Block> + ProofProvider<Block> + Send + Sync + 'static,
-    NR: NetworkRequest,
-{
-    let domain_id = DomainId::new(0); // TODO:
-    let receipt = get_last_confirmed_domain_block_receipt::<Block, Client, NR, Block::Header>(
-        domain_id,
-        fork_id.map(|str| str.to_string()),
-        client.clone(),
-        network_request,
-        sync_service,
-    )
-    .await;
-
-    println!("Execution receipt: {receipt:?}");
-
-    Ok(receipt.unwrap()) // TODO:
-}
+// pub(crate) async fn get_last_confirmed_execution_receipt<Block, Client, NR>(
+//     client: &Arc<Client>,
+//     fork_id: Option<&str>,
+//     network_request: &NR,
+//     sync_service: &SyncingService<Block>,
+// ) -> Result<ExecutionReceiptFor<Block::Header, Block, Balance>, sp_blockchain::Error>
+// where
+//     Block: BlockT,
+//     Client: HeaderBackend<Block> + ProofProvider<Block> + Send + Sync + 'static,
+//     NR: NetworkRequest,
+// {
+//     let domain_id = DomainId::new(0); // TODO:
+//     let receipt = get_last_confirmed_domain_block_receipt::<Block, Client, NR, Block::Header>(
+//         domain_id,
+//         fork_id.map(|str| str.to_string()),
+//         client.clone(),
+//         network_request,
+//         sync_service,
+//     )
+//     .await;
+//
+//     println!("Execution receipt: {receipt:?}");
+//
+//     Ok(receipt.unwrap()) // TODO:
+// }
 
 pub(crate) async fn sync<Block, Client, NR, CBlock>(
     client: &Arc<Client>,
@@ -81,7 +81,7 @@ where
     // .await
     // .unwrap(); // TODO:
 
-    let execution_receipt_result = execution_receipt_provider.get_execution_receipt().await;
+    let execution_receipt_result = execution_receipt_provider.get_execution_receipt(None).await;
 
     println!("execution_receipt_resul: {:?}", execution_receipt_result);
 
@@ -96,7 +96,12 @@ where
             panic!("Can't convert block number.")
         }
     };
-    synchronizer.allow_snap_sync(block_number);
+    synchronizer.allow_consensus_snap_sync(block_number); // TODO: combine workflow
+
+
+//    return Err(sp_blockchain::Error::IncompletePipeline);
+
+    synchronizer.domain_snap_sync_allowed().await;
 
     let domain_block_header = get_header(client, fork_id, network_request, sync_service).await?;
 
