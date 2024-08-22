@@ -77,8 +77,9 @@ pub fn generate_protocol_name<Hash: AsRef<[u8]>>(
 
 /// Request last confirmed domain block data from a peer.
 #[derive(Clone, PartialEq, Encode, Decode, Debug)]
-pub struct LastConfirmedBlockRequest {
+pub struct LastConfirmedBlockRequest<Block: BlockT> {
     pub domain_id: DomainId,
+    pub block_hash: Option<Block::Hash>,
 }
 
 #[derive(Clone, PartialEq, Encode, Decode, Debug)]
@@ -169,18 +170,22 @@ where
         pending_response: oneshot::Sender<OutgoingResponse>,
         peer: &PeerId,
     ) -> Result<(), HandleRequestError> {
-        let request = LastConfirmedBlockRequest::decode(&mut payload.as_slice())?;
+        let request = LastConfirmedBlockRequest::<Block>::decode(&mut payload.as_slice())?;
 
         trace!("Handle last confirmed domain block info request: {peer}, request: {request:?}",);
 
         let result = {
-            let info = self.client.info();
-            let best_hash = info.best_hash;
+            let target_block_hash = if let Some(block_hash) = request.block_hash{
+                block_hash
+            } else {
+                let info = self.client.info();
+                info.best_hash
+            };
 
             let last_confirmed_block_receipt = self
                 .client
                 .runtime_api()
-                .last_confirmed_domain_block_receipt(best_hash, request.domain_id);
+                .last_confirmed_domain_block_receipt(target_block_hash, request.domain_id);
 
             println!("last_confirmed_block_receipt: {last_confirmed_block_receipt:?}");
 
@@ -193,7 +198,7 @@ where
                 Ok(None) => {
                     debug!(
                         domain_id=%request.domain_id,
-                        %best_hash,
+                        %target_block_hash,
                         "Last confirmed domain block acquisition failed: no data.",
                     );
 
@@ -202,7 +207,7 @@ where
                 Err(err) => {
                     debug!(
                         domain_id=%request.domain_id,
-                        %best_hash,
+                        %target_block_hash,
                         ?err,
                         "Last confirmed domain block acquisition failed.",
                     );
