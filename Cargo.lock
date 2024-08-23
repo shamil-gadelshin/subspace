@@ -2625,6 +2625,7 @@ dependencies = [
  "sc-consensus",
  "sc-domains",
  "sc-network",
+ "sc-network-common",
  "sc-network-sync",
  "sc-service",
  "sc-transaction-pool",

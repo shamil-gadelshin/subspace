@@ -557,7 +557,7 @@ pub(super) async fn run_domain(
                 auto_id_domain_runtime::RuntimeApi,
                 AccountId32,
                 _,
-            >(domain_params, synchronizer, execution_receipt_provider)
+            >(domain_params, synchronizer, execution_receipt_provider,)
             .await?;
 
             domain_node.network_starter.start_network();

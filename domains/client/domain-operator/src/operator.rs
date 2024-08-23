@@ -25,6 +25,7 @@ use sp_mmr_primitives::MmrApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::sync::Arc;
+use sc_network_sync::block_relay_protocol::BlockDownloader;
 use subspace_runtime_primitives::Balance;
 use subspace_service::domains::LastDomainBlockReceiptProvider;
 use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
@@ -122,7 +123,8 @@ where
             NR,
         >,
         synchronizer: Option<Arc<Synchronizer>>,
-        execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>
+        execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>,
+        block_downloader: Arc<dyn BlockDownloader<Block>>,
     ) -> Result<Self, sp_consensus::Error>
     where
         IBNS: Stream<Item = (NumberFor<CBlock>, mpsc::Sender<()>)> + Send + 'static,
@@ -204,7 +206,8 @@ where
                     sync_service: params.sync_service,
                 },
                 synchronizer,
-                execution_receipt_provider
+                execution_receipt_provider,
+                block_downloader
             )
             .boxed(),
         );

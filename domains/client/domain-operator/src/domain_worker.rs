@@ -40,6 +40,7 @@ use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Header, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::pin::pin;
 use std::sync::Arc;
+use sc_network_sync::block_relay_protocol::BlockDownloader;
 use subspace_runtime_primitives::Balance;
 use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use tracing::{info, Instrument};
@@ -72,7 +73,8 @@ pub(super) async fn start_worker<
     operator_streams: OperatorStreams<CBlock, IBNS, CIBNS, NSNS, ASS>,
     sync_params: SyncParams<Client, NR, Block>,
     synchronizer: Option<Arc<Synchronizer>>,
-    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>
+    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>,
+    block_downloader: Arc<dyn BlockDownloader<Block>>,
 ) where
     Block: BlockT,
     Block::Hash: Into<H256>,
@@ -120,10 +122,10 @@ pub(super) async fn start_worker<
     // let header = sync_params.domain_client.header(Default::default()).unwrap().unwrap();
     // let result = download_state(&header, &sync_params.domain_client, None, &sync_params.network_request, &sync_params.sync_service).await;
 
-    let domain_sync_task = {
-        let consensus_client = consensus_client.clone();
-        async move {
-            if let Some(synchronizer) = synchronizer {
+    if let Some(synchronizer) = synchronizer {
+        let domain_sync_task = {
+            let consensus_client = consensus_client.clone();
+            async move {
                 println!("starting sync");
 
                 let result = sync(
@@ -134,15 +136,16 @@ pub(super) async fn start_worker<
                     synchronizer,
                     execution_receipt_provider,
                     consensus_client.clone(),
+                    block_downloader
                 )
                     .await;
 
                 println!("Sync completed: {:?}", result);
             }
-        }
-    };
+        };
 
-    spawn_essential.spawn_essential("domain-sync", None, Box::pin(domain_sync_task));
+        spawn_essential.spawn_essential("domain-sync", None, Box::pin(domain_sync_task));
+    }
 
 
     let OperatorStreams {

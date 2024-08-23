@@ -47,6 +47,7 @@ use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::str::FromStr;
 use std::sync::Arc;
+use sc_network_sync::block_relay_protocol::BlockDownloader;
 use subspace_core_primitives::PotOutput;
 use subspace_runtime_primitives::Nonce;
 use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
@@ -357,7 +358,7 @@ where
     let mut task_manager = params.task_manager;
     let net_config = sc_network::config::FullNetworkConfiguration::new(&domain_config.network);
 
-    let (network_service, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
+    let (network_service, system_rpc_tx, tx_handler_controller, network_starter, sync_service, block_downloader) =
         crate::build_network(BuildNetworkParams {
             config: &domain_config,
             net_config,
@@ -470,7 +471,8 @@ where
             network_request: Arc::clone(&network_service),
         },
         synchronizer,
-        execution_receipt_provider
+        execution_receipt_provider,
+        block_downloader,
     )
     .await?;
 

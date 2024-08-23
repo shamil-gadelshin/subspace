@@ -31,6 +31,7 @@ use sp_blockchain::HeaderMetadata;
 use sp_consensus::block_validation::{Chain, DefaultBlockAnnounceValidator};
 use sp_runtime::traits::{Block as BlockT, BlockIdTo, Zero};
 use std::sync::Arc;
+use sc_network_sync::block_relay_protocol::BlockDownloader;
 
 /// Domain full client.
 pub type FullClient<Block, RuntimeApi> = TFullClient<Block, RuntimeApi, RuntimeExecutor>;
@@ -57,6 +58,7 @@ pub fn build_network<TBl, TExPool, TImpQu, TCl>(
         sc_network_transactions::TransactionsHandlerController<<TBl as BlockT>::Hash>,
         NetworkStarter,
         Arc<SyncingService<TBl>>,
+        Arc<dyn BlockDownloader<TBl>>,
     ),
     sc_service::Error,
 >
@@ -105,8 +107,8 @@ where
         .expect("Genesis block exists; qed");
 
     let (chain_sync_network_provider, chain_sync_network_handle) = NetworkServiceProvider::new();
-    let (mut block_server, block_downloader) = match block_relay {
-        Some(params) => (params.server, params.downloader),
+    let (mut block_server, block_downloader, block_request_protocol_config) = match block_relay {
+        Some(params) => (params.server, params.downloader, params.request_response_config),
         None => {
             // Custom protocol was not specified, use the default block handler.
             let params = BlockRequestHandler::new::<NetworkWorker<TBl, <TBl as BlockT>::Hash>>(
@@ -117,7 +119,7 @@ where
                 config.network.default_peers_set.in_peers as usize
                     + config.network.default_peers_set.out_peers as usize,
             );
-            (params.server, params.downloader)
+            (params.server, params.downloader, params.request_response_config)
         }
     };
     spawn_handle.spawn("block-request-handler", Some("networking"), async move {
@@ -157,6 +159,9 @@ where
         protocol_config
     };
 
+    net_config.add_request_response_protocol(block_request_protocol_config);
+    net_config.add_request_response_protocol(state_request_protocol_config.clone());
+
     let (engine, sync_service, block_announce_config) = SyncingEngine::new(
         Roles::from(&config.role),
         client.clone(),
@@ -173,7 +178,7 @@ where
         None,
         chain_sync_network_handle,
         import_queue.service(),
-        block_downloader,
+        block_downloader.clone(),
         state_request_protocol_config.name.clone(),
         None,
         peer_store_handle,
@@ -305,6 +310,7 @@ where
         tx_handler_controller,
         NetworkStarter::new(network_start_tx),
         sync_service,
+        block_downloader
     ))
 }
 
