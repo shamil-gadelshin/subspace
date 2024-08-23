@@ -59,7 +59,7 @@ where
 // }
 
 pub(crate) async fn sync<Block, Client, NR, CBlock, CClient>(
-    client: &Arc<Client>,
+    client: Arc<Client>,
     fork_id: Option<&str>,
     network_request: &NR,
     sync_service: &SyncingService<Block>,
@@ -106,18 +106,16 @@ where
 
     synchronizer.domain_snap_sync_allowed().await;
 
-    synchronizer.resuming_consensus_sync_allowed();
+//    synchronizer.resuming_consensus_sync_allowed();
 
-    println!("Consensus client info={:?}", consensus_client.info());
     wait_for_block_import(consensus_client.as_ref(), block_number.into()).await;
-    println!("Consensus client info={:?}", consensus_client.info());
 
 
-    let domain_block_header = get_header(client, fork_id, network_request, sync_service).await?;
+    let domain_block_header = get_header(&client, fork_id, network_request, sync_service).await?;
 
     let result = download_state(
         &domain_block_header,
-        client,
+        &client,
         fork_id,
         network_request,
         sync_service,

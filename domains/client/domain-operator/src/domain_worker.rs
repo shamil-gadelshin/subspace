@@ -111,7 +111,7 @@ pub(super) async fn start_worker<
     NSNS: Stream<Item = NewSlotNotification> + Send + 'static,
     ASS: Stream<Item = mpsc::Sender<()>> + Send + 'static,
     E: CodeExecutor,
-    NR: NetworkRequest + Send,
+    NR: NetworkRequest + Send + Sync + 'static,
 {
     let span = tracing::Span::current();
 
@@ -120,22 +120,30 @@ pub(super) async fn start_worker<
     // let header = sync_params.domain_client.header(Default::default()).unwrap().unwrap();
     // let result = download_state(&header, &sync_params.domain_client, None, &sync_params.network_request, &sync_params.sync_service).await;
 
-    if let Some(synchronizer) = synchronizer {
-        println!("starting sync");
+    let domain_sync_task = {
+        let consensus_client = consensus_client.clone();
+        async move {
+            if let Some(synchronizer) = synchronizer {
+                println!("starting sync");
 
-        let result = sync(
-            &sync_params.domain_client,
-            None,
-            &sync_params.network_request,
-            &sync_params.sync_service,
-            synchronizer,
-            execution_receipt_provider,
-            consensus_client.clone(),
-        )
-        .await;
+                let result = sync(
+                    sync_params.domain_client.clone(),
+                    None,
+                    &sync_params.network_request,
+                    &sync_params.sync_service,
+                    synchronizer,
+                    execution_receipt_provider,
+                    consensus_client.clone(),
+                )
+                    .await;
 
-        println!("Sync completed: {:?}", result);
-    }
+                println!("Sync completed: {:?}", result);
+            }
+        }
+    };
+
+    spawn_essential.spawn_essential("domain-sync", None, Box::pin(domain_sync_task));
+
 
     let OperatorStreams {
         consensus_block_import_throttling_buffer_size,
@@ -238,6 +246,8 @@ pub(super) async fn start_worker<
         drop(acknowledgement_sender_stream);
         while let Some(maybe_block_info) = throttled_block_import_notification_stream.next().await {
             if let Some(block_info) = maybe_block_info {
+                println!("Skipped !!!: {:?}", block_info);
+                continue;
                 if let Err(error) = bundle_processor
                     .clone()
                     .process_bundles((block_info.hash, block_info.number, block_info.is_new_best))
