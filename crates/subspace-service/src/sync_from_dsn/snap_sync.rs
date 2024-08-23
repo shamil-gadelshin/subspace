@@ -107,7 +107,7 @@ pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR, DomainHeader>(
     if info.best_hash == info.genesis_hash {
         pause_sync.store(true, Ordering::Release);
 
-        let target_block = if let Some(synchronizer) = synchronizer {
+        let target_block = if let Some(synchronizer) = &synchronizer {
             synchronizer.consensus_snap_sync_allowed().await
         } else {
             None
@@ -136,6 +136,10 @@ pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR, DomainHeader>(
             Err(error) => {
                 error!(%error, "Snap sync failed");
             }
+        }
+
+        if let Some(synchronizer) = &synchronizer {
+            synchronizer.allow_domain_snap_sync()
         }
 
         pause_sync.store(false, Ordering::Release);
@@ -464,7 +468,7 @@ where
     Ok(())
 }
 
-async fn wait_for_block_import<Block, Client>(
+pub async fn wait_for_block_import<Block, Client>(
     client: &Client,
     waiting_block_number: NumberFor<Block>,
 ) where

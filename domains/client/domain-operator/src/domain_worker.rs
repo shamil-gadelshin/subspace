@@ -129,7 +129,8 @@ pub(super) async fn start_worker<
             &sync_params.network_request,
             &sync_params.sync_service,
             synchronizer,
-            execution_receipt_provider
+            execution_receipt_provider,
+            consensus_client.clone(),
         )
         .await;
 

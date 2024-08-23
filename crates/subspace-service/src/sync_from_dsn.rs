@@ -29,6 +29,7 @@ use subspace_core_primitives::{Piece, PieceIndex, SegmentIndex};
 use subspace_networking::utils::piece_provider::{PieceProvider, PieceValidator};
 use subspace_networking::Node;
 use tracing::{debug, info, warn};
+pub use snap_sync::wait_for_block_import;
 
 /// How much time to wait for new block to be imported before timing out and starting sync from DSN
 const NO_IMPORTED_BLOCKS_TIMEOUT: Duration = Duration::from_secs(10 * 60);

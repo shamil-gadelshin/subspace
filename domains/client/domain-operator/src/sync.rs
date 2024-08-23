@@ -13,6 +13,7 @@ use subspace_service::domains::{ LastDomainBlockReceiptProvider};
 use subspace_service::sync_from_dsn::snap_sync_engine::SnapSyncingEngine;
 use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use tokio::time::sleep;
+use subspace_service::sync_from_dsn::wait_for_block_import;
 
 //TODO
 pub(crate) async fn get_header<Block, Client, NR>(
@@ -23,7 +24,7 @@ pub(crate) async fn get_header<Block, Client, NR>(
 ) -> Result<Block::Header, sp_blockchain::Error>
 where
     Block: BlockT,
-    Client: HeaderBackend<Block> + ProofProvider<Block> + Send + Sync + 'static,
+    Client: HeaderBackend<Block> +  Send + Sync + 'static,
     NR: NetworkRequest,
 {
     let header = client.header(Default::default()).unwrap().unwrap();
@@ -57,19 +58,21 @@ where
 //     Ok(receipt.unwrap()) // TODO:
 // }
 
-pub(crate) async fn sync<Block, Client, NR, CBlock>(
+pub(crate) async fn sync<Block, Client, NR, CBlock, CClient>(
     client: &Arc<Client>,
     fork_id: Option<&str>,
     network_request: &NR,
     sync_service: &SyncingService<Block>,
     synchronizer: Arc<Synchronizer>,
-    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>
+    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>,
+    consensus_client: Arc<CClient>,
 ) -> Result<ImportedState<Block>, sp_blockchain::Error>
 where
     Block: BlockT,
-    Client: HeaderBackend<Block> + ProofProvider<Block> + Send + Sync + 'static,
+    Client: HeaderBackend<Block>  + ProofProvider<Block> + Send + Sync + 'static,
     NR: NetworkRequest,
     CBlock: BlockT,
+    CClient: HeaderBackend<CBlock> + ProofProvider<CBlock>  + Send + Sync + 'static,
 {
     //let domain_block_header = get_header(client, fork_id, network_request, sync_service).await?;
     // let last_confirmed_block_receipt = get_last_confirmed_execution_receipt(
@@ -102,6 +105,13 @@ where
 //    return Err(sp_blockchain::Error::IncompletePipeline);
 
     synchronizer.domain_snap_sync_allowed().await;
+
+    synchronizer.resuming_consensus_sync_allowed();
+
+    println!("Consensus client info={:?}", consensus_client.info());
+    wait_for_block_import(consensus_client.as_ref(), block_number.into()).await;
+    println!("Consensus client info={:?}", consensus_client.info());
+
 
     let domain_block_header = get_header(client, fork_id, network_request, sync_service).await?;
 
