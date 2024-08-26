@@ -108,7 +108,8 @@ pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR, DomainHeader>(
         pause_sync.store(true, Ordering::Release);
 
         let target_block = if let Some(synchronizer) = &synchronizer {
-            synchronizer.consensus_snap_sync_allowed().await
+            synchronizer.consensus_snap_sync_allowed().await;
+            synchronizer.target_consensus_snap_sync_block_number()
         } else {
             None
         };

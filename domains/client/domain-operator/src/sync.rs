@@ -61,7 +61,10 @@ where
 //     Ok(receipt.unwrap()) // TODO:
 // }
 
-async fn get_last_confirmed_block<Block: BlockT>(block_downloader: Arc<dyn BlockDownloader<Block>>, sync_service: &SyncingService<Block>, block_number: BlockNumber) -> Result<BlockData<Block>, sp_blockchain::Error>{
+async fn get_last_confirmed_block<Block: BlockT>(block_downloader: Arc<dyn BlockDownloader<Block>>, sync_service: &SyncingService<Block>, block_number: BlockNumber)
+    -> Result<BlockData<Block>, sp_blockchain::Error>
+
+{
     const LAST_CONFIRMED_BLOCK_RETRIES: u32 = 5;
     const LOOP_PAUSE: Duration = Duration::from_secs(20);
 
@@ -198,20 +201,15 @@ where
 
     synchronizer.domain_snap_sync_allowed().await;
 
-//    synchronizer.resuming_consensus_sync_allowed();
-
     wait_for_block_import(consensus_client.as_ref(), block_number.into()).await;
-
 
     let domain_block_number = convert_block_number::<CBlock>(last_confirmed_block_receipt.domain_block_number);
     let domain_block = get_last_confirmed_block(block_downloader, sync_service, domain_block_number).await;
 
-    panic!("Full stop!!!!!!!!");
-
-    let domain_block_header = get_header(&client, fork_id, network_request, sync_service).await?;
+    let domain_block_header = domain_block.unwrap().header; // TODO:
 
     let result = download_state(
-        &domain_block_header,
+        &domain_block_header.unwrap(), // TODO
         &client,
         fork_id,
         network_request,
@@ -220,6 +218,10 @@ where
     .await;
 
     println!("State downloaded: {:?}", result);
+
+    //    synchronizer.resuming_consensus_sync_allowed(); // TODO:
+
+    panic!("Full stop!!!!!!!!");
 
     result
 }
@@ -243,9 +245,9 @@ where
     const LOOP_PAUSE: Duration = Duration::from_secs(20);
 
     for attempt in 1..=STATE_SYNC_RETRIES {
-        tracing::debug!(%attempt, "Starting state sync...");
+        info!(%attempt, "Starting state sync..."); // TODO:
 
-        tracing::debug!("Gathering peers for state sync.");
+        info!("Gathering peers for state sync.");// TODO:
         let mut tried_peers = HashSet::<PeerId>::new();
 
         // TODO: add loop timeout
@@ -255,12 +257,15 @@ where
                 .await
                 .expect("Network service must be available.")
                 .iter()
-                .filter_map(|(peer_id, info)| {
-                    (info.roles.is_full() && info.best_number > block_number).then_some(*peer_id)
+                .map(|(peer_id, info)| {
+                   *peer_id // TODO
                 })
+                // .filter_map(|(peer_id, info)| {
+                //     (info.roles.is_full() && info.best_number > block_number).then_some(*peer_id)
+                // })
                 .collect::<Vec<_>>();
 
-            tracing::debug!(?tried_peers, "Sync peers: {}", connected_full_peers.len());
+            info!(?tried_peers, "Sync peers: {}", connected_full_peers.len()); // TODO:
 
             let active_peers_set = HashSet::from_iter(connected_full_peers.into_iter());
 
@@ -286,7 +291,7 @@ where
 
         match last_block_from_sync_result {
             Ok(block_to_import) => {
-                tracing::debug!("Sync worker handle result: {:?}", block_to_import);
+                info!("Sync worker handle result: {:?}", block_to_import); // TODO:
 
                 return block_to_import.state.ok_or_else(|| {
                     sp_blockchain::Error::Backend(
@@ -295,7 +300,7 @@ where
                 });
             }
             Err(error) => {
-                tracing::error!(%error, "State sync error");
+                error!(%error, "State sync error");
                 continue;
             }
         }

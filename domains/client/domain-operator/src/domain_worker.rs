@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::collections::VecDeque;
 use crate::bundle_processor::BundleProcessor;
 use crate::domain_bundle_producer::{DomainBundleProducer, DomainProposal};
 use crate::sync::{sync, SyncParams};
@@ -122,9 +123,10 @@ pub(super) async fn start_worker<
     // let header = sync_params.domain_client.header(Default::default()).unwrap().unwrap();
     // let result = download_state(&header, &sync_params.domain_client, None, &sync_params.network_request, &sync_params.sync_service).await;
 
-    if let Some(synchronizer) = synchronizer {
+    if let Some(ref synchronizer) = synchronizer {
         let domain_sync_task = {
             let consensus_client = consensus_client.clone();
+            let synchronizer = synchronizer.clone();
             async move {
                 println!("starting sync");
 
@@ -133,9 +135,9 @@ pub(super) async fn start_worker<
                     None,
                     &sync_params.network_request,
                     &sync_params.sync_service,
-                    synchronizer,
+                    synchronizer.clone(),
                     execution_receipt_provider,
-                    consensus_client.clone(),
+                    consensus_client,
                     block_downloader
                 )
                     .await;
@@ -167,6 +169,7 @@ pub(super) async fn start_worker<
         );
 
     if let Some(operator_id) = maybe_operator_id {
+        // TODO:
         info!("👷 Running as Operator[{operator_id}]...");
         let mut new_slot_notification_stream = pin!(new_slot_notification_stream);
         let mut acknowledgement_sender_stream = pin!(acknowledgement_sender_stream);
@@ -247,10 +250,29 @@ pub(super) async fn start_worker<
         info!("🧑‍ Running as Full node...");
         drop(new_slot_notification_stream);
         drop(acknowledgement_sender_stream);
+
+        let mut queue = VecDeque::new();
+        let mut target_block_number = None;
+        if let Some(ref synchronizer) = synchronizer {
+            synchronizer.consensus_snap_sync_allowed().await;
+            target_block_number = synchronizer.target_consensus_snap_sync_block_number();
+        }
+
         while let Some(maybe_block_info) = throttled_block_import_notification_stream.next().await {
             if let Some(block_info) = maybe_block_info {
-                println!("Skipped !!!: {:?}", block_info);
-                continue;
+                if let Some(ref synchronizer) = synchronizer {
+                    let target_block_number: NumberFor<CBlock> = target_block_number.unwrap().into(); // TODO:
+
+                    if target_block_number >= block_info.number {
+                        info!(%target_block_number, "Skipped !!!: {:?}", block_info);
+                    } else {
+                        info!(%target_block_number, "Cached !!!: {:?}", block_info);
+                        queue.push_back(block_info);
+                    }
+
+                    continue;
+                }
+
                 if let Err(error) = bundle_processor
                     .clone()
                     .process_bundles((block_info.hash, block_info.number, block_info.is_new_best))
