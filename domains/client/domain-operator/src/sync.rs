@@ -1,6 +1,6 @@
 use domain_runtime_primitives::{Balance, BlockNumber};
 use sc_client_api::ProofProvider;
-use sc_consensus::ImportedState;
+use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy, ImportedState, StateAction, StorageChanges};
 use sc_network::{NetworkRequest, PeerId, ProtocolName, RequestFailure};
 use sc_network_sync::SyncingService;
 use sp_blockchain::HeaderBackend;
@@ -9,7 +9,9 @@ use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Header, NumberFor};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
+use sc_consensus::import_queue::ImportQueueService;
 use sc_network_sync::block_relay_protocol::BlockDownloader;
+use sp_consensus::BlockOrigin;
 use subspace_service::domains::{ LastDomainBlockReceiptProvider};
 use subspace_service::sync_from_dsn::snap_sync_engine::SnapSyncingEngine;
 use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
@@ -160,7 +162,7 @@ fn convert_block_number<Block: BlockT>(block_number: NumberFor<Block>) -> u32{
 }
 
 pub(crate) async fn sync<Block, Client, NR, CBlock, CClient>(
-    client: Arc<Client>,
+    client: &Arc<Client>,
     fork_id: Option<&str>,
     network_request: &NR,
     sync_service: &SyncingService<Block>,
@@ -168,10 +170,12 @@ pub(crate) async fn sync<Block, Client, NR, CBlock, CClient>(
     execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>,
     consensus_client: Arc<CClient>,
     block_downloader: Arc<dyn BlockDownloader<Block>>,
-) -> Result<ImportedState<Block>, sp_blockchain::Error>
+    mut import_queue_service: Box<dyn ImportQueueService<Block>>,
+) -> Result<(), sp_blockchain::Error>
 where
     Block: BlockT,
-    Client: HeaderBackend<Block>  + ProofProvider<Block> + Send + Sync + 'static,
+    Client: HeaderBackend<Block>  + BlockImport<Block> + ProofProvider<Block> + Send + Sync + 'static,
+    for<'a> &'a Client: BlockImport<Block>,
     NR: NetworkRequest,
     CBlock: BlockT,
     CClient: HeaderBackend<CBlock> + ProofProvider<CBlock>  + Send + Sync + 'static,
@@ -204,12 +208,12 @@ where
     wait_for_block_import(consensus_client.as_ref(), block_number.into()).await;
 
     let domain_block_number = convert_block_number::<CBlock>(last_confirmed_block_receipt.domain_block_number);
-    let domain_block = get_last_confirmed_block(block_downloader, sync_service, domain_block_number).await;
+    let domain_block = get_last_confirmed_block(block_downloader, sync_service, domain_block_number).await.unwrap();  // TODO:
 
-    let domain_block_header = domain_block.unwrap().header; // TODO:
+    let domain_block_header = domain_block.header.clone().unwrap(); // TODO
 
-    let result = download_state(
-        &domain_block_header.unwrap(), // TODO
+    let state_result = download_state(
+        &domain_block_header,
         &client,
         fork_id,
         network_request,
@@ -217,14 +221,33 @@ where
     )
     .await;
 
-    println!("State downloaded: {:?}", result);
+    println!("State downloaded: {:?}", state_result);
+
+    {
+        let mut client = client.clone();
+        // Import first block as finalized
+        let mut block = BlockImportParams::new(BlockOrigin::NetworkInitialSync, domain_block_header);
+        block.body = domain_block.body;
+        block.justifications = domain_block.justifications;
+        block.state_action = StateAction::ApplyChanges(StorageChanges::Import(state_result.unwrap())); // TODO:
+        block.finalized = true;
+        block.fork_choice = Some(ForkChoiceStrategy::Custom(true));
+        // TODO: Simplify when https://github.com/paritytech/polkadot-sdk/pull/5339 is in our fork
+        (&mut client.as_ref())
+            .import_block(block)
+            .await
+            .map_err(|error| format!("Failed to import state block: {error}")).unwrap(); // TODO:
+    }
+
 
     //    synchronizer.resuming_consensus_sync_allowed(); // TODO:
 
     panic!("Full stop!!!!!!!!");
 
-    result
+    Ok(())
 }
+
+
 
 /// Download and return state for specified block
 async fn download_state<Block, Client, NR>(

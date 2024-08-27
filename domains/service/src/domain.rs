@@ -53,6 +53,7 @@ use subspace_runtime_primitives::Nonce;
 use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use substrate_frame_rpc_system::AccountNonceApi;
 use subspace_service::domains::LastDomainBlockReceiptProvider;
+use sc_service::ImportQueue;
 
 pub type DomainOperator<Block, CBlock, CClient, RuntimeApi> = Operator<
     Block,
@@ -357,6 +358,7 @@ where
     let transaction_pool = params.transaction_pool.clone();
     let mut task_manager = params.task_manager;
     let net_config = sc_network::config::FullNetworkConfiguration::new(&domain_config.network);
+    let import_queue_service = params.import_queue.service();
 
     let (network_service, system_rpc_tx, tx_handler_controller, network_starter, sync_service, block_downloader) =
         crate::build_network(BuildNetworkParams {
@@ -473,6 +475,7 @@ where
         synchronizer,
         execution_receipt_provider,
         block_downloader,
+        import_queue_service,
     )
     .await?;
 

@@ -25,6 +25,8 @@ use sp_mmr_primitives::MmrApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::sync::Arc;
+use sc_consensus::BlockImport;
+use sc_consensus::import_queue::ImportQueueService;
 use sc_network_sync::block_relay_protocol::BlockDownloader;
 use subspace_runtime_primitives::Balance;
 use subspace_service::domains::LastDomainBlockReceiptProvider;
@@ -80,7 +82,9 @@ where
         + ProvideRuntimeApi<Block>
         + ProofProvider<Block>
         + Finalizer<Block, Backend>
+        + BlockImport<Block>
         + 'static,
+    for<'a> &'a Client: BlockImport<Block>,
     Client::Api: DomainCoreApi<Block>
         + MessengerApi<Block, NumberFor<CBlock>, CBlock::Hash>
         + sp_block_builder::BlockBuilder<Block>
@@ -106,7 +110,7 @@ where
     E: CodeExecutor,
 {
     /// Create a new instance.
-    pub async fn new<IBNS, CIBNS, NSNS, ASS, NR>(
+    pub async fn new<IBNS, CIBNS, NSNS, ASS, NR,>(
         spawn_essential: Box<dyn SpawnEssentialNamed>,
         params: OperatorParams<
             Block,
@@ -125,6 +129,7 @@ where
         synchronizer: Option<Arc<Synchronizer>>,
         execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>,
         block_downloader: Arc<dyn BlockDownloader<Block>>,
+        mut import_queue_service: Box<dyn ImportQueueService<Block>>,
     ) -> Result<Self, sp_consensus::Error>
     where
         IBNS: Stream<Item = (NumberFor<CBlock>, mpsc::Sender<()>)> + Send + 'static,
@@ -207,7 +212,8 @@ where
                 },
                 synchronizer,
                 execution_receipt_provider,
-                block_downloader
+                block_downloader,
+                import_queue_service,
             )
             .boxed(),
         );

@@ -41,6 +41,8 @@ use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Header, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::pin::pin;
 use std::sync::Arc;
+use sc_consensus::BlockImport;
+use sc_consensus::import_queue::ImportQueueService;
 use sc_network_sync::block_relay_protocol::BlockDownloader;
 use subspace_runtime_primitives::Balance;
 use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
@@ -76,6 +78,7 @@ pub(super) async fn start_worker<
     synchronizer: Option<Arc<Synchronizer>>,
     execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>,
     block_downloader: Arc<dyn BlockDownloader<Block>>,
+    mut import_queue_service: Box<dyn ImportQueueService<Block>>,
 ) where
     Block: BlockT,
     Block::Hash: Into<H256>,
@@ -88,7 +91,9 @@ pub(super) async fn start_worker<
         + ProvideRuntimeApi<Block>
         + ProofProvider<Block>
         + Finalizer<Block, Backend>
+    + BlockImport<Block>
         + 'static,
+    for<'a> &'a Client: BlockImport<Block>,
     Client::Api: DomainCoreApi<Block>
         + MessengerApi<Block, NumberFor<CBlock>, CBlock::Hash>
         + BlockBuilder<Block>
@@ -131,14 +136,15 @@ pub(super) async fn start_worker<
                 println!("starting sync");
 
                 let result = sync(
-                    sync_params.domain_client.clone(),
+                    &sync_params.domain_client,
                     None,
                     &sync_params.network_request,
                     &sync_params.sync_service,
                     synchronizer.clone(),
                     execution_receipt_provider,
                     consensus_client,
-                    block_downloader
+                    block_downloader,
+                    import_queue_service
                 )
                     .await;
 
