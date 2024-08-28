@@ -10,6 +10,7 @@ pub struct Synchronizer {
     notify_domain_snap_sync: Notify,
     notify_resuming_consensus_sync: Notify,
     notify_resuming_consensus_block_process: Notify,
+    initial_blocks_imported: Mutex<bool>,
 }
 
 impl Synchronizer {
@@ -20,6 +21,7 @@ impl Synchronizer {
             notify_domain_snap_sync: Notify::new(),
             notify_resuming_consensus_sync: Notify::new(),
             notify_resuming_consensus_block_process: Notify::new(),
+            initial_blocks_imported: Mutex::new(false),
         }
     }
 
@@ -42,8 +44,13 @@ impl Synchronizer {
 
     pub async fn domain_snap_sync_allowed(&self){
         println!("Waiting for notify_domain_snap_sync");
+
         self.notify_domain_snap_sync.notified().await;
         println!("Finished waiting for notify_domain_snap_sync");
+    }
+
+    pub fn initial_blocks_imported(&self) -> bool{
+        *self.initial_blocks_imported.lock()
     }
 
     pub fn allow_domain_snap_sync(&self,) {
@@ -53,6 +60,8 @@ impl Synchronizer {
 
     pub async fn resuming_consensus_sync_allowed(&self){
         println!("Waiting for notify_resuming_consensus_sync");
+        *self.initial_blocks_imported.lock() = true;
+
         self.notify_resuming_consensus_sync.notified().await;
         println!("Finished waiting for notify_resuming_consensus_sync");
     }
@@ -73,27 +82,3 @@ impl Synchronizer {
         self.notify_resuming_consensus_block_process.notify_waiters();
     }
 }
-
-// pub struct Synchronizer{
-//     snap_sync_rx: UnboundedReceiver<BlockNumber>,
-//     snap_sync_tx: UnboundedSender<BlockNumber>,
-// }
-//
-// impl Synchronizer{
-//     pub fn new() -> Self<>{
-//         let (tx, rx) = mpsc::unbounded_channel();
-//         Self{
-//             snap_sync_tx: tx,
-//             snap_sync_rx: rx,
-//         }
-//     }
-//
-//     pub async fn snap_sync_allowed(&mut self) -> BlockNumber{
-//         self.snap_sync_rx.recv().await.expect("We don't close the channel.")
-//     }
-//
-//     pub fn allow_snap_sync(&mut self, block_number: BlockNumber) {
-//         // We don't close the channel and the error is not expected.
-//         let _ = self.snap_sync_tx.send(block_number);
-//     }
-// }

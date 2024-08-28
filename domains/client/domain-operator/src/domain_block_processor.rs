@@ -30,6 +30,7 @@ use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::str::FromStr;
 use std::sync::Arc;
+use tracing::info;
 
 struct DomainBlockBuildResult<Block>
 where
@@ -156,9 +157,13 @@ where
             Ordering::Greater => {}
         }
 
+        println!("Consensus client info: {:?}", self.consensus_client.info());
+        println!("Domain client info: {:?}", self.client.info());
+
         let best_hash = self.client.info().best_hash;
         let best_number = self.client.info().best_number;
 
+        println!("before latest_consensus_block_hash_for");
         // When there are empty consensus blocks multiple consensus block could map to the same
         // domain block, thus use `latest_consensus_block_hash_for` to find the latest consensus
         // block that map to the best domain block.
@@ -192,18 +197,21 @@ where
         let consensus_from = consensus_block_hash_for_best_domain_hash;
         let consensus_to = consensus_block_hash;
 
+        info!(?consensus_from, ?consensus_to, "To-From");
+
         if consensus_from == consensus_to {
             tracing::debug!("Consensus block {consensus_block_hash:?} has already been processed");
             return Ok(None);
         }
 
+        println!("before tree_route");
         let route =
             sp_blockchain::tree_route(&*self.consensus_client, consensus_from, consensus_to)?;
 
         let retracted = route.retracted();
         let enacted = route.enacted();
 
-        tracing::trace!(
+        tracing::info!(
             ?retracted,
             ?enacted,
             common_block = ?route.common_block(),
@@ -247,7 +255,7 @@ where
                         consensus_imports,
                     }));
                 }
-
+                println!("before best_domain_hash_for");
                 // Get the domain block that is derived from the common consensus block and use it as
                 // the initial domain parent block
                 let domain_block_hash: Block::Hash = crate::aux_schema::best_domain_hash_for(
@@ -261,12 +269,14 @@ where
                             ))
                         },
                     )?;
+
                 let parent_header = self.client.header(domain_block_hash)?.ok_or_else(|| {
                     sp_blockchain::Error::Backend(format!(
                         "Domain block header for #{domain_block_hash:?} not found",
                     ))
                 })?;
 
+                println!("before PendingConsensusBlocks ");
                 Ok(Some(PendingConsensusBlocks {
                     initial_parent: (parent_header.hash(), *parent_header.number()),
                     consensus_imports: enacted.to_vec(),

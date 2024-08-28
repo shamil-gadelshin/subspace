@@ -60,6 +60,7 @@
 
 #![feature(array_windows)]
 #![feature(const_option)]
+#![feature(duration_constructors)]
 #![feature(extract_if)]
 
 mod aux_schema;

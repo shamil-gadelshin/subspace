@@ -192,24 +192,26 @@ where
             return Ok(());
         }
 
-        tracing::debug!(
+        tracing::info!(
             "Processing consensus block #{consensus_block_number},{consensus_block_hash}"
-        );
+        ); // TODO
 
         let maybe_pending_consensus_blocks = self
             .domain_block_processor
             .pending_imported_consensus_blocks(consensus_block_hash, consensus_block_number)?;
 
+
+        println!("After pending_imported_consensus_blocks");
         if let Some(PendingConsensusBlocks {
             initial_parent,
             consensus_imports,
         }) = maybe_pending_consensus_blocks
         {
-            tracing::trace!(
+            tracing::info!(
                 ?initial_parent,
                 ?consensus_imports,
                 "Pending consensus blocks to process"
-            );
+            ); // TODO
 
             let mut domain_parent = initial_parent;
 

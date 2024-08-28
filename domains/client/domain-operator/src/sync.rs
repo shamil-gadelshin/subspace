@@ -239,10 +239,15 @@ where
             .map_err(|error| format!("Failed to import state block: {error}")).unwrap(); // TODO:
     }
 
+    wait_for_block_import(client.as_ref(), domain_block_number.into()).await;
+    let info = client.info();
+    info!("Domain client info after waiting: {:?}", info);
 
-    //    synchronizer.resuming_consensus_sync_allowed(); // TODO:
+//    synchronizer.resuming_consensus_sync_allowed(); // TODO:
 
-    panic!("Full stop!!!!!!!!");
+    println!("!!!! Sync finished - start waiting..... !!!!");
+    sleep(Duration::from_mins(10)).await;
+//    panic!("Full stop!!!!!!!!");
 
     Ok(())
 }

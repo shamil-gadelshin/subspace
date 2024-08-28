@@ -257,26 +257,47 @@ pub(super) async fn start_worker<
         drop(new_slot_notification_stream);
         drop(acknowledgement_sender_stream);
 
-        let mut queue = VecDeque::new();
+        let mut block_queue = VecDeque::<BlockInfo<CBlock>>::new(); // TODO: Option<VecDeque>?
         let mut target_block_number = None;
         if let Some(ref synchronizer) = synchronizer {
             synchronizer.consensus_snap_sync_allowed().await;
             target_block_number = synchronizer.target_consensus_snap_sync_block_number();
         }
 
-        while let Some(maybe_block_info) = throttled_block_import_notification_stream.next().await {
+        'import_loop: while let Some(maybe_block_info) = throttled_block_import_notification_stream.next().await {
             if let Some(block_info) = maybe_block_info {
                 if let Some(ref synchronizer) = synchronizer {
-                    let target_block_number: NumberFor<CBlock> = target_block_number.unwrap().into(); // TODO:
+                    // if synchronizer.initial_blocks_imported() && !block_queue.is_empty() {
+                    //     while !block_queue.is_empty(){
+                    //         if let Some(cached_block_info) = block_queue.pop_front(){
+                    //             info!(?cached_block_info, "Processing cached block info."); // TODO:
+                    //
+                    //             if let Err(error) = bundle_processor
+                    //                 .clone()
+                    //                 .process_bundles((cached_block_info.hash, cached_block_info.number, cached_block_info.is_new_best))
+                    //                 .instrument(span.clone())
+                    //                 .await
+                    //             {
+                    //                 tracing::error!(?error, "Failed to process consensus block");
+                    //                 // Bring down the service as bundles processor is an essential task.
+                    //                 // TODO: more graceful shutdown.
+                    //                 break 'import_loop;
+                    //             }
+                    //         }
+                    //     }
+                    // } else
+                    {
+                        let target_block_number: NumberFor<CBlock> = target_block_number.unwrap().into(); // TODO:
 
-                    if target_block_number >= block_info.number {
-                        info!(%target_block_number, "Skipped !!!: {:?}", block_info);
-                    } else {
-                        info!(%target_block_number, "Cached !!!: {:?}", block_info);
-                        queue.push_back(block_info);
+                        if target_block_number >= block_info.number {
+                            info!(%target_block_number, "Skipped !!!: {:?}", block_info);
+                        } else {
+                            info!(%target_block_number, "Cached !!!: {:?}", block_info);
+                            block_queue.push_back(block_info);
+                        }
+
+                        continue 'import_loop;
                     }
-
-                    continue;
                 }
 
                 if let Err(error) = bundle_processor
@@ -288,7 +309,7 @@ pub(super) async fn start_worker<
                     tracing::error!(?error, "Failed to process consensus block");
                     // Bring down the service as bundles processor is an essential task.
                     // TODO: more graceful shutdown.
-                    break;
+                    break 'import_loop;
                 }
             }
         }
