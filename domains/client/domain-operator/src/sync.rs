@@ -1,5 +1,5 @@
 use domain_runtime_primitives::{Balance, BlockNumber};
-use sc_client_api::ProofProvider;
+use sc_client_api::{AuxStore, ProofProvider};
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy, ImportedState, StateAction, StorageChanges};
 use sc_network::{NetworkRequest, PeerId, ProtocolName, RequestFailure};
 use sc_network_sync::SyncingService;
@@ -167,14 +167,16 @@ pub(crate) async fn sync<Block, Client, NR, CBlock, CClient>(
     network_request: &NR,
     sync_service: &SyncingService<Block>,
     synchronizer: Arc<Synchronizer>,
-    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>,
+    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
     consensus_client: Arc<CClient>,
     block_downloader: Arc<dyn BlockDownloader<Block>>,
     mut import_queue_service: Box<dyn ImportQueueService<Block>>,
 ) -> Result<(), sp_blockchain::Error>
 where
     Block: BlockT,
-    Client: HeaderBackend<Block>  + BlockImport<Block> + ProofProvider<Block> + Send + Sync + 'static,
+    Client: HeaderBackend<Block>  + BlockImport<Block>
+    + AuxStore
+    + ProofProvider<Block> + Send + Sync + 'static,
     for<'a> &'a Client: BlockImport<Block>,
     NR: NetworkRequest,
     CBlock: BlockT,
@@ -194,20 +196,23 @@ where
 
     println!("execution_receipt_resul: {:?}", execution_receipt_result);
 
-    let last_confirmed_block_receipt = execution_receipt_result.unwrap();
+    let last_confirmed_block_receipt = execution_receipt_result.unwrap(); // TODO:
 
-    let block_number = convert_block_number::<CBlock>(last_confirmed_block_receipt
+    let consensus_block_number = convert_block_number::<CBlock>(last_confirmed_block_receipt
         .consensus_block_number);
-    synchronizer.allow_consensus_snap_sync(block_number); // TODO: combine workflow
+    let consensus_block_hash = last_confirmed_block_receipt
+        .consensus_block_hash;
+    synchronizer.allow_consensus_snap_sync(consensus_block_number); // TODO: combine workflow
 
 
 //    return Err(sp_blockchain::Error::IncompletePipeline);
 
     synchronizer.domain_snap_sync_allowed().await;
 
-    wait_for_block_import(consensus_client.as_ref(), block_number.into()).await;
+    wait_for_block_import(consensus_client.as_ref(), consensus_block_number.into()).await;
 
-    let domain_block_number = convert_block_number::<CBlock>(last_confirmed_block_receipt.domain_block_number);
+    let domain_block_number = convert_block_number::<Block>(last_confirmed_block_receipt.domain_block_number);
+    let domain_block_hash = last_confirmed_block_receipt.domain_block_hash;
     let domain_block = get_last_confirmed_block(block_downloader, sync_service, domain_block_number).await.unwrap();  // TODO:
 
     let domain_block_header = domain_block.header.clone().unwrap(); // TODO
@@ -239,11 +244,23 @@ where
             .map_err(|error| format!("Failed to import state block: {error}")).unwrap(); // TODO:
     }
 
+    crate::aux_schema::track_domain_hash_and_consensus_hash(
+        client.as_ref(),
+        domain_block_hash,
+        consensus_block_hash,
+    )?;
+
+    crate::aux_schema::write_execution_receipt::<_, Block, CBlock>(
+        client.as_ref(),
+        None,
+        &last_confirmed_block_receipt,
+    )?;
+
     wait_for_block_import(client.as_ref(), domain_block_number.into()).await;
     let info = client.info();
     info!("Domain client info after waiting: {:?}", info);
 
-//    synchronizer.resuming_consensus_sync_allowed(); // TODO:
+    synchronizer.allow_resuming_consensus_sync(); // TODO:
 
     println!("!!!! Sync finished - start waiting..... !!!!");
     sleep(Duration::from_mins(10)).await;

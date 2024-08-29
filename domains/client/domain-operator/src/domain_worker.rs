@@ -76,7 +76,7 @@ pub(super) async fn start_worker<
     operator_streams: OperatorStreams<CBlock, IBNS, CIBNS, NSNS, ASS>,
     sync_params: SyncParams<Client, NR, Block>,
     synchronizer: Option<Arc<Synchronizer>>,
-    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>,
+    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
     block_downloader: Arc<dyn BlockDownloader<Block>>,
     mut import_queue_service: Box<dyn ImportQueueService<Block>>,
 ) where
@@ -267,25 +267,25 @@ pub(super) async fn start_worker<
         'import_loop: while let Some(maybe_block_info) = throttled_block_import_notification_stream.next().await {
             if let Some(block_info) = maybe_block_info {
                 if let Some(ref synchronizer) = synchronizer {
-                    // if synchronizer.initial_blocks_imported() && !block_queue.is_empty() {
-                    //     while !block_queue.is_empty(){
-                    //         if let Some(cached_block_info) = block_queue.pop_front(){
-                    //             info!(?cached_block_info, "Processing cached block info."); // TODO:
-                    //
-                    //             if let Err(error) = bundle_processor
-                    //                 .clone()
-                    //                 .process_bundles((cached_block_info.hash, cached_block_info.number, cached_block_info.is_new_best))
-                    //                 .instrument(span.clone())
-                    //                 .await
-                    //             {
-                    //                 tracing::error!(?error, "Failed to process consensus block");
-                    //                 // Bring down the service as bundles processor is an essential task.
-                    //                 // TODO: more graceful shutdown.
-                    //                 break 'import_loop;
-                    //             }
-                    //         }
-                    //     }
-                    // } else
+                    if synchronizer.initial_blocks_imported() && !block_queue.is_empty() {
+                        while !block_queue.is_empty(){
+                            if let Some(cached_block_info) = block_queue.pop_front(){
+                                info!(?cached_block_info, "Processing cached block info."); // TODO:
+
+                                if let Err(error) = bundle_processor
+                                    .clone()
+                                    .process_bundles((cached_block_info.hash, cached_block_info.number, cached_block_info.is_new_best))
+                                    .instrument(span.clone())
+                                    .await
+                                {
+                                    tracing::error!(?error, "Failed to process consensus block");
+                                    // Bring down the service as bundles processor is an essential task.
+                                    // TODO: more graceful shutdown.
+                                    break 'import_loop;
+                                }
+                            }
+                        }
+                    } else
                     {
                         let target_block_number: NumberFor<CBlock> = target_block_number.unwrap().into(); // TODO:
 

@@ -40,26 +40,27 @@ pub enum LastConfirmedDomainBlockResponseError {
 }
 
 #[async_trait]
-pub trait LastDomainBlockReceiptProvider<Block: BlockT> : Send{
-    async fn get_execution_receipt(&self, block_hash: Option<Block::Hash>)-> Option<ExecutionReceiptFor<Block::Header, Block, Balance>>;
+pub trait LastDomainBlockReceiptProvider<Block: BlockT, CBlock: BlockT> : Send{
+    async fn get_execution_receipt(&self, block_hash: Option<CBlock::Hash>)-> Option<ExecutionReceiptFor<Block::Header, CBlock, Balance>>;
 }
 
 #[async_trait]
-impl<Block: BlockT> LastDomainBlockReceiptProvider<Block> for (){
-    async fn get_execution_receipt(&self, _: Option<Block::Hash>) -> Option<ExecutionReceiptFor<Block::Header, Block, Balance>> {
+impl<Block: BlockT, CBlock: BlockT> LastDomainBlockReceiptProvider<Block, CBlock> for (){
+    async fn get_execution_receipt(&self, _: Option<CBlock::Hash>) -> Option<ExecutionReceiptFor<Block::Header, CBlock, Balance>> {
         None
     }
 }
 
 #[async_trait]
-impl<Block, Client, NR> LastDomainBlockReceiptProvider<Block> for LastDomainBlockInfoReceiver<Block,Client, NR>
+impl<Block, CBlock, Client, NR> LastDomainBlockReceiptProvider<Block, CBlock> for LastDomainBlockInfoReceiver<Block, Client, NR>
     where
         Block: BlockT,
+        CBlock: BlockT,
         NR: NetworkRequest + Sync + Send,
         Client: HeaderBackend<Block>,
 {
-    async fn get_execution_receipt(&self, block_hash: Option<Block::Hash>) -> Option<ExecutionReceiptFor<Block::Header, Block, Balance>> {
-        self.get_last_confirmed_domain_block_receipt(block_hash).await
+    async fn get_execution_receipt(&self, block_hash: Option<CBlock::Hash>) -> Option<ExecutionReceiptFor<Block::Header, CBlock, Balance>> {
+        self.get_last_confirmed_domain_block_receipt::<CBlock>(block_hash).await
     }
 }
 
@@ -97,7 +98,7 @@ impl<Block, Client, NR> LastDomainBlockInfoReceiver<Block, Client, NR>
         }
 
     }
-    pub async fn get_last_confirmed_domain_block_receipt(&self, block_hash:  Option<Block::Hash>) -> Option<ExecutionReceiptFor<Block::Header, Block, Balance>>
+    pub async fn get_last_confirmed_domain_block_receipt<CBlock: BlockT>(&self, block_hash:  Option<CBlock::Hash>) -> Option<ExecutionReceiptFor<Block::Header, CBlock, Balance>>
     {
         let info = self.client.info();
         let protocol_name = generate_protocol_name(info.genesis_hash, self.fork_id.as_deref());
@@ -130,9 +131,9 @@ impl<Block, Client, NR> LastDomainBlockInfoReceiver<Block, Client, NR>
                 //     continue;
                 // }
 
-                let request = LastConfirmedBlockRequest { domain_id: self.domain_id, block_hash };
+                let request = LastConfirmedBlockRequest::<CBlock> { domain_id: self.domain_id, block_hash };
 
-                let response = send_request::<NR, Block, Block::Header>(
+                let response = send_request::<NR, CBlock, Block::Header>(
                     protocol_name.clone(),
                     *peer_id,
                     request,

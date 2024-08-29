@@ -397,7 +397,7 @@ pub(super) async fn run_domain(
     domain_configuration: DomainConfiguration,
     domain_start_options: DomainStartOptions,
     synchronizer: Option<Arc<Synchronizer>>,
-    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>
+    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<DomainBlock, CBlock>>
 ) -> Result<(), Error> {
     println!("run_domain");
     let BootstrapResult {

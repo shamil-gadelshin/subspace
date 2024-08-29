@@ -60,13 +60,13 @@ impl Synchronizer {
 
     pub async fn resuming_consensus_sync_allowed(&self){
         println!("Waiting for notify_resuming_consensus_sync");
-        *self.initial_blocks_imported.lock() = true;
-
         self.notify_resuming_consensus_sync.notified().await;
         println!("Finished waiting for notify_resuming_consensus_sync");
     }
 
     pub fn allow_resuming_consensus_sync(&self,) {
+        *self.initial_blocks_imported.lock() = true;
+
         println!("Allowed notify_resuming_consensus_sync");
         self.notify_resuming_consensus_sync.notify_waiters();
     }

@@ -127,7 +127,7 @@ where
             NR,
         >,
         synchronizer: Option<Arc<Synchronizer>>,
-        execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<CBlock>>,
+        execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
         block_downloader: Arc<dyn BlockDownloader<Block>>,
         mut import_queue_service: Box<dyn ImportQueueService<Block>>,
     ) -> Result<Self, sp_consensus::Error>
