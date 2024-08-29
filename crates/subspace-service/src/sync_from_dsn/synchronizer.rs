@@ -64,11 +64,14 @@ impl Synchronizer {
         println!("Finished waiting for notify_resuming_consensus_sync");
     }
 
-    pub fn allow_resuming_consensus_sync(&self,) {
-        *self.initial_blocks_imported.lock() = true;
-
+    pub fn allow_resuming_consensus_sync(&self, ) {
         println!("Allowed notify_resuming_consensus_sync");
         self.notify_resuming_consensus_sync.notify_waiters();
+    }
+
+    pub fn mark_initial_blocks_imported(&self) {
+        println!("mark_initial_blocks_imported");
+        *self.initial_blocks_imported.lock() = true;
     }
 
     pub async fn resuming_consensus_block_process_allowed(&self){
@@ -77,8 +80,8 @@ impl Synchronizer {
         println!("Finished waiting for notify_resuming_consensus_block_process");
     }
 
-    pub fn allow_notify_resuming_consensus_block_process(&self,) {
-        println!("Allowed notify_resuming_consensus_block_process");
+    pub fn allow_resuming_consensus_block_process(&self,) {
+        println!("Allowed resuming_consensus_block_process");
         self.notify_resuming_consensus_block_process.notify_waiters();
     }
 }

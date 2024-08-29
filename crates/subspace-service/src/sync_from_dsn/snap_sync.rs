@@ -469,22 +469,22 @@ where
     Ok(())
 }
 
-pub async fn wait_for_block_import<Block, Client>(
+pub async fn wait_for_block_import_ext<Block, Client>(
     client: &Client,
     waiting_block_number: NumberFor<Block>,
+    wait_duration: Duration,
+    max_idle_iterations: u32,
 ) where
     Block: BlockT,
     Client: HeaderBackend<Block>,
 {
-    const WAIT_DURATION: Duration = Duration::from_secs(5);
-    const MAX_NO_NEW_IMPORT_ITERATIONS: u32 = 10;
     let mut current_iteration = 0;
     let mut last_best_block_number = client.info().best_number;
     loop {
         let info = client.info();
         debug!(%current_iteration, %waiting_block_number, "Waiting client info: {:?}", info);
 
-        tokio::time::sleep(WAIT_DURATION).await;
+        tokio::time::sleep(wait_duration).await;
 
         if info.best_number >= waiting_block_number {
             break;
@@ -496,13 +496,26 @@ pub async fn wait_for_block_import<Block, Client>(
             current_iteration = 0;
         }
 
-        if current_iteration >= MAX_NO_NEW_IMPORT_ITERATIONS {
+        if current_iteration >= max_idle_iterations {
             debug!(%current_iteration, %waiting_block_number, "Max idle period reached. {:?}", info);
             break;
         }
 
         last_best_block_number = info.best_number;
     }
+}
+
+pub async fn wait_for_block_import<Block, Client>(
+    client: &Client,
+    waiting_block_number: NumberFor<Block>,
+) where
+    Block: BlockT,
+    Client: HeaderBackend<Block>,
+{
+    const WAIT_DURATION: Duration = Duration::from_secs(50);
+    const MAX_NO_NEW_IMPORT_ITERATIONS: u32 = 10;
+
+    wait_for_block_import_ext(client, waiting_block_number, WAIT_DURATION, MAX_NO_NEW_IMPORT_ITERATIONS).await
 }
 
 async fn sync_segment_headers<AS>(

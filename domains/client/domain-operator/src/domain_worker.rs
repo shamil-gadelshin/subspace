@@ -285,7 +285,7 @@ pub(super) async fn start_worker<
                                 }
                             }
                         }
-                    } else
+                    } else if !synchronizer.initial_blocks_imported()
                     {
                         let target_block_number: NumberFor<CBlock> = target_block_number.unwrap().into(); // TODO:
 

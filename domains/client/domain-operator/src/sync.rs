@@ -17,7 +17,7 @@ use subspace_service::sync_from_dsn::snap_sync_engine::SnapSyncingEngine;
 use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
-use subspace_service::sync_from_dsn::wait_for_block_import;
+use subspace_service::sync_from_dsn::{wait_for_block_import, wait_for_block_import_ext};
 use sc_network_common::sync::message::{BlockRequest, FromBlock, Direction, BlockAttributes, BlockData};
 
 //TODO
@@ -203,13 +203,13 @@ where
     let consensus_block_hash = last_confirmed_block_receipt
         .consensus_block_hash;
     synchronizer.allow_consensus_snap_sync(consensus_block_number); // TODO: combine workflow
-
+    synchronizer.allow_resuming_consensus_sync(); // TODO: remove
 
 //    return Err(sp_blockchain::Error::IncompletePipeline);
 
     synchronizer.domain_snap_sync_allowed().await;
 
-    wait_for_block_import(consensus_client.as_ref(), consensus_block_number.into()).await;
+    wait_for_block_import_ext(consensus_client.as_ref(), consensus_block_number.into(), Duration::from_secs(30), 100).await; // TODO:
 
     let domain_block_number = convert_block_number::<Block>(last_confirmed_block_receipt.domain_block_number);
     let domain_block_hash = last_confirmed_block_receipt.domain_block_hash;
@@ -260,10 +260,10 @@ where
     let info = client.info();
     info!("Domain client info after waiting: {:?}", info);
 
-    synchronizer.allow_resuming_consensus_sync(); // TODO:
+    synchronizer.mark_initial_blocks_imported(); // TODO:
 
     println!("!!!! Sync finished - start waiting..... !!!!");
-    sleep(Duration::from_mins(10)).await;
+    sleep(Duration::from_mins(100)).await;
 //    panic!("Full stop!!!!!!!!");
 
     Ok(())
