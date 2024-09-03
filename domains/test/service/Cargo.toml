@@ -49,6 +49,7 @@ sp-runtime = { git = "https://github.com/subspace/polkadot-sdk", rev = "5626154d
 sp-session = { git = "https://github.com/subspace/polkadot-sdk", rev = "5626154d0781ac9a6ffd5a6207ed237f425ae631" }
 sp-transaction-pool = { git = "https://github.com/subspace/polkadot-sdk", rev = "5626154d0781ac9a6ffd5a6207ed237f425ae631" }
 subspace-runtime-primitives = { version = "0.1.0", path = "../../../crates/subspace-runtime-primitives" }
+subspace-service = { version = "0.1.0", path = "../../../crates/subspace-service" }
 subspace-test-client = { version = "0.1.0", path = "../../../test/subspace-test-client" }
 subspace-test-service = { version = "0.1.0", path = "../../../test/subspace-test-service" }
 substrate-frame-rpc-system = { git = "https://github.com/subspace/polkadot-sdk", rev = "5626154d0781ac9a6ffd5a6207ed237f425ae631" }

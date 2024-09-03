@@ -27,7 +27,7 @@
 )]
 
 pub mod config;
-pub(crate) mod domains;
+pub mod domains; // TODO: pub(crate)
 pub mod dsn;
 mod metrics;
 pub(crate) mod mmr;
@@ -43,6 +43,7 @@ use crate::metrics::NodeMetrics;
 use crate::mmr::request_handler::MmrRequestHandler;
 use crate::sync_from_dsn::piece_validator::SegmentCommitmentPieceValidator;
 use crate::sync_from_dsn::snap_sync::snap_sync;
+use crate::sync_from_dsn::synchronizer::Synchronizer;
 use crate::transaction_pool::FullPool;
 use core::sync::atomic::{AtomicU32, Ordering};
 use cross_domain_message_gossip::xdm_gossip_peers_set_config;
@@ -727,6 +728,7 @@ pub async fn new_full<PosTable, RuntimeApi>(
     prometheus_registry: Option<&mut Registry>,
     enable_rpc_extensions: bool,
     block_proposal_slot_portion: SlotProportion,
+    synchronizer: Option<Arc<Synchronizer>>,
 ) -> Result<FullNode<RuntimeApi>, Error>
 where
     PosTable: Table,
@@ -1024,6 +1026,7 @@ where
         Arc::clone(&network_service),
         sync_service.clone(),
         subspace_link.erasure_coding().clone(),
+        synchronizer.clone(),
     );
 
     let (observer, worker) = sync_from_dsn::create_observer_and_worker(
@@ -1050,6 +1053,11 @@ where
                 // Run snap-sync before DSN-sync.
                 if config.sync == ChainSyncMode::Snap {
                     snap_sync_task.await;
+                }
+
+                if let Some(synchronizer) = synchronizer {
+                    println!("Waiting for resuming consensus sync");
+                    synchronizer.resuming_consensus_sync_allowed().await;
                 }
 
                 if let Err(error) = worker.await {

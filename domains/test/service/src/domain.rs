@@ -226,7 +226,7 @@ where
             RuntimeApi,
             <Runtime as DomainRuntime>::AccountId,
             _,
-        >(domain_params)
+        >(domain_params, None, Box::new(())) // TODO:
         .await
         .expect("failed to build domain node");
 

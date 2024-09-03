@@ -1,6 +1,7 @@
 use crate::sync_from_dsn::import_blocks::download_and_reconstruct_blocks;
 use crate::sync_from_dsn::segment_header_downloader::SegmentHeaderDownloader;
 use crate::sync_from_dsn::snap_sync_engine::SnapSyncingEngine;
+use crate::sync_from_dsn::synchronizer::Synchronizer;
 use crate::sync_from_dsn::DsnSyncPieceGetter;
 use sc_client_api::{AuxStore, ProofProvider};
 use sc_consensus::import_queue::ImportQueueService;
@@ -27,7 +28,45 @@ use subspace_core_primitives::{BlockNumber, SegmentIndex};
 use subspace_erasure_coding::ErasureCoding;
 use subspace_networking::Node;
 use tokio::time::sleep;
-use tracing::{debug, error};
+use tracing::{debug, error, info, warn};
+
+// async fn get_sync_target_block<Backend, Block, Client, NR, DomainHeader>(
+//     fork_id: Option<String>,
+//     client: Arc<Client>,
+//     network_request: &NR,
+//     sync_service: Arc<SyncingService<Block>>,
+// ) -> Result<Block::Hash, Error>
+// where
+//     Backend: sc_client_api::Backend<Block>,
+//     Block: BlockT,
+//     Client: HeaderBackend<Block>
+//         + ClientExt<Block, Backend>
+//         + ProvideRuntimeApi<Block>
+//         + ProofProvider<Block>
+//         + BlockImport<Block>
+//         + Send
+//         + Sync
+//         + 'static,
+//     // TODO: Remove when https://github.com/paritytech/polkadot-sdk/pull/5339 is in our fork
+//     for<'a> &'a Client: BlockImport<Block>,
+//     Client::Api: SubspaceApi<Block, FarmerPublicKey> + ObjectsApi<Block>,
+//     NR: NetworkRequest,
+//     DomainHeader: Header,
+// {
+//     let domain_id = DomainId::new(0);
+//     let data = get_last_confirmed_domain_block_receipt::<Block, Client, NR, DomainHeader>(
+//         domain_id,
+//         fork_id,
+//         client,
+//         network_request,
+//         &sync_service,
+//     )
+//     .await;
+//
+//     println!("data: {data:?}");
+//
+//     Ok(std::default::Default::default())
+// }
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR>(
@@ -41,6 +80,7 @@ pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR>(
     network_request: NR,
     sync_service: Arc<SyncingService<Block>>,
     erasure_coding: ErasureCoding,
+    synchronizer: Option<Arc<Synchronizer>>,
 ) where
     Backend: sc_client_api::Backend<Block>,
     Block: BlockT,
@@ -66,6 +106,17 @@ pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR>(
     if info.best_hash == info.genesis_hash {
         pause_sync.store(true, Ordering::Release);
 
+        let target_block = if let Some(synchronizer) = &synchronizer {
+            synchronizer.consensus_snap_sync_allowed().await;
+            synchronizer.target_consensus_snap_sync_block_number()
+        } else {
+            None
+        };
+
+        println!("Target_block: {:?}", target_block); // TODO
+
+        //  let sync_target_block = get_sync_target_block::<Backend, Block, Client, NR, DomainHeader>(fork_id.clone(), client.clone(), &network_request, sync_service.clone()).await;
+
         let snap_sync_fut = sync(
             &segment_headers_store,
             &node,
@@ -75,7 +126,7 @@ pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR>(
             import_queue_service.as_mut(),
             &network_request,
             &sync_service,
-            None,
+            target_block,
             &erasure_coding,
         );
 
@@ -86,6 +137,10 @@ pub(crate) async fn snap_sync<Backend, Block, AS, Client, PG, NR>(
             Err(error) => {
                 error!(%error, "Snap sync failed");
             }
+        }
+
+        if let Some(synchronizer) = &synchronizer {
+            synchronizer.allow_domain_snap_sync()
         }
 
         // This will notify Substrate's sync mechanism and allow regular Substrate sync to continue
@@ -129,39 +184,54 @@ where
                     "Can't get segment header from the store: {last_segment_index}"
                 ))?;
 
+            let mut target_block_exceeded_last_archived_block = false;
             if target_block > segment_header.last_archived_block().number {
-                return Err(format!(
-                    "Target block is greater than the last archived block. \
-                    Last segment index = {last_segment_index}, target block = {target_block}, \
-                    last block from the segment = {}
+                warn!(
+                   %last_segment_index,
+                   %target_block,
+
+                    "Specified target block is greater than the last archived block. \
+                     Choosing the last archived block (#{}) as target block...
                     ",
                     segment_header.last_archived_block().number
-                )
-                .into());
+                );
+                target_block_exceeded_last_archived_block = true;
+                // return Err(format!(
+                //     "Target block is greater than the last archived block. \
+                //     Last segment index = {last_segment_index}, target block = {target_block}, \
+                //     last block from the segment = {}
+                //     ",
+                //     segment_header.last_archived_block().number
+                // )
+                // .into());
             }
 
-            let mut current_segment_index = last_segment_index;
+            if !target_block_exceeded_last_archived_block {
+                let mut current_segment_index = last_segment_index;
 
-            loop {
-                if current_segment_index <= SegmentIndex::ONE {
-                    break;
+                loop {
+                    if current_segment_index <= SegmentIndex::ONE {
+                        break;
+                    }
+
+                    if target_block > segment_header.last_archived_block().number {
+                        current_segment_index += SegmentIndex::ONE;
+                        break;
+                    }
+
+                    current_segment_index -= SegmentIndex::ONE;
+
+                    segment_header = segment_headers_store
+                        .get_segment_header(current_segment_index)
+                        .ok_or(format!(
+                            "Can't get segment header from the store: {last_segment_index}"
+                        ))?;
                 }
 
-                if target_block > segment_header.last_archived_block().number {
-                    current_segment_index += SegmentIndex::ONE;
-                    break;
-                }
-
-                current_segment_index -= SegmentIndex::ONE;
-
-                segment_header = segment_headers_store
-                    .get_segment_header(current_segment_index)
-                    .ok_or(format!(
-                        "Can't get segment header from the store: {last_segment_index}"
-                    ))?;
+                current_segment_index
+            } else {
+                last_segment_index
             }
-
-            current_segment_index
         } else {
             last_segment_index
         }
@@ -389,22 +459,22 @@ where
     Ok(())
 }
 
-async fn wait_for_block_import<Block, Client>(
+pub async fn wait_for_block_import_ext<Block, Client>(
     client: &Client,
     waiting_block_number: NumberFor<Block>,
+    wait_duration: Duration,
+    max_idle_iterations: u32,
 ) where
     Block: BlockT,
     Client: HeaderBackend<Block>,
 {
-    const WAIT_DURATION: Duration = Duration::from_secs(5);
-    const MAX_NO_NEW_IMPORT_ITERATIONS: u32 = 10;
     let mut current_iteration = 0;
     let mut last_best_block_number = client.info().best_number;
     loop {
         let info = client.info();
         debug!(%current_iteration, %waiting_block_number, "Waiting client info: {:?}", info);
 
-        tokio::time::sleep(WAIT_DURATION).await;
+        tokio::time::sleep(wait_duration).await;
 
         if info.best_number >= waiting_block_number {
             break;
@@ -416,13 +486,32 @@ async fn wait_for_block_import<Block, Client>(
             current_iteration = 0;
         }
 
-        if current_iteration >= MAX_NO_NEW_IMPORT_ITERATIONS {
+        if current_iteration >= max_idle_iterations {
             debug!(%current_iteration, %waiting_block_number, "Max idle period reached. {:?}", info);
             break;
         }
 
         last_best_block_number = info.best_number;
     }
+}
+
+pub async fn wait_for_block_import<Block, Client>(
+    client: &Client,
+    waiting_block_number: NumberFor<Block>,
+) where
+    Block: BlockT,
+    Client: HeaderBackend<Block>,
+{
+    const WAIT_DURATION: Duration = Duration::from_secs(50);
+    const MAX_NO_NEW_IMPORT_ITERATIONS: u32 = 10;
+
+    wait_for_block_import_ext(
+        client,
+        waiting_block_number,
+        WAIT_DURATION,
+        MAX_NO_NEW_IMPORT_ITERATIONS,
+    )
+    .await
 }
 
 async fn sync_segment_headers<AS>(
@@ -444,7 +533,7 @@ where
         .await
         .map_err(|error| error.to_string())?;
 
-    debug!("Found {} new segment headers", new_segment_headers.len());
+    info!("Found {} new segment headers", new_segment_headers.len());
 
     if !new_segment_headers.is_empty() {
         segment_headers_store.add_segment_headers(&new_segment_headers)?;
