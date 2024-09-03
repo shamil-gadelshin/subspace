@@ -37,6 +37,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use subspace_runtime::RuntimeApi as CRuntimeApi;
 use subspace_runtime_primitives::opaque::Block as CBlock;
+use subspace_service::domains::LastDomainBlockReceiptProvider;
+use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use subspace_service::FullClient as CFullClient;
 use tokio::sync::broadcast::Receiver;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
@@ -44,7 +46,7 @@ use tracing::log::info;
 use tracing::warn;
 
 /// Options for Substrate networking
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 struct SubstrateNetworkOptions {
     /// Specify a list of bootstrap nodes for Substrate networking stack.
     #[arg(long)]
@@ -83,7 +85,7 @@ struct SubstrateNetworkOptions {
 }
 
 /// Options for running a domain
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 pub(super) struct DomainOptions {
     /// ID of the domain to run
     #[clap(long)]

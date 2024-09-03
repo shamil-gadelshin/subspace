@@ -12,7 +12,7 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 
 /// Options used for keystore
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 pub(super) struct KeystoreOptions {
     /// Use interactive shell for entering the password used by the keystore.
     #[arg(long, conflicts_with_all = &["keystore_password", "keystore_password_filename"])]

@@ -8,7 +8,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::num::NonZeroU32;
 
 /// Options for RPC
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 pub(super) struct RpcOptions<const DEFAULT_PORT: u16> {
     /// IP and port (TCP) on which to listen for RPC requests.
     ///
