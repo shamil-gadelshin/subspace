@@ -173,7 +173,7 @@ impl DomainInstanceStarter {
                     evm_domain_runtime::RuntimeApi,
                     AccountId20,
                     _,
-                >(domain_params)
+                >(domain_params, None, Box::new(()))
                 .await?;
 
                 let malicious_bundle_producer = MaliciousBundleProducer::new(
@@ -231,7 +231,7 @@ impl DomainInstanceStarter {
                     auto_id_domain_runtime::RuntimeApi,
                     AccountId32,
                     _,
-                >(domain_params)
+                >(domain_params, None, Box::new(()))
                 .await?;
 
                 let malicious_bundle_producer = MaliciousBundleProducer::new(

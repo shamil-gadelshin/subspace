@@ -49,6 +49,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 use subspace_core_primitives::PotOutput;
 use subspace_runtime_primitives::Nonce;
+use subspace_service::domains::LastDomainBlockReceiptProvider;
+use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use substrate_frame_rpc_system::AccountNonceApi;
 
 pub type DomainOperator<Block, CBlock, CClient, RuntimeApi> = Operator<
@@ -264,6 +266,8 @@ where
 /// Builds service for a domain full node.
 pub async fn new_full<CBlock, CClient, IBNS, CIBNS, NSNS, ASS, RuntimeApi, AccountId, Provider>(
     domain_params: DomainParams<CBlock, CClient, IBNS, CIBNS, NSNS, ASS, Provider>,
+    synchronizer: Option<Arc<Synchronizer>>,
+    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
 ) -> sc_service::error::Result<
     NewFull<
         Arc<FullClient<Block, RuntimeApi>>,
@@ -374,7 +378,7 @@ where
         tx_handler_controller,
         network_starter,
         sync_service,
-        _block_downloader,
+        block_downloader,
     ) = crate::build_network(BuildNetworkParams {
         config: &domain_config,
         net_config,
@@ -482,7 +486,12 @@ where
             block_import,
             skip_empty_bundle_production,
             skip_out_of_order_slot,
+            sync_service: sync_service.clone(),
+            network_request: Arc::clone(&network_service),
         },
+        synchronizer,
+        execution_receipt_provider,
+        block_downloader,
     )
     .await?;
 

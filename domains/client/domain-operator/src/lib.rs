@@ -60,6 +60,7 @@
 
 #![feature(array_windows)]
 #![feature(const_option)]
+#![feature(duration_constructors)]
 #![feature(extract_if)]
 
 mod aux_schema;
@@ -72,6 +73,7 @@ mod domain_worker;
 mod fetch_domain_bootstrap_info;
 mod fraud_proof;
 mod operator;
+mod snap_sync;
 #[cfg(test)]
 mod tests;
 mod utils;
@@ -85,6 +87,8 @@ use futures::channel::mpsc;
 use futures::Stream;
 use sc_client_api::{AuxStore, BlockImportNotification};
 use sc_consensus::SharedBlockImport;
+use sc_network::NetworkRequest;
+use sc_network_sync::SyncingService;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::TracingUnboundedSender;
 use sp_blockchain::HeaderBackend;
@@ -153,6 +157,7 @@ pub struct OperatorParams<
     CIBNS,
     NSNS,
     ASS,
+    NR,
 > where
     Block: BlockT,
     CBlock: BlockT,
@@ -160,6 +165,7 @@ pub struct OperatorParams<
     CIBNS: Stream<Item = BlockImportNotification<CBlock>> + Send + 'static,
     NSNS: Stream<Item = NewSlotNotification> + Send + 'static,
     ASS: Stream<Item = mpsc::Sender<()>> + Send + 'static,
+    NR: NetworkRequest + Send,
 {
     pub domain_id: DomainId,
     pub domain_created_at: NumberFor<CBlock>,
@@ -178,6 +184,8 @@ pub struct OperatorParams<
     pub block_import: SharedBlockImport<Block>,
     pub skip_empty_bundle_production: bool,
     pub skip_out_of_order_slot: bool,
+    pub sync_service: Arc<SyncingService<Block>>,
+    pub network_request: NR,
 }
 
 pub(crate) fn load_execution_receipt_by_domain_hash<Block, CBlock, Client>(
