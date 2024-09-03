@@ -18,8 +18,8 @@ use sc_domains::{ExtensionsFactory, RuntimeExecutor};
 use sc_network::{NetworkPeers, NotificationMetrics};
 use sc_rpc_api::DenyUnsafe;
 use sc_service::{
-    BuildNetworkParams, Configuration as ServiceConfiguration, NetworkStarter, PartialComponents,
-    SpawnTasksParams, TFullBackend, TaskManager,
+    BuildNetworkParams, Configuration as ServiceConfiguration, GenesisBlockBuilder, NetworkStarter,
+    PartialComponents, SpawnTasksParams, TFullBackend, TaskManager,
 };
 use sc_telemetry::{Telemetry, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool::{BasicPool, FullChainApi, RevalidationType};
@@ -49,6 +49,9 @@ use std::str::FromStr;
 use std::sync::Arc;
 use subspace_core_primitives::PotOutput;
 use subspace_runtime_primitives::Nonce;
+use subspace_service::config::ChainSyncMode;
+use subspace_service::domains::LastDomainBlockReceiptProvider;
+use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use substrate_frame_rpc_system::AccountNonceApi;
 
 pub type DomainOperator<Block, CBlock, CClient, RuntimeApi> = Operator<
@@ -124,6 +127,7 @@ fn new_partial<RuntimeApi, CBlock, CClient, BIMP>(
     consensus_client: Arc<CClient>,
     block_import_provider: &BIMP,
     confirmation_depth_k: NumberFor<CBlock>,
+    snap_sync: bool,
 ) -> Result<
     PartialComponents<
         FullClient<Block, RuntimeApi>,
@@ -172,11 +176,23 @@ where
 
     let executor = sc_service::new_wasm_executor(config);
 
-    let (client, backend, keystore_container, task_manager) = sc_service::new_full_parts(
-        config,
-        telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
+    let backend = sc_service::new_db_backend(config.db_config())?;
+    let genesis_block_builder = GenesisBlockBuilder::new(
+        config.chain_spec.as_storage_builder(),
+        !snap_sync,
+        backend.clone(),
         executor.clone(),
     )?;
+
+    let (client, backend, keystore_container, task_manager) =
+        sc_service::new_full_parts_with_genesis_builder(
+            config,
+            telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
+            executor.clone(),
+            backend,
+            genesis_block_builder,
+            false,
+        )?;
     let client = Arc::new(client);
 
     let executor = Arc::new(executor);
@@ -259,11 +275,14 @@ where
     pub skip_empty_bundle_production: bool,
     pub skip_out_of_order_slot: bool,
     pub confirmation_depth_k: NumberFor<CBlock>,
+    pub sync: ChainSyncMode,
 }
 
 /// Builds service for a domain full node.
 pub async fn new_full<CBlock, CClient, IBNS, CIBNS, NSNS, ASS, RuntimeApi, AccountId, Provider>(
     domain_params: DomainParams<CBlock, CClient, IBNS, CIBNS, NSNS, ASS, Provider>,
+    synchronizer: Option<Arc<Synchronizer>>,
+    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
 ) -> sc_service::error::Result<
     NewFull<
         Arc<FullClient<Block, RuntimeApi>>,
@@ -347,6 +366,7 @@ where
         skip_empty_bundle_production,
         skip_out_of_order_slot,
         confirmation_depth_k,
+        sync,
     } = domain_params;
 
     // TODO: Do we even need block announcement on domain node?
@@ -357,6 +377,10 @@ where
         consensus_client.clone(),
         &provider,
         confirmation_depth_k,
+        match sync {
+            ChainSyncMode::Full => false,
+            ChainSyncMode::Snap => true,
+        },
     )?;
 
     let (mut telemetry, _telemetry_worker_handle, code_executor, block_import) = params.other;
@@ -374,7 +398,7 @@ where
         tx_handler_controller,
         network_starter,
         sync_service,
-        _block_downloader,
+        block_downloader,
     ) = crate::build_network(BuildNetworkParams {
         config: &domain_config,
         net_config,
@@ -482,7 +506,12 @@ where
             block_import,
             skip_empty_bundle_production,
             skip_out_of_order_slot,
+            sync_service: sync_service.clone(),
+            network_request: Arc::clone(&network_service),
         },
+        synchronizer,
+        execution_receipt_provider,
+        block_downloader,
     )
     .await?;
 

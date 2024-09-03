@@ -16,6 +16,7 @@
 
 use crate::bundle_processor::BundleProcessor;
 use crate::domain_bundle_producer::{DomainBundleProducer, DomainProposal};
+use crate::snap_sync::{snap_sync, SyncParams};
 use crate::utils::{BlockInfo, OperatorSlotInfo};
 use crate::{NewSlotNotification, OperatorStreams};
 use futures::channel::mpsc;
@@ -23,6 +24,9 @@ use futures::{SinkExt, Stream, StreamExt};
 use sc_client_api::{
     AuxStore, BlockBackend, BlockImportNotification, BlockchainEvents, Finalizer, ProofProvider,
 };
+use sc_consensus::BlockImport;
+use sc_network::NetworkRequest;
+use sc_network_sync::block_relay_protocol::BlockDownloader;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
@@ -36,10 +40,14 @@ use sp_messenger::MessengerApi;
 use sp_mmr_primitives::MmrApi;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
+use std::collections::VecDeque;
+use std::future::pending;
 use std::pin::pin;
 use std::sync::Arc;
 use subspace_runtime_primitives::Balance;
-use tracing::{info, Instrument};
+use subspace_service::domains::LastDomainBlockReceiptProvider;
+use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
+use tracing::{debug, error, info, Instrument};
 
 pub type OpaqueBundleFor<Block, CBlock> =
     OpaqueBundle<NumberFor<CBlock>, <CBlock as BlockT>::Hash, <Block as BlockT>::Header, Balance>;
@@ -57,6 +65,7 @@ pub(super) async fn start_worker<
     NSNS,
     ASS,
     E,
+    NR,
 >(
     spawn_essential: Box<dyn SpawnEssentialNamed>,
     consensus_client: Arc<CClient>,
@@ -65,6 +74,10 @@ pub(super) async fn start_worker<
     mut bundle_producer: DomainBundleProducer<Block, CBlock, Client, CClient, TransactionPool>,
     bundle_processor: BundleProcessor<Block, CBlock, Client, CClient, Backend, E>,
     operator_streams: OperatorStreams<CBlock, IBNS, CIBNS, NSNS, ASS>,
+    sync_params: SyncParams<Client, NR, Block>,
+    synchronizer: Option<Arc<Synchronizer>>,
+    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
+    block_downloader: Arc<dyn BlockDownloader<Block>>,
 ) where
     Block: BlockT,
     Block::Hash: Into<H256>,
@@ -77,7 +90,9 @@ pub(super) async fn start_worker<
         + ProvideRuntimeApi<Block>
         + ProofProvider<Block>
         + Finalizer<Block, Backend>
+        + BlockImport<Block>
         + 'static,
+    for<'a> &'a Client: BlockImport<Block>,
     Client::Api: DomainCoreApi<Block>
         + MessengerApi<Block, NumberFor<CBlock>, CBlock::Hash>
         + BlockBuilder<Block>
@@ -103,8 +118,46 @@ pub(super) async fn start_worker<
     NSNS: Stream<Item = NewSlotNotification> + Send + 'static,
     ASS: Stream<Item = mpsc::Sender<()>> + Send + 'static,
     E: CodeExecutor,
+    NR: NetworkRequest + Send + Sync + 'static,
 {
     let span = tracing::Span::current();
+
+    if let Some(ref synchronizer) = synchronizer {
+        let domain_sync_task = {
+            let consensus_client = consensus_client.clone();
+            let synchronizer = synchronizer.clone();
+
+            async move {
+                info!("Starting domain snap sync...");
+
+                let result = snap_sync(
+                    &sync_params.domain_client,
+                    None,
+                    &sync_params.network_request,
+                    &sync_params.sync_service,
+                    synchronizer.clone(),
+                    execution_receipt_provider,
+                    consensus_client,
+                    block_downloader,
+                )
+                .await;
+
+                match result {
+                    Ok(_) => {
+                        info!("Domain snap sync completed.");
+
+                        // Don't exit essential task.
+                        pending::<()>().await;
+                    }
+                    Err(err) => {
+                        error!(%err, "Domain snap sync completed.");
+                    }
+                };
+            }
+        };
+
+        spawn_essential.spawn_essential("domain-sync", None, Box::pin(domain_sync_task));
+    }
 
     let OperatorStreams {
         consensus_block_import_throttling_buffer_size,
@@ -125,6 +178,7 @@ pub(super) async fn start_worker<
         );
 
     if let Some(operator_id) = maybe_operator_id {
+        // TODO:
         info!("👷 Running as Operator[{operator_id}]...");
         let mut new_slot_notification_stream = pin!(new_slot_notification_stream);
         let mut acknowledgement_sender_stream = pin!(acknowledgement_sender_stream);
@@ -205,8 +259,56 @@ pub(super) async fn start_worker<
         info!("🧑‍ Running as Full node...");
         drop(new_slot_notification_stream);
         drop(acknowledgement_sender_stream);
-        while let Some(maybe_block_info) = throttled_block_import_notification_stream.next().await {
+
+        let mut block_queue = VecDeque::<BlockInfo<CBlock>>::new(); // TODO: Option<VecDeque>?
+        let mut target_block_number = None;
+        if let Some(ref synchronizer) = synchronizer {
+            synchronizer.consensus_snap_sync_allowed().await;
+            target_block_number = synchronizer.target_consensus_snap_sync_block_number();
+        }
+
+        'import_loop: while let Some(maybe_block_info) =
+            throttled_block_import_notification_stream.next().await
+        {
             if let Some(block_info) = maybe_block_info {
+                if let Some(ref synchronizer) = synchronizer {
+                    if synchronizer.initial_blocks_imported() && !block_queue.is_empty() {
+                        while !block_queue.is_empty() {
+                            if let Some(cached_block_info) = block_queue.pop_front() {
+                                debug!(?cached_block_info, "Processing cached block info.");
+
+                                if let Err(error) = bundle_processor
+                                    .clone()
+                                    .process_bundles((
+                                        cached_block_info.hash,
+                                        cached_block_info.number,
+                                        cached_block_info.is_new_best,
+                                    ))
+                                    .instrument(span.clone())
+                                    .await
+                                {
+                                    tracing::error!(?error, "Failed to process consensus block");
+                                    // Bring down the service as bundles processor is an essential task.
+                                    // TODO: more graceful shutdown.
+                                    break 'import_loop;
+                                }
+                            }
+                        }
+                    } else if !synchronizer.initial_blocks_imported() {
+                        let target_block_number: NumberFor<CBlock> =
+                            target_block_number.unwrap().into(); // TODO:
+
+                        if target_block_number >= block_info.number {
+                            debug!(%target_block_number, "Skipped consensus block: {:?}", block_info);
+                        } else {
+                            debug!(%target_block_number, "Cached consensus block: {:?}", block_info);
+                            block_queue.push_back(block_info);
+                        }
+
+                        continue 'import_loop;
+                    }
+                }
+
                 if let Err(error) = bundle_processor
                     .clone()
                     .process_bundles((block_info.hash, block_info.number, block_info.is_new_best))
@@ -216,7 +318,7 @@ pub(super) async fn start_worker<
                     tracing::error!(?error, "Failed to process consensus block");
                     // Bring down the service as bundles processor is an essential task.
                     // TODO: more graceful shutdown.
-                    break;
+                    break 'import_loop;
                 }
             }
         }

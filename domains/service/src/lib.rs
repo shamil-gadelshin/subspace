@@ -19,7 +19,6 @@ use sc_network_sync::engine::SyncingEngine;
 use sc_network_sync::service::network::NetworkServiceProvider;
 use sc_network_sync::state_request_handler::StateRequestHandler;
 use sc_network_sync::SyncingService;
-use sc_service::config::SyncMode;
 use sc_service::{
     build_system_rpc_future, BuildNetworkParams, NetworkStarter, TFullClient,
     TransactionPoolAdapter,
@@ -88,15 +87,15 @@ where
         metrics,
     } = params;
 
-    if client.requires_full_sync() {
-        match config.network.sync_mode {
-            SyncMode::LightState { .. } => {
-                return Err("Fast sync doesn't work for archive nodes".into());
-            }
-            SyncMode::Warp => return Err("Warp sync doesn't work for archive nodes".into()),
-            SyncMode::Full => {}
-        }
-    }
+    // if client.requires_full_sync() {
+    //     match config.network.sync_mode {
+    //         SyncMode::LightState { .. } => {
+    //             return Err("Fast sync doesn't work for archive nodes".into());
+    //         }
+    //         SyncMode::Warp => return Err("Warp sync doesn't work for archive nodes".into()),
+    //         SyncMode::Full => {}
+    //     }
+    // }
 
     let protocol_id = config.protocol_id();
     let genesis_hash = client
@@ -122,6 +121,7 @@ where
                 config.network.default_peers_set.in_peers as usize
                     + config.network.default_peers_set.out_peers as usize,
             );
+
             (
                 params.server,
                 params.downloader,

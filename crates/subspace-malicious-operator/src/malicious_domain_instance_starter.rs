@@ -28,6 +28,7 @@ use std::sync::Arc;
 use subspace_runtime::RuntimeApi as CRuntimeApi;
 use subspace_runtime_primitives::opaque::Block as CBlock;
 use subspace_runtime_primitives::AccountId;
+use subspace_service::config::ChainSyncMode;
 use subspace_service::FullClient as CFullClient;
 
 /// `DomainInstanceStarter` used to start a domain instance node based on the given
@@ -161,6 +162,7 @@ impl DomainInstanceStarter {
                     // Always set it to `None` to not running the normal bundle producer
                     maybe_operator_id: None,
                     confirmation_depth_k: chain_constants.confirmation_depth_k(),
+                    sync: ChainSyncMode::Full,
                 };
 
                 let mut domain_node = domain_service::new_full::<
@@ -173,7 +175,7 @@ impl DomainInstanceStarter {
                     evm_domain_runtime::RuntimeApi,
                     AccountId20,
                     _,
-                >(domain_params)
+                >(domain_params, None, Box::new(()))
                 .await?;
 
                 let malicious_bundle_producer = MaliciousBundleProducer::new(
@@ -219,6 +221,7 @@ impl DomainInstanceStarter {
                     // Always set it to `None` to not running the normal bundle producer
                     maybe_operator_id: None,
                     confirmation_depth_k: chain_constants.confirmation_depth_k(),
+                    sync: ChainSyncMode::Full,
                 };
 
                 let mut domain_node = domain_service::new_full::<
@@ -231,7 +234,7 @@ impl DomainInstanceStarter {
                     auto_id_domain_runtime::RuntimeApi,
                     AccountId32,
                     _,
-                >(domain_params)
+                >(domain_params, None, Box::new(()))
                 .await?;
 
                 let malicious_bundle_producer = MaliciousBundleProducer::new(

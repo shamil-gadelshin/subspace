@@ -3,12 +3,16 @@ use crate::domain_block_processor::{DomainBlockProcessor, ReceiptsChecker};
 use crate::domain_bundle_producer::DomainBundleProducer;
 use crate::domain_bundle_proposer::DomainBundleProposer;
 use crate::fraud_proof::FraudProofGenerator;
+use crate::snap_sync::SyncParams;
 use crate::{DomainImportNotifications, NewSlotNotification, OperatorParams};
 use futures::channel::mpsc;
 use futures::{FutureExt, Stream};
 use sc_client_api::{
     AuxStore, BlockBackend, BlockImportNotification, BlockchainEvents, Finalizer, ProofProvider,
 };
+use sc_consensus::BlockImport;
+use sc_network::NetworkRequest;
+use sc_network_sync::block_relay_protocol::BlockDownloader;
 use sc_utils::mpsc::tracing_unbounded;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::{HeaderBackend, HeaderMetadata};
@@ -24,6 +28,8 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::sync::Arc;
 use subspace_runtime_primitives::Balance;
+use subspace_service::domains::LastDomainBlockReceiptProvider;
+use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 
 /// Domain operator.
 pub struct Operator<Block, CBlock, Client, CClient, TransactionPool, Backend, E>
@@ -75,7 +81,9 @@ where
         + ProvideRuntimeApi<Block>
         + ProofProvider<Block>
         + Finalizer<Block, Backend>
+        + BlockImport<Block>
         + 'static,
+    for<'a> &'a Client: BlockImport<Block>,
     Client::Api: DomainCoreApi<Block>
         + MessengerApi<Block, NumberFor<CBlock>, CBlock::Hash>
         + sp_block_builder::BlockBuilder<Block>
@@ -101,7 +109,7 @@ where
     E: CodeExecutor,
 {
     /// Create a new instance.
-    pub async fn new<IBNS, CIBNS, NSNS, ASS>(
+    pub async fn new<IBNS, CIBNS, NSNS, ASS, NR>(
         spawn_essential: Box<dyn SpawnEssentialNamed>,
         params: OperatorParams<
             Block,
@@ -115,13 +123,18 @@ where
             CIBNS,
             NSNS,
             ASS,
+            NR,
         >,
+        synchronizer: Option<Arc<Synchronizer>>,
+        execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
+        block_downloader: Arc<dyn BlockDownloader<Block>>,
     ) -> Result<Self, sp_consensus::Error>
     where
         IBNS: Stream<Item = (NumberFor<CBlock>, mpsc::Sender<()>)> + Send + 'static,
         CIBNS: Stream<Item = BlockImportNotification<CBlock>> + Send + 'static,
         NSNS: Stream<Item = NewSlotNotification> + Send + 'static,
         ASS: Stream<Item = mpsc::Sender<()>> + Send + 'static,
+        NR: NetworkRequest + Send + Sync + 'static,
     {
         let domain_bundle_proposer = DomainBundleProposer::<Block, _, CBlock, _, _>::new(
             params.domain_id,
@@ -189,6 +202,14 @@ where
                 bundle_producer,
                 bundle_processor.clone(),
                 params.operator_streams,
+                SyncParams {
+                    domain_client: params.client.clone(),
+                    network_request: params.network_request,
+                    sync_service: params.sync_service,
+                },
+                synchronizer,
+                execution_receipt_provider,
+                block_downloader,
             )
             .boxed(),
         );
