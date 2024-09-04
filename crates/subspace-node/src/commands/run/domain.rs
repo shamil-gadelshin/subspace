@@ -37,8 +37,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use subspace_runtime::RuntimeApi as CRuntimeApi;
 use subspace_runtime_primitives::opaque::Block as CBlock;
-use subspace_service::domains::synchronizer::Synchronizer;
-use subspace_service::domains::LastDomainBlockReceiptProvider;
+use subspace_service::domains::ConsensusChainSyncParams;
 use subspace_service::FullClient as CFullClient;
 use tokio::sync::broadcast::Receiver;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
@@ -395,8 +394,7 @@ pub(super) async fn run_domain(
     bootstrap_result: BootstrapResult<CBlock>,
     domain_configuration: DomainConfiguration,
     domain_start_options: DomainStartOptions,
-    synchronizer: Option<Arc<Synchronizer>>,
-    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<DomainBlock, CBlock>>,
+    consensus_chain_sync_params: Option<ConsensusChainSyncParams<DomainBlock, CBlock>>,
 ) -> Result<(), Error> {
     let BootstrapResult {
         domain_instance_data,
@@ -502,21 +500,21 @@ pub(super) async fn run_domain(
                 skip_out_of_order_slot: false,
                 maybe_operator_id: operator_id,
                 confirmation_depth_k: chain_constants.confirmation_depth_k(),
+                consensus_chain_sync_params,
             };
 
-            let mut domain_node =
-                domain_service::new_full::<
-                    _,
-                    _,
-                    _,
-                    _,
-                    _,
-                    _,
-                    evm_domain_runtime::RuntimeApi,
-                    AccountId20,
-                    _,
-                >(domain_params, synchronizer, execution_receipt_provider)
-                .await?;
+            let mut domain_node = domain_service::new_full::<
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                evm_domain_runtime::RuntimeApi,
+                AccountId20,
+                _,
+            >(domain_params)
+            .await?;
 
             domain_node.network_starter.start_network();
 
@@ -541,21 +539,21 @@ pub(super) async fn run_domain(
                 skip_out_of_order_slot: false,
                 maybe_operator_id: operator_id,
                 confirmation_depth_k: chain_constants.confirmation_depth_k(),
+                consensus_chain_sync_params,
             };
 
-            let mut domain_node =
-                domain_service::new_full::<
-                    _,
-                    _,
-                    _,
-                    _,
-                    _,
-                    _,
-                    auto_id_domain_runtime::RuntimeApi,
-                    AccountId32,
-                    _,
-                >(domain_params, synchronizer, execution_receipt_provider)
-                .await?;
+            let mut domain_node = domain_service::new_full::<
+                _,
+                _,
+                _,
+                _,
+                _,
+                _,
+                auto_id_domain_runtime::RuntimeApi,
+                AccountId32,
+                _,
+            >(domain_params)
+            .await?;
 
             domain_node.network_starter.start_network();
 

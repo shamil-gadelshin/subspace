@@ -88,6 +88,7 @@ use futures::Stream;
 use sc_client_api::{AuxStore, BlockImportNotification};
 use sc_consensus::SharedBlockImport;
 use sc_network::NetworkRequest;
+use sc_network_sync::block_relay_protocol::BlockDownloader;
 use sc_network_sync::SyncingService;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::TracingUnboundedSender;
@@ -103,6 +104,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use subspace_core_primitives::PotOutput;
 use subspace_runtime_primitives::Balance;
+use subspace_service::domains::ConsensusChainSyncParams;
 
 pub type ExecutionReceiptFor<Block, CBlock> = ExecutionReceipt<
     NumberFor<CBlock>,
@@ -186,6 +188,8 @@ pub struct OperatorParams<
     pub skip_out_of_order_slot: bool,
     pub sync_service: Arc<SyncingService<Block>>,
     pub network_request: NR,
+    pub block_downloader: Arc<dyn BlockDownloader<Block>>,
+    pub consensus_chain_sync_params: Option<ConsensusChainSyncParams<Block, CBlock>>,
 }
 
 pub(crate) fn load_execution_receipt_by_domain_hash<Block, CBlock, Client>(

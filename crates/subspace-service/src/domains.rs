@@ -27,9 +27,9 @@ use tracing::{debug, error, trace};
 const REQUEST_PAUSE: Duration = Duration::from_secs(5);
 
 /// Provides parameters for domain snap sync synchronization with the consensus chain snap sync.
-pub struct DomainSyncParams<Block: BlockT, CBlock: BlockT> {
+pub struct ConsensusChainSyncParams<Block: BlockT, CBlock: BlockT> {
     /// Synchronizes consensus snap sync stages.
-    pub synchronizer: Synchronizer,
+    pub synchronizer: Arc<Synchronizer>,
     /// Provides execution receipts for the last confirmed domain block.
     pub execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
 }

@@ -29,7 +29,7 @@ use subspace_metrics::{start_prometheus_metrics_server, RegistryAdapter};
 use subspace_runtime::{Block, RuntimeApi};
 use subspace_service::config::ChainSyncMode;
 use subspace_service::domains::synchronizer::Synchronizer;
-use subspace_service::domains::LastDomainBlockInfoReceiver;
+use subspace_service::domains::{ConsensusChainSyncParams, LastDomainBlockInfoReceiver};
 use tracing::{debug, error, info, info_span, warn};
 
 /// Options for running a node
@@ -345,20 +345,26 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
                             }
                         };
 
-                        let receipt_provider = LastDomainBlockInfoReceiver::new(
-                            domain_configuration.domain_id,
-                            None,
-                            consensus_chain_client,
-                            consensus_chain_network_service,
-                            consensus_chain_sync_service,
-                        );
+                        let consensus_chain_sync_params = synchronizer.map(|synchronizer| {
+                            let receipt_provider = LastDomainBlockInfoReceiver::new(
+                                domain_configuration.domain_id,
+                                None, // TODO:
+                                consensus_chain_client,
+                                consensus_chain_network_service,
+                                consensus_chain_sync_service,
+                            );
+
+                            ConsensusChainSyncParams {
+                                synchronizer,
+                                execution_receipt_provider: Box::new(receipt_provider),
+                            }
+                        });
 
                         let start_domain = run_domain(
                             bootstrap_result,
                             domain_configuration,
                             domain_start_options,
-                            synchronizer,
-                            Box::new(receipt_provider),
+                            consensus_chain_sync_params,
                         );
 
                         if let Err(error) = start_domain.await {

@@ -214,6 +214,7 @@ where
             skip_out_of_order_slot: true,
             maybe_operator_id,
             confirmation_depth_k: chain_constants.confirmation_depth_k(),
+            consensus_chain_sync_params: None,
         };
 
         let domain_node = domain_service::new_full::<
@@ -226,7 +227,7 @@ where
             RuntimeApi,
             <Runtime as DomainRuntime>::AccountId,
             _,
-        >(domain_params, None, Box::new(())) // TODO:
+        >(domain_params)
         .await
         .expect("failed to build domain node");
 

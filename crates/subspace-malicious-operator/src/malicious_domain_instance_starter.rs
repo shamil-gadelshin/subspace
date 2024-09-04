@@ -161,6 +161,7 @@ impl DomainInstanceStarter {
                     // Always set it to `None` to not running the normal bundle producer
                     maybe_operator_id: None,
                     confirmation_depth_k: chain_constants.confirmation_depth_k(),
+                    consensus_chain_sync_params: None,
                 };
 
                 let mut domain_node = domain_service::new_full::<
@@ -173,7 +174,7 @@ impl DomainInstanceStarter {
                     evm_domain_runtime::RuntimeApi,
                     AccountId20,
                     _,
-                >(domain_params, None, Box::new(()))
+                >(domain_params)
                 .await?;
 
                 let malicious_bundle_producer = MaliciousBundleProducer::new(
@@ -219,6 +220,7 @@ impl DomainInstanceStarter {
                     // Always set it to `None` to not running the normal bundle producer
                     maybe_operator_id: None,
                     confirmation_depth_k: chain_constants.confirmation_depth_k(),
+                    consensus_chain_sync_params: None,
                 };
 
                 let mut domain_node = domain_service::new_full::<
@@ -231,7 +233,7 @@ impl DomainInstanceStarter {
                     auto_id_domain_runtime::RuntimeApi,
                     AccountId32,
                     _,
-                >(domain_params, None, Box::new(()))
+                >(domain_params)
                 .await?;
 
                 let malicious_bundle_producer = MaliciousBundleProducer::new(

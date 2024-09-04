@@ -12,7 +12,6 @@ use sc_client_api::{
 };
 use sc_consensus::BlockImport;
 use sc_network::NetworkRequest;
-use sc_network_sync::block_relay_protocol::BlockDownloader;
 use sc_service::ClientExt;
 use sc_utils::mpsc::tracing_unbounded;
 use sp_api::ProvideRuntimeApi;
@@ -29,8 +28,6 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::sync::Arc;
 use subspace_runtime_primitives::Balance;
-use subspace_service::domains::synchronizer::Synchronizer;
-use subspace_service::domains::LastDomainBlockReceiptProvider;
 
 /// Domain operator.
 pub struct Operator<Block, CBlock, Client, CClient, TransactionPool, Backend, E>
@@ -127,9 +124,6 @@ where
             ASS,
             NR,
         >,
-        synchronizer: Option<Arc<Synchronizer>>,
-        execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
-        block_downloader: Arc<dyn BlockDownloader<Block>>,
     ) -> Result<Self, sp_consensus::Error>
     where
         IBNS: Stream<Item = (NumberFor<CBlock>, mpsc::Sender<()>)> + Send + 'static,
@@ -193,6 +187,18 @@ where
             domain_block_processor.clone(),
         );
 
+        let sync_params = params
+            .consensus_chain_sync_params
+            .map(|consensus_sync_params| SyncParams {
+                domain_client: params.client.clone(),
+                network_request: params.network_request,
+                sync_service: params.sync_service,
+                consensus_client: params.consensus_client.clone(),
+                block_downloader: params.block_downloader.clone(),
+                consensus_chain_sync_params: consensus_sync_params,
+                fork_id: None, // TODO:
+            });
+
         spawn_essential.spawn_essential_blocking(
             "domain-operator-worker",
             None,
@@ -204,14 +210,7 @@ where
                 bundle_producer,
                 bundle_processor.clone(),
                 params.operator_streams,
-                SyncParams {
-                    domain_client: params.client.clone(),
-                    network_request: params.network_request,
-                    sync_service: params.sync_service,
-                },
-                synchronizer,
-                execution_receipt_provider,
-                block_downloader,
+                sync_params,
             )
             .boxed(),
         );

@@ -26,7 +26,6 @@ use sc_client_api::{
 };
 use sc_consensus::BlockImport;
 use sc_network::NetworkRequest;
-use sc_network_sync::block_relay_protocol::BlockDownloader;
 use sc_service::ClientExt;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::{ApiExt, ProvideRuntimeApi};
@@ -46,8 +45,6 @@ use std::future::pending;
 use std::pin::pin;
 use std::sync::Arc;
 use subspace_runtime_primitives::Balance;
-use subspace_service::domains::synchronizer::Synchronizer;
-use subspace_service::domains::LastDomainBlockReceiptProvider;
 use tracing::{error, info, Instrument};
 
 pub type OpaqueBundleFor<Block, CBlock> =
@@ -75,10 +72,7 @@ pub(super) async fn start_worker<
     mut bundle_producer: DomainBundleProducer<Block, CBlock, Client, CClient, TransactionPool>,
     bundle_processor: BundleProcessor<Block, CBlock, Client, CClient, Backend, E>,
     operator_streams: OperatorStreams<CBlock, IBNS, CIBNS, NSNS, ASS>,
-    sync_params: SyncParams<Client, NR, Block>,
-    synchronizer: Option<Arc<Synchronizer>>,
-    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
-    block_downloader: Arc<dyn BlockDownloader<Block>>,
+    sync_params: Option<SyncParams<Client, CClient, NR, Block, CBlock>>,
 ) where
     Block: BlockT,
     Block::Hash: Into<H256>,
@@ -124,25 +118,15 @@ pub(super) async fn start_worker<
 {
     let span = tracing::Span::current();
 
-    if let Some(ref synchronizer) = synchronizer {
+    let synchronizer = sync_params
+        .as_ref()
+        .map(|params| params.consensus_chain_sync_params.synchronizer.clone());
+    if let Some(sync_params) = sync_params {
         let domain_sync_task = {
-            let consensus_client = consensus_client.clone();
-            let synchronizer = synchronizer.clone();
-
             async move {
                 info!("Starting domain snap sync...");
 
-                let result = snap_sync(
-                    &sync_params.domain_client,
-                    None,
-                    &sync_params.network_request,
-                    &sync_params.sync_service,
-                    synchronizer.clone(),
-                    execution_receipt_provider,
-                    consensus_client,
-                    block_downloader,
-                )
-                .await;
+                let result = snap_sync(sync_params).await;
 
                 match result {
                     Ok(_) => {

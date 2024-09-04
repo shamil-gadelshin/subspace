@@ -16,12 +16,26 @@ use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
-use subspace_service::domains::synchronizer::Synchronizer;
-use subspace_service::domains::LastDomainBlockReceiptProvider;
+use subspace_service::domains::ConsensusChainSyncParams;
 use subspace_service::sync_from_dsn::snap_sync_engine::SnapSyncingEngine;
 use subspace_service::sync_from_dsn::{wait_for_block_import, wait_for_block_import_ext};
 use tokio::time::sleep;
 use tracing::{debug, error, info, trace};
+
+pub struct SyncParams<DomainClient, CClient, NR, Block, CBlock>
+where
+    NR: Send,
+    Block: BlockT,
+    CBlock: BlockT,
+{
+    pub domain_client: Arc<DomainClient>,
+    pub sync_service: Arc<SyncingService<Block>>,
+    pub fork_id: Option<&'static str>,
+    pub network_request: NR,
+    pub consensus_client: Arc<CClient>,
+    pub block_downloader: Arc<dyn BlockDownloader<Block>>,
+    pub consensus_chain_sync_params: ConsensusChainSyncParams<Block, CBlock>,
+}
 
 async fn get_last_confirmed_block<Block: BlockT>(
     block_downloader: Arc<dyn BlockDownloader<Block>>,
@@ -131,14 +145,7 @@ fn convert_block_number<Block: BlockT>(block_number: NumberFor<Block>) -> u32 {
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn snap_sync<Block, Client, NR, CBlock, CClient, Backend>(
-    client: &Arc<Client>,
-    fork_id: Option<&str>,
-    network_request: &NR,
-    sync_service: &SyncingService<Block>,
-    synchronizer: Arc<Synchronizer>,
-    execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
-    consensus_client: Arc<CClient>,
-    block_downloader: Arc<dyn BlockDownloader<Block>>,
+    sync_params: SyncParams<Client, CClient, NR, Block, CBlock>,
 ) -> Result<(), sp_blockchain::Error>
 where
     Block: BlockT,
@@ -152,11 +159,15 @@ where
         + Sync
         + 'static,
     for<'a> &'a Client: BlockImport<Block>,
-    NR: NetworkRequest,
+    NR: NetworkRequest + Send,
     CBlock: BlockT,
     CClient: HeaderBackend<CBlock> + ProofProvider<CBlock> + Send + Sync + 'static,
 {
-    let execution_receipt_result = execution_receipt_provider.get_execution_receipt(None).await;
+    let execution_receipt_result = sync_params
+        .consensus_chain_sync_params
+        .execution_receipt_provider
+        .get_execution_receipt(None)
+        .await;
     debug!(
         "Snap-sync: execution receipt result - {:?}",
         execution_receipt_result
@@ -170,13 +181,23 @@ where
         convert_block_number::<CBlock>(last_confirmed_block_receipt.consensus_block_number);
 
     let consensus_block_hash = last_confirmed_block_receipt.consensus_block_hash;
-    synchronizer.allow_consensus_snap_sync(consensus_block_number); // TODO: combine workflow
-    synchronizer.allow_resuming_consensus_sync(); // TODO: remove
+    sync_params
+        .consensus_chain_sync_params
+        .synchronizer
+        .allow_consensus_snap_sync(consensus_block_number); // TODO: combine workflow
+    sync_params
+        .consensus_chain_sync_params
+        .synchronizer
+        .allow_resuming_consensus_sync(); // TODO: remove
 
-    synchronizer.domain_snap_sync_allowed().await;
+    sync_params
+        .consensus_chain_sync_params
+        .synchronizer
+        .domain_snap_sync_allowed()
+        .await;
 
     wait_for_block_import_ext(
-        consensus_client.as_ref(),
+        sync_params.consensus_client.as_ref(),
         consensus_block_number.into(),
         Duration::from_secs(30),
         100,
@@ -186,8 +207,12 @@ where
     let domain_block_number =
         convert_block_number::<Block>(last_confirmed_block_receipt.domain_block_number);
     let domain_block_hash = last_confirmed_block_receipt.domain_block_hash;
-    let domain_block =
-        get_last_confirmed_block(block_downloader, sync_service, domain_block_number).await?;
+    let domain_block = get_last_confirmed_block(
+        sync_params.block_downloader,
+        &sync_params.sync_service,
+        domain_block_number,
+    )
+    .await?;
 
     let Some(domain_block_header) = domain_block.header.clone() else {
         return Err(sp_blockchain::Error::MissingHeader(
@@ -197,17 +222,17 @@ where
 
     let state_result = download_state(
         &domain_block_header,
-        client,
-        fork_id,
-        network_request,
-        sync_service,
+        &sync_params.domain_client,
+        sync_params.fork_id,
+        &sync_params.network_request,
+        &sync_params.sync_service,
     )
     .await;
 
     trace!("State downloaded: {:?}", state_result);
 
     {
-        let client = client.clone();
+        let client = sync_params.domain_client.clone();
         // Import first block as finalized
         let mut block =
             BlockImportParams::new(BlockOrigin::NetworkInitialSync, domain_block_header);
@@ -227,28 +252,38 @@ where
     }
 
     crate::aux_schema::track_domain_hash_and_consensus_hash(
-        client.as_ref(),
+        sync_params.domain_client.as_ref(),
         domain_block_hash,
         consensus_block_hash,
     )?;
 
     crate::aux_schema::write_execution_receipt::<_, Block, CBlock>(
-        client.as_ref(),
+        sync_params.domain_client.as_ref(),
         None,
         &last_confirmed_block_receipt,
     )?;
 
-    wait_for_block_import(client.as_ref(), domain_block_number.into()).await;
-    trace!("Domain client info after waiting: {:?}", client.info());
+    wait_for_block_import(
+        sync_params.domain_client.as_ref(),
+        domain_block_number.into(),
+    )
+    .await;
+    trace!(
+        "Domain client info after waiting: {:?}",
+        sync_params.domain_client.info()
+    );
 
-    synchronizer.mark_initial_blocks_imported(); // TODO:
+    sync_params
+        .consensus_chain_sync_params
+        .synchronizer
+        .mark_initial_blocks_imported(); // TODO:
 
     // Clear the block gap that arises from first block import with a much higher number than
     // previously (resulting in a gap)
     // TODO: This is a hack and better solution is needed: https://github.com/paritytech/polkadot-sdk/issues/4407
-    client.clear_block_gap()?;
+    sync_params.domain_client.clear_block_gap()?;
 
-    debug!(info = ?client.info(), "Client info after successful domain snap sync.");
+    debug!(info = ?sync_params.domain_client.info(), "Client info after successful domain snap sync.");
 
     Ok(())
 }
@@ -336,10 +371,4 @@ where
     Err(sp_blockchain::Error::Backend(
         "All snap sync retries failed".into(),
     ))
-}
-
-pub struct SyncParams<DomainClient, NR: Send, Block: BlockT> {
-    pub domain_client: Arc<DomainClient>,
-    pub sync_service: Arc<SyncingService<Block>>,
-    pub network_request: NR,
 }
