@@ -49,8 +49,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 use subspace_core_primitives::PotOutput;
 use subspace_runtime_primitives::Nonce;
+use subspace_service::domains::synchronizer::Synchronizer;
 use subspace_service::domains::LastDomainBlockReceiptProvider;
-use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use substrate_frame_rpc_system::AccountNonceApi;
 
 pub type DomainOperator<Block, CBlock, CClient, RuntimeApi> = Operator<

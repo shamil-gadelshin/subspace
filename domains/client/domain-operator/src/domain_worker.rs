@@ -46,8 +46,8 @@ use std::future::pending;
 use std::pin::pin;
 use std::sync::Arc;
 use subspace_runtime_primitives::Balance;
+use subspace_service::domains::synchronizer::Synchronizer;
 use subspace_service::domains::LastDomainBlockReceiptProvider;
-use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use tracing::{error, info, Instrument};
 
 pub type OpaqueBundleFor<Block, CBlock> =

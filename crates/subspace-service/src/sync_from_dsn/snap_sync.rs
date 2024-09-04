@@ -1,7 +1,7 @@
+use crate::domains::synchronizer::Synchronizer;
 use crate::sync_from_dsn::import_blocks::download_and_reconstruct_blocks;
 use crate::sync_from_dsn::segment_header_downloader::SegmentHeaderDownloader;
 use crate::sync_from_dsn::snap_sync_engine::SnapSyncingEngine;
-use crate::sync_from_dsn::synchronizer::Synchronizer;
 use crate::sync_from_dsn::DsnSyncPieceGetter;
 use sc_client_api::{AuxStore, ProofProvider};
 use sc_consensus::import_queue::ImportQueueService;

@@ -1,5 +1,5 @@
-// Remove after adding domain snap-sync
-#![allow(dead_code)]
+pub(crate) mod request_handler;
+pub mod synchronizer;
 
 use crate::domains::request_handler::{
     generate_protocol_name, LastConfirmedBlockRequest, LastConfirmedBlockResponse,
@@ -17,8 +17,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, error, trace};
-
-pub(crate) mod request_handler;
 
 const REQUEST_PAUSE: Duration = Duration::from_secs(5);
 

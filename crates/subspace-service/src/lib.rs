@@ -38,12 +38,12 @@ pub mod transaction_pool;
 
 use crate::config::{ChainSyncMode, SubspaceConfiguration, SubspaceNetworking};
 use crate::domains::request_handler::LastDomainBlockERRequestHandler;
+use crate::domains::synchronizer::Synchronizer;
 use crate::dsn::{create_dsn_instance, DsnConfigurationError};
 use crate::metrics::NodeMetrics;
 use crate::mmr::request_handler::MmrRequestHandler;
 use crate::sync_from_dsn::piece_validator::SegmentCommitmentPieceValidator;
 use crate::sync_from_dsn::snap_sync::snap_sync;
-use crate::sync_from_dsn::synchronizer::Synchronizer;
 use crate::transaction_pool::FullPool;
 use core::sync::atomic::{AtomicU32, Ordering};
 use cross_domain_message_gossip::xdm_gossip_peers_set_config;

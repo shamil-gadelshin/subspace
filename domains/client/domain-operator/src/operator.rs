@@ -29,8 +29,8 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::sync::Arc;
 use subspace_runtime_primitives::Balance;
+use subspace_service::domains::synchronizer::Synchronizer;
 use subspace_service::domains::LastDomainBlockReceiptProvider;
-use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 
 /// Domain operator.
 pub struct Operator<Block, CBlock, Client, CClient, TransactionPool, Backend, E>

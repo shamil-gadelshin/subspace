@@ -28,8 +28,8 @@ use std::sync::Arc;
 use subspace_metrics::{start_prometheus_metrics_server, RegistryAdapter};
 use subspace_runtime::{Block, RuntimeApi};
 use subspace_service::config::ChainSyncMode;
+use subspace_service::domains::synchronizer::Synchronizer;
 use subspace_service::domains::LastDomainBlockInfoReceiver;
-use subspace_service::sync_from_dsn::synchronizer::Synchronizer;
 use tracing::{debug, error, info, info_span, warn};
 
 /// Options for running a node
