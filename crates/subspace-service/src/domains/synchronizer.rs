@@ -1,8 +1,11 @@
+//! Provides syncrhronization primitives for consensus and domain chains snap sync.
+
 use parking_lot::Mutex;
 //use sp_runtime::traits::{Block as BlockT, NumberFor};
 use subspace_core_primitives::BlockNumber;
 use tokio::sync::Notify;
 
+/// Syncrhonizes consensus and domain chain snap sync.
 pub struct Synchronizer {
     notify_consensus_snap_sync: Notify,
     consensus_snap_sync_block_number: Mutex<Option<BlockNumber>>,
@@ -19,6 +22,7 @@ impl Default for Synchronizer {
 }
 
 impl Synchronizer {
+    /// Constructor
     pub fn new() -> Self {
         Self {
             notify_consensus_snap_sync: Notify::new(),

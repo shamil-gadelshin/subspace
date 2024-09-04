@@ -27,7 +27,7 @@
 )]
 
 pub mod config;
-pub mod domains; // TODO: pub(crate)
+pub mod domains;
 pub mod dsn;
 mod metrics;
 pub(crate) mod mmr;

@@ -1,9 +1,15 @@
+//! This module provides features for domains integration: snap sync syncrhonization primitives,
+//! custom protocols for last confirmed block execution receipts, etc..
+
+// #![warn(missing_docs)] // TODO:
+
 pub(crate) mod request_handler;
 pub mod synchronizer;
 
 use crate::domains::request_handler::{
     generate_protocol_name, LastConfirmedBlockRequest, LastConfirmedBlockResponse,
 };
+use crate::domains::synchronizer::Synchronizer;
 use async_trait::async_trait;
 use domain_runtime_primitives::Balance;
 use futures::channel::oneshot;
@@ -20,24 +26,38 @@ use tracing::{debug, error, trace};
 
 const REQUEST_PAUSE: Duration = Duration::from_secs(5);
 
-/// Last confirmed domain block info error
+/// Provides parameters for domain snap sync synchronization with the consensus chain snap sync.
+pub struct DomainSyncParams<Block: BlockT, CBlock: BlockT> {
+    /// Synchronizes consensus snap sync stages.
+    pub synchronizer: Synchronizer,
+    /// Provides execution receipts for the last confirmed domain block.
+    pub execution_receipt_provider: Box<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
+}
+
+/// Last confirmed domain block info error.
 #[derive(Debug, thiserror::Error)]
 pub enum LastConfirmedDomainBlockResponseError {
+    /// Last confirmed domain block info request failed.
     #[error("Last confirmed domain block info request failed: {0}")]
     RequestFailed(#[from] RequestFailure),
 
+    /// Last confirmed domain block info request canceled.
     #[error("Last confirmed domain block info request canceled")]
     RequestCanceled,
 
+    /// "Last confirmed domain block info request failed: invalid protocol.
     #[error("Last confirmed domain block info request failed: invalid protocol")]
     InvalidProtocol,
 
+    /// Failed to decode response.
     #[error("Failed to decode response: {0}")]
     DecodeFailed(String),
 }
 
 #[async_trait]
+/// Provides execution receipts for the last confirmed domain block.
 pub trait LastDomainBlockReceiptProvider<Block: BlockT, CBlock: BlockT>: Send {
+    /// Returns execution receipts for the last confirmed domain block.
     async fn get_execution_receipt(
         &self,
         block_hash: Option<CBlock::Hash>,
@@ -72,6 +92,7 @@ where
     }
 }
 
+/// Provides execution receipts for the last confirmed domain block.
 pub struct LastDomainBlockInfoReceiver<Block, Client, NR>
 where
     Block: BlockT,
@@ -91,6 +112,7 @@ where
     NR: NetworkRequest,
     Client: HeaderBackend<Block>,
 {
+    /// Constructor.
     pub fn new(
         domain_id: DomainId,
         fork_id: Option<String>,
@@ -106,6 +128,8 @@ where
             sync_service,
         }
     }
+
+    /// Returns execution receipts for the last confirmed domain block.
     pub async fn get_last_confirmed_domain_block_receipt<CBlock: BlockT>(
         &self,
         block_hash: Option<CBlock::Hash>,
