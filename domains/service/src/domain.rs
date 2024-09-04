@@ -18,8 +18,8 @@ use sc_domains::{ExtensionsFactory, RuntimeExecutor};
 use sc_network::{NetworkPeers, NotificationMetrics};
 use sc_rpc_api::DenyUnsafe;
 use sc_service::{
-    BuildNetworkParams, Configuration as ServiceConfiguration, NetworkStarter, PartialComponents,
-    SpawnTasksParams, TFullBackend, TaskManager,
+    BuildNetworkParams, Configuration as ServiceConfiguration, GenesisBlockBuilder, NetworkStarter,
+    PartialComponents, SpawnTasksParams, TFullBackend, TaskManager,
 };
 use sc_telemetry::{Telemetry, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool::{BasicPool, FullChainApi, RevalidationType};
@@ -125,6 +125,7 @@ fn new_partial<RuntimeApi, CBlock, CClient, BIMP>(
     consensus_client: Arc<CClient>,
     block_import_provider: &BIMP,
     confirmation_depth_k: NumberFor<CBlock>,
+    snap_sync: bool,
 ) -> Result<
     PartialComponents<
         FullClient<Block, RuntimeApi>,
@@ -173,11 +174,24 @@ where
 
     let executor = sc_service::new_wasm_executor(config);
 
-    let (client, backend, keystore_container, task_manager) = sc_service::new_full_parts(
-        config,
-        telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
+    let backend = sc_service::new_db_backend(config.db_config())?;
+    let genesis_block_builder = GenesisBlockBuilder::new(
+        config.chain_spec.as_storage_builder(),
+        !snap_sync,
+        backend.clone(),
         executor.clone(),
     )?;
+
+    let (client, backend, keystore_container, task_manager) =
+        sc_service::new_full_parts_with_genesis_builder(
+            config,
+            telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
+            executor.clone(),
+            backend,
+            genesis_block_builder,
+            false,
+        )?;
+
     let client = Arc::new(client);
 
     let executor = Arc::new(executor);
@@ -360,6 +374,7 @@ where
         consensus_client.clone(),
         &provider,
         confirmation_depth_k,
+        consensus_chain_sync_params.is_some(),
     )?;
 
     let (mut telemetry, _telemetry_worker_handle, code_executor, block_import) = params.other;

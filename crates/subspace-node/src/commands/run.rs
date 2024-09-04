@@ -106,17 +106,6 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
 
     let base_path = subspace_configuration.base_path.path().to_path_buf();
 
-    // TODO
-    let synchronizer = if let Some(ref domain_opt) = domain_options {
-        if domain_opt.domain_sync {
-            Some(Arc::new(Synchronizer::new()))
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
     info!("Subspace");
     info!("✌️  version {}", env!("SUBSTRATE_CLI_IMPL_VERSION"));
     info!("❤️  by {}", env!("CARGO_PKG_AUTHORS"));
@@ -148,6 +137,17 @@ pub async fn run(run_options: RunOptions) -> Result<(), Error> {
     //             .to_string(),
     //     ));
     // }
+
+    // TODO
+    let synchronizer = if let Some(ref domain_opt) = domain_options {
+        if domain_opt.domain_sync {
+            Some(Arc::new(Synchronizer::new()))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
 
     let mut task_manager = {
         let consensus_chain_node = {
