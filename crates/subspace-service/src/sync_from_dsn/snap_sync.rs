@@ -2,8 +2,7 @@ use crate::sync_from_dsn::import_blocks::download_and_reconstruct_blocks;
 use crate::sync_from_dsn::segment_header_downloader::SegmentHeaderDownloader;
 use crate::sync_from_dsn::snap_sync_engine::SnapSyncingEngine;
 use crate::sync_from_dsn::DsnSyncPieceGetter;
-use async_trait::async_trait;
-use futures::StreamExt;
+use crate::utils::wait_for_block_import;
 use sc_client_api::{AuxStore, BlockchainEvents, ProofProvider};
 use sc_consensus::import_queue::ImportQueueService;
 use sc_consensus::{
@@ -20,7 +19,7 @@ use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockOrigin;
 use sp_consensus_subspace::SubspaceApi;
 use sp_objects::ObjectsApi;
-use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
+use sp_runtime::traits::{Block as BlockT, Header};
 use std::collections::{HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -30,23 +29,9 @@ use subspace_core_primitives::segments::SegmentIndex;
 use subspace_core_primitives::{BlockNumber, PublicKey};
 use subspace_erasure_coding::ErasureCoding;
 use subspace_networking::Node;
+use tokio::sync::broadcast::Receiver;
 use tokio::time::sleep;
-use tracing::{debug, error, trace, warn};
-
-/// Provides target block number for snap-sync (blocking operation).
-#[async_trait]
-pub trait SnapSyncTargetBlockProvider: Send + Sync {
-    async fn target_block(&self) -> Option<BlockNumber>;
-}
-
-pub(crate) struct DefaultTargetBlockProvider;
-
-#[async_trait]
-impl SnapSyncTargetBlockProvider for DefaultTargetBlockProvider {
-    async fn target_block(&self) -> Option<BlockNumber> {
-        None
-    }
-}
+use tracing::{debug, error, warn};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn snap_sync<Block, AS, Client, PG>(
@@ -60,7 +45,7 @@ pub(crate) async fn snap_sync<Block, AS, Client, PG>(
     sync_service: Arc<SyncingService<Block>>,
     network_service_handle: NetworkServiceHandle,
     erasure_coding: ErasureCoding,
-    target_block_provider: Arc<dyn SnapSyncTargetBlockProvider>,
+    target_block_receiver: Option<Receiver<BlockNumber>>,
 ) where
     Block: BlockT,
     AS: AuxStore,
@@ -82,7 +67,17 @@ pub(crate) async fn snap_sync<Block, AS, Client, PG>(
     if info.best_hash == info.genesis_hash {
         pause_sync.store(true, Ordering::Release);
 
-        let target_block = target_block_provider.target_block().await;
+        let target_block = if let Some(mut target_block_receiver) = target_block_receiver {
+            match target_block_receiver.recv().await {
+                Ok(target_block) => Some(target_block),
+                Err(err) => {
+                    error!(?err, "Snap sync failed: can't obtain target block.");
+                    return;
+                }
+            }
+        } else {
+            None
+        };
 
         debug!("Snap sync target block: {:?}", target_block);
 
@@ -415,35 +410,6 @@ where
     debug!(info = ?client.info(), "Snap sync finished successfully");
 
     Ok(true)
-}
-
-pub async fn wait_for_block_import<Block, Client>(
-    client: &Client,
-    waiting_block_number: NumberFor<Block>,
-) where
-    Block: BlockT,
-    Client: HeaderBackend<Block> + BlockchainEvents<Block>,
-{
-    let mut blocks_stream = client.every_import_notification_stream();
-
-    let info = client.info();
-    debug!(
-        %waiting_block_number,
-        "Waiting client info: {:?}", info
-    );
-
-    if info.best_number >= waiting_block_number {
-        return;
-    }
-
-    while let Some(block) = blocks_stream.next().await {
-        let current_block_number = *block.header.number();
-        trace!(%current_block_number, %waiting_block_number, "Waiting for the target block");
-
-        if current_block_number >= waiting_block_number {
-            return;
-        }
-    }
 }
 
 async fn sync_segment_headers<AS>(
