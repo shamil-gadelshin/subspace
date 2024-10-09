@@ -1,4 +1,5 @@
-use sc_client_api::{BlockBackend, BlockchainEvents, ProofProvider};
+use crate::network::execution_receipt_protocol::LastDomainBlockERRequestHandler;
+use sc_client_api::{AuxStore, BlockBackend, BlockchainEvents, ProofProvider};
 use sc_consensus::ImportQueue;
 use sc_network::NetworkBackend;
 use sc_network_common::role::Roles;
@@ -16,13 +17,18 @@ use sp_api::ProvideRuntimeApi;
 use sp_api::__private::BlockT;
 use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_consensus::block_validation::{Chain, DefaultBlockAnnounceValidator};
-use sp_runtime::traits::BlockIdTo;
+use sp_domains::DomainsApi;
+use sp_runtime::traits::{BlockIdTo, Header};
 use std::sync::Arc;
+
+pub mod execution_receipt_protocol;
+pub mod receipt_receiver;
 
 /// Build the network service, the network status sinks and an RPC sender.
 #[allow(clippy::type_complexity)]
-pub fn build_network<Block, Net, TxPool, IQ, Client>(
+pub fn build_network<Block, Net, TxPool, IQ, Client, CBlock, CClient, DomainHeader>(
     params: BuildNetworkParams<Block, Net, TxPool, IQ, Client>,
+    consensus_client: Arc<CClient>,
 ) -> Result<
     (
         Arc<dyn sc_network::service::traits::NetworkService>,
@@ -36,7 +42,8 @@ pub fn build_network<Block, Net, TxPool, IQ, Client>(
     Error,
 >
 where
-    Block: BlockT,
+    Block: BlockT<Header = DomainHeader>,
+    CBlock: BlockT,
     Client: ProvideRuntimeApi<Block>
         + HeaderMetadata<Block, Error = sp_blockchain::Error>
         + Chain<Block>
@@ -45,10 +52,20 @@ where
         + ProofProvider<Block>
         + HeaderBackend<Block>
         + BlockchainEvents<Block>
+        + AuxStore
         + 'static,
     TxPool: TransactionPool<Block = Block, Hash = <Block as BlockT>::Hash> + 'static,
     IQ: ImportQueue<Block> + 'static,
     Net: NetworkBackend<Block, <Block as BlockT>::Hash>,
+    CClient: ProvideRuntimeApi<CBlock>
+        + BlockBackend<CBlock>
+        + ProofProvider<CBlock>
+        + HeaderBackend<CBlock>
+        + Send
+        + Sync
+        + 'static,
+    CClient::Api: DomainsApi<CBlock, DomainHeader>,
+    DomainHeader: Header,
 {
     let BuildNetworkParams {
         config,
@@ -62,6 +79,7 @@ where
         block_relay,
         metrics,
     } = params;
+    let fork_id = config.chain_spec.fork_id();
 
     let block_announce_validator = if let Some(f) = block_announce_validator_builder {
         f(client.clone())
@@ -69,9 +87,32 @@ where
         Box::new(DefaultBlockAnnounceValidator)
     };
 
+    // "Last confirmed domain block execution receipt" request handler
+    {
+        let num_peer_hint = net_config.network_config.default_peers_set_num_full as usize
+            + net_config
+                .network_config
+                .default_peers_set
+                .reserved_nodes
+                .len();
+
+        let (handler, protocol_config) = LastDomainBlockERRequestHandler::new::<Net>(
+            fork_id,
+            consensus_client,
+            client.clone(),
+            num_peer_hint,
+        );
+        spawn_handle.spawn(
+            "last-domain-execution-receipt-request-handler",
+            Some("networking"),
+            handler.run(),
+        );
+
+        net_config.add_request_response_protocol(protocol_config);
+    }
+
     let network_service_provider = NetworkServiceProvider::new();
     let protocol_id = config.protocol_id();
-    let fork_id = config.chain_spec.fork_id();
     let metrics_registry = config
         .prometheus_config
         .as_ref()
