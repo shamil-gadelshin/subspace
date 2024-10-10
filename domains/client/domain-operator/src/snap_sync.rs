@@ -1,4 +1,6 @@
-use domain_runtime_primitives::BlockNumber;
+use async_trait::async_trait;
+use domain_runtime_primitives::{Balance, BlockNumber};
+use futures::{SinkExt, StreamExt};
 use sc_client_api::{AuxStore, Backend, BlockchainEvents, ProofProvider};
 use sc_consensus::{
     BlockImport, BlockImportParams, ForkChoiceStrategy, ImportedState, StateAction, StorageChanges,
@@ -14,6 +16,7 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockOrigin;
 use sp_core::H256;
+use sp_domains::ExecutionReceiptFor;
 use sp_mmr_primitives::MmrApi;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
 use std::collections::HashSet;
@@ -22,18 +25,34 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use subspace_service::domains::ConsensusChainSyncParams;
 use subspace_service::mmr_sync;
 use subspace_service::sync_from_dsn::snap_sync_engine::SnapSyncingEngine;
-use subspace_service::sync_from_dsn::wait_for_block_import;
 use tokio::time::sleep;
-use tracing::{debug, error, info_span, trace, Instrument};
+use tracing::{debug, error, trace, Instrument};
 
-pub struct SyncParams<DomainClient, CClient, Block, CBlock, CNR, AS>
+#[async_trait]
+/// Provides execution receipts for the last confirmed domain block.
+pub trait LastDomainBlockReceiptProvider<Block: BlockT, CBlock: BlockT>: Sync + Send {
+    /// Returns execution receipts for the last confirmed domain block.
+    async fn get_execution_receipt(
+        &self,
+    ) -> Option<ExecutionReceiptFor<Block::Header, CBlock, Balance>>;
+}
+
+#[async_trait]
+impl<Block: BlockT, CBlock: BlockT> LastDomainBlockReceiptProvider<Block, CBlock> for () {
+    async fn get_execution_receipt(
+        &self,
+    ) -> Option<ExecutionReceiptFor<Block::Header, CBlock, Balance>> {
+        None
+    }
+}
+
+pub struct SyncParams<DomainClient, CClient, Block, CBlock, CNR>
 where
     CClient: ProvideRuntimeApi<CBlock> + HeaderBackend<CBlock>,
     CClient::Api: MmrApi<CBlock, H256, NumberFor<CBlock>>,
     CNR: NetworkRequest + Send + Sync + 'static,
     Block: BlockT,
     CBlock: BlockT,
-    AS: AuxStore,
 {
     pub domain_client: Arc<DomainClient>,
     pub sync_service: Arc<SyncingService<Block>>,
@@ -41,7 +60,8 @@ where
     pub domain_network_service_handle: NetworkServiceHandle,
     pub consensus_client: Arc<CClient>,
     pub domain_block_downloader: Arc<dyn BlockDownloader<Block>>,
-    pub consensus_chain_sync_params: ConsensusChainSyncParams<Block, CBlock, CNR, AS>,
+    pub receipt_provider: Arc<dyn LastDomainBlockReceiptProvider<Block, CBlock>>,
+    pub consensus_chain_sync_params: ConsensusChainSyncParams<CBlock, CNR>,
 }
 
 async fn get_last_confirmed_block<Block: BlockT>(
@@ -157,9 +177,8 @@ fn convert_block_number<Block: BlockT>(block_number: NumberFor<Block>) -> u32 {
     block_number
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) async fn snap_sync<Block, Client, CBlock, CClient, CNR, AS>(
-    sync_params: SyncParams<Client, CClient, Block, CBlock, CNR, AS>,
+pub(crate) async fn snap_sync<Block, Client, CBlock, CClient, CNR>(
+    sync_params: SyncParams<Client, CClient, Block, CBlock, CNR>,
 ) -> Result<(), sp_blockchain::Error>
 where
     Block: BlockT,
@@ -182,13 +201,8 @@ where
         + Sync
         + 'static,
     CClient::Api: MmrApi<CBlock, H256, NumberFor<CBlock>>,
-    AS: AuxStore,
 {
-    let execution_receipt_result = sync_params
-        .consensus_chain_sync_params
-        .execution_receipt_provider
-        .get_execution_receipt(None)
-        .await;
+    let execution_receipt_result = sync_params.receipt_provider.get_execution_receipt().await;
     debug!(
         "Snap-sync: execution receipt result - {:?}",
         execution_receipt_result
@@ -198,6 +212,7 @@ where
         return Err(sp_blockchain::Error::RemoteFetchFailed);
     };
 
+    // TODO: Handle the special case when we just added the domain
     if last_confirmed_block_receipt.domain_block_number == 0u32.into() {
         return Err(sp_blockchain::Error::Application(
             "Can't snap sync from genesis.".into(),
@@ -213,14 +228,35 @@ where
         .snap_sync_orchestrator
         .unblock_consensus_snap_sync(consensus_block_number);
 
-    wait_for_block_import(
-        sync_params.consensus_client.as_ref(),
-        consensus_block_number.into(),
-    )
-    .instrument(info_span!(
-        "consensus chain block import from domain chain snap sync"
-    ))
-    .await;
+    let mut block_importing_notification_stream = sync_params
+        .consensus_chain_sync_params
+        .subspace_link
+        .block_importing_notification_stream()
+        .subscribe();
+
+    let mut consensus_target_block_acknowledgement_sender = None;
+    while let Some(mut block_notification) = block_importing_notification_stream.next().await {
+        if block_notification.block_number <= consensus_block_number.into() {
+            if block_notification
+                .acknowledgement_sender
+                .send(())
+                .await
+                .is_err()
+            {
+                return Err(sp_blockchain::Error::Application(
+                    format!(
+                        "Can't acknowledge block import #{}",
+                        block_notification.block_number
+                    )
+                    .into(),
+                ));
+            };
+        } else {
+            consensus_target_block_acknowledgement_sender
+                .replace(block_notification.acknowledgement_sender);
+            break;
+        }
+    }
 
     let domain_block_number =
         convert_block_number::<Block>(last_confirmed_block_receipt.domain_block_number);
@@ -264,13 +300,6 @@ where
             sp_blockchain::Error::Backend(format!("Failed to import state block: {error}"))
         })?;
     }
-
-    wait_for_block_import(
-        sync_params.domain_client.as_ref(),
-        domain_block_number.into(),
-    )
-    .instrument(info_span!("domain chain snap sync"))
-    .await;
 
     trace!(
         "Domain client info after waiting: {:?}",
@@ -340,6 +369,10 @@ where
         .mark_domain_snap_sync_finished();
 
     debug!(info = ?sync_params.domain_client.info(), "Client info after successful domain snap sync.");
+
+    // Unblock consensus block importing
+    drop(consensus_target_block_acknowledgement_sender);
+    drop(block_importing_notification_stream);
 
     Ok(())
 }
